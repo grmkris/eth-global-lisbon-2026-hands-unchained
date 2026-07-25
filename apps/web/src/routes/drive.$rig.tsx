@@ -14,6 +14,7 @@ import { CamFeed, CamOffAir } from "#/components/cam-feed";
 import { CameraSetup } from "#/components/camera-setup";
 import { ErrorNote } from "#/components/error-note";
 import { KeyJogPad } from "#/components/key-jog-pad";
+import { LeaderInputDebugPanel } from "#/components/leader-input-debug";
 import { OwnerPanel } from "#/components/owner-panel";
 import { PageHeader } from "#/components/page-header";
 import {
@@ -339,6 +340,11 @@ function DrivePage() {
 							{rtt !== null ? ` · your rtt ${rtt}ms` : ""}
 						</span>
 					</div>
+
+					<LeaderInputDebugPanel
+						leader={drivingLeader?.name ?? null}
+						input={data?.leaderInputDebug ?? null}
+					/>
 
 					{/* Only what can actually succeed right now. Connect SIM/REAL became
 					    one recovery button (the rig reports its own backend, and it
