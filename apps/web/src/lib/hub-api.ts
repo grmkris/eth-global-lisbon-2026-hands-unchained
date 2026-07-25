@@ -120,9 +120,8 @@ export const rigQuery = (name: string) =>
 export interface LeaderSummary {
 	name: string;
 	online: boolean;
+	/** rig it is streaming to, null = idle and available to lend */
 	driving: string | null;
-	/** clientId of the browser session this leader is bound to (null = idle) */
-	boundTo: string | null;
 }
 
 export const leadersQuery = queryOptions({

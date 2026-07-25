@@ -25,6 +25,7 @@ import {
 	listLeaders,
 	listRigs,
 	MAX_PENDING,
+	pruneLeaderBinding,
 	type Rig,
 	releaseLease,
 	setFrame,
@@ -75,9 +76,8 @@ const rigSummary = (rig: Rig) => ({
 const leaderSummary = (leader: Leader) => ({
 	name: leader.name,
 	online: leaderOnline(leader),
+	/** rig it is streaming to, null = idle and available to lend */
 	driving: leader.driving,
-	/** which browser session this leader is an input device for (null = idle) */
-	boundTo: leader.boundTo,
 });
 
 /** Multipart stream assembled from whatever frames the rig last pushed. */
@@ -206,15 +206,16 @@ export const handleHubRequest = async (
 			driving?: string | null;
 		};
 		if (!body.name) return json({ error: "name required" }, 400);
-		const leader = upsertLeader(body.name, body.driving ?? null);
+		const driving = body.driving ?? null;
+		const leader = upsertLeader(body.name, driving);
 		await impair();
 		// `bound` is the leader's revocation signal: the WS input plane gets no
 		// per-packet status, so this is how a browser take-over (or Stop) reaches
-		// a streaming agent — within one heartbeat (~0.5s).
-		return json({
-			command: takeLeaderCommand(leader),
-			bound: leaderBound(leader),
-		});
+		// a streaming agent — within one heartbeat (~0.5s). Asked about the rig
+		// the AGENT is driving, so a rebind elsewhere revokes rather than wedges.
+		const bound = leaderBound(leader, driving);
+		if (!bound) pruneLeaderBinding(leader);
+		return json({ command: takeLeaderCommand(leader), bound });
 	}
 
 	if (path === "/leaders" && request.method === "GET") {
@@ -241,6 +242,14 @@ export const handleHubRequest = async (
 			// and the attempt you started stays yours while the leader drives.
 			if (leaseHolder(rig) !== body.clientId)
 				return json({ error: "take control first" }, 403);
+			// Rebinding a leader mid-session used to strand the agent: its packets
+			// to the old rig start failing while it is told it is still bound.
+			// Stop it first (the UI only offers idle leaders anyway).
+			if (leader.driving !== null && leader.driving !== rig.name)
+				return json(
+					{ error: `leader is driving ${leader.driving} — stop it first` },
+					409,
+				);
 			if (rig.pending.length >= MAX_PENDING)
 				return json({ error: "command queue full" }, 429);
 			leader.boundTo = body.clientId;

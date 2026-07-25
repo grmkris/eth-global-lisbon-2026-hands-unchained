@@ -11,8 +11,11 @@ Safety on the wire:
   backend (a negative raw tick raises deep inside lerobot's _unnormalize —
   a malformed packet must not kill the loop)
 - the last action is simply re-served between packets, so a network stall
-  freezes the arm in place; the hub's own 500ms consume-once gate is the
-  deadman that stops stale input from arriving at all
+  freezes the arm in place (these are absolute joint targets, not deltas —
+  holding one is safe by construction)
+- stale packets never arrive: both transports drop input older than 500ms
+  (the hub's consume-once mailbox gate, and the `at` stamp on the socket
+  plane), so a burst buffered during a stall cannot replay old targets
 """
 
 import math

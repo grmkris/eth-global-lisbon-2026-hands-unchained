@@ -17,7 +17,17 @@ const LINK_MS = 50; // 20 Hz control
 /** Preview cadence — the recording stays full-rate locally. 80 ms = 12.5 fps;
  * two 640×480 JPEG streams ≈ 1 MB/s up, which a home line carries fine.
  * LAB_FRAME_MS trades upload for smoothness (125 = the old 8 fps). */
-const FRAME_MS = Number(process.env.LAB_FRAME_MS || 80);
+/** Camera push cadence. Guarded because `setTimeout(fn, NaN)` means 0 — a
+ * typo'd LAB_FRAME_MS would turn the frame loop into a hot loop hammering the
+ * cameras and the hub as fast as the network allows. */
+const frameMsRaw = Number(process.env.LAB_FRAME_MS);
+const FRAME_MS =
+	Number.isFinite(frameMsRaw) && frameMsRaw >= 20 ? frameMsRaw : 80;
+
+type InputPacket = {
+	joints?: Record<string, number>;
+	axes?: Record<string, number>;
+};
 
 /** Call the rig's own API in-process — reuses all existing validation. */
 const localApi = async (
@@ -93,6 +103,38 @@ export const startRigLink = (opts: {
 	let linkMs = 0;
 	let linkWarned = false;
 	let frameWarned = false;
+
+	/**
+	 * Hand one input packet to the local driver. Latest-wins with a SINGLE
+	 * request in flight: at 30 Hz, firing each POST and forgetting it let
+	 * completions land out of order, so the arm could snap back to a target it
+	 * had already passed. Newer input simply replaces whatever is queued.
+	 *
+	 * It also makes the failure audible. `localApi` swallows non-2xx, so
+	 * "no remote-joints teleop source active" — the exact failure the remote
+	 * record source was added for — reached nobody: not the log, not lastError,
+	 * not the UI. Rate-limited so a stuck session cannot spam 30 lines/s.
+	 */
+	let inputQueued: InputPacket | null = null;
+	let inputDraining = false;
+	let inputFailedAt = 0;
+	const applyInput = (packet: InputPacket): void => {
+		inputQueued = packet;
+		if (inputDraining) return;
+		inputDraining = true;
+		void (async () => {
+			while (inputQueued !== null) {
+				const next = inputQueued;
+				inputQueued = null;
+				const res = await localApiVerbose("/api/robot/teleop/input", next);
+				if (!res.ok && Date.now() - inputFailedAt > 5_000) {
+					inputFailedAt = Date.now();
+					console.error(`[rig-link] input rejected: ${res.error}`);
+				}
+			}
+			inputDraining = false;
+		})();
+	};
 	let lastCommandResult: {
 		verb: string;
 		ok: boolean;
@@ -270,12 +312,7 @@ export const startRigLink = (opts: {
 			hubTasksRev = body.tasksRev ?? null;
 			hubRunsRev = body.runsRev ?? null;
 
-			if (body.input) {
-				await localApi("/api/robot/teleop/input", {
-					method: "POST",
-					body: JSON.stringify(body.input),
-				});
-			}
+			if (body.input) applyInput(body.input);
 			for (const cmd of body.commands ?? []) {
 				await runCommand(cmd);
 			}
@@ -338,10 +375,14 @@ export const startRigLink = (opts: {
 	let inputSocketWarned = false;
 	let inputSocketBackoff = 2_000; // 2s -> 30s: a hub that can't upgrade at all
 	const openInputSocket = (): void => {
-		const wsUrl = `${base.replace(/^http/, "ws")}/api/hub/ws?role=rig&name=${encodeURIComponent(rigName)}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+		// token in a HEADER, not the query: hub/auth.ts calls the query form a
+		// curl-debug fallback, and proxies log query strings.
+		const wsUrl = `${base.replace(/^http/, "ws")}/api/hub/ws?role=rig&name=${encodeURIComponent(rigName)}`;
 		let ws: WebSocket;
 		try {
-			ws = new WebSocket(wsUrl);
+			ws = new WebSocket(wsUrl, {
+				headers: token ? { authorization: `Bearer ${token}` } : {},
+			} as unknown as string[]);
 		} catch {
 			setTimeout(openInputSocket, 2_000);
 			return;
@@ -364,12 +405,13 @@ export const startRigLink = (opts: {
 					t?: string;
 					joints?: Record<string, number>;
 					axes?: Record<string, number>;
+					at?: number;
 				};
 				if (msg.t !== "input") return;
-				void localApi("/api/robot/teleop/input", {
-					method: "POST",
-					body: JSON.stringify({ joints: msg.joints, axes: msg.axes }),
-				});
+				// same 500ms gate the mailbox path applies hub-side: after a stall,
+				// buffered packets are stale targets and must not be replayed
+				if (msg.at !== undefined && Date.now() - msg.at > 500) return;
+				applyInput({ joints: msg.joints, axes: msg.axes });
 			} catch {}
 		};
 		ws.onerror = () => {

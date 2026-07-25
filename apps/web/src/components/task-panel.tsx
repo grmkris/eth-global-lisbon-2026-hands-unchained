@@ -1,5 +1,6 @@
 import { CheckCircle2, ListTodo, Play, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { TaskInfo } from "#/api/contract";
 import { StatusBadge } from "#/components/status-badge";
 import { Badge } from "#/components/ui/badge";
@@ -16,6 +17,11 @@ import type { RigSummary } from "#/lib/hub-api";
  * throws the buffer away. `episodesDone` (derived rig-side from the dataset's
  * lerobot meta) turns "max 20 eps" into a real 13/20 progress loop.
  */
+
+/** How long the chain waits for a finished attempt's episode to show up in
+ * the count (recorder encode + the rig's 2s task advertisement) before it
+ * concludes nothing was saved and disarms. */
+const CHAIN_WAIT_MS = 20_000;
 
 const collected = (task: TaskInfo): number => task.episodesDone ?? 0;
 const isComplete = (task: TaskInfo): boolean =>
@@ -34,31 +40,40 @@ export function TaskPanel(props: {
 	const attempt = rig.attempt;
 	const recording = rig.record?.active === true;
 
-	// countdown from the attempt snapshot
+	// Ticks for the attempt countdown, and while the chain is armed so the
+	// progress gate below re-evaluates without a second timer.
 	const [now, setNow] = useState(() => Date.now());
+	const [autoContinue, setAutoContinue] = useState(false);
 	useEffect(() => {
-		if (!attempt?.active) return;
+		if (!attempt?.active && !autoContinue) return;
 		const t = setInterval(() => setNow(Date.now()), 500);
 		return () => clearInterval(t);
-	}, [attempt?.active]);
+	}, [attempt?.active, autoContinue]);
 
 	// --- the episode chain -------------------------------------------------
 	// Collecting 20 episodes is 20 attempts; without this the operator clicks
 	// Start 20 times. This panel stays mounted across an attempt, so plain
 	// component state is enough state.
-	const [autoContinue, setAutoContinue] = useState(false);
+	//
+	// The chain advances on PROGRESS (a saved episode), never on "an attempt
+	// ended". A discarded attempt saves nothing, and a failed one (camera
+	// unplugged mid-session, driver crash) publishes an attemptId and then
+	// closes itself — keying the guard on attempt identity re-fired every ~9s
+	// forever, rewriting attempts.json each round. Waiting for the episode
+	// count to actually rise also removes the race at the finish line: the
+	// chain can no longer start one past the quota while the count is stale.
 	const [chainTaskId, setChainTaskId] = useState<string | null>(null);
 	const chainTask = active.find((t) => t.id === chainTaskId);
-	// which attempt we already chained from — the loop guard
-	const chainedFrom = useRef<string | null>(null);
-	const lastAttemptId = useRef<string | null>(null);
-	const liveAttemptId = attempt?.active === true ? attempt.attemptId : null;
-	useEffect(() => {
-		if (liveAttemptId !== null) lastAttemptId.current = liveAttemptId;
-	}, [liveAttemptId]);
+	/** episodes collected when the chain's current attempt began */
+	const chainBase = useRef<number | null>(null);
+	/** when we started waiting for that attempt's episode to land */
+	const waitingSince = useRef<number | null>(null);
 
 	const start = (taskId: string) => {
+		const task = active.find((t) => t.id === taskId);
 		setChainTaskId(taskId);
+		chainBase.current = task ? collected(task) : 0;
+		waitingSince.current = null;
 		onStart(taskId);
 	};
 
@@ -66,21 +81,59 @@ export function TaskPanel(props: {
 		if (!autoContinue || !iAmDriving || chainTask === undefined) return;
 		// the recorder refuses a start while its session closes (video encoding
 		// keeps `recording` true for a beat — exactly the gate we want)
-		if (attempt?.active || recording || isComplete(chainTask)) return;
-		// fire ONCE per finished attempt: if the verb still loses a race, the
-		// error shows in lastCommandResult and the operator clicks Start —
-		// a self-retrying chain that can't be turned off is worse.
-		if (chainedFrom.current === lastAttemptId.current) return;
-		chainedFrom.current = lastAttemptId.current;
-		onStart(chainTask.id);
+		if (attempt?.active || recording) {
+			waitingSince.current = null;
+			return;
+		}
+		if (isComplete(chainTask)) {
+			setAutoContinue(false);
+			toast.success(
+				`${chainTask.title} — ${collected(chainTask)} episodes, done`,
+			);
+			return;
+		}
+		const base = chainBase.current;
+		if (base === null) return; // nothing started through this panel yet
+		if (collected(chainTask) > base) {
+			chainBase.current = collected(chainTask);
+			waitingSince.current = null;
+			onStart(chainTask.id);
+			return;
+		}
+		// No episode yet — it may still be encoding, or the advertisement (2s
+		// rig refresh) may not have landed. Wait, but never forever: a discard
+		// or a failure never produces one.
+		waitingSince.current ??= Date.now();
+		if (Date.now() - waitingSince.current > CHAIN_WAIT_MS) {
+			waitingSince.current = null;
+			setAutoContinue(false);
+			toast.info("auto-continue stopped — the last attempt saved no episode");
+		}
 	}, [
 		autoContinue,
 		iAmDriving,
 		chainTask,
 		attempt?.active,
 		recording,
+		now,
 		onStart,
 	]);
+
+	const autoContinueToggle = (
+		<div className="flex items-center gap-2">
+			<Checkbox
+				id="auto-continue"
+				checked={autoContinue}
+				onCheckedChange={(v) => setAutoContinue(v === true)}
+			/>
+			<Label
+				htmlFor="auto-continue"
+				className="text-muted-foreground font-normal"
+			>
+				auto-start the next attempt (until the task is complete)
+			</Label>
+		</div>
+	);
 
 	if (active.length === 0 && !attempt?.active) return null;
 
@@ -125,19 +178,7 @@ export function TaskPanel(props: {
 									Discard
 								</Button>
 							</div>
-							<div className="flex items-center gap-2">
-								<Checkbox
-									id="auto-continue"
-									checked={autoContinue}
-									onCheckedChange={(v) => setAutoContinue(v === true)}
-								/>
-								<Label
-									htmlFor="auto-continue"
-									className="text-muted-foreground font-normal"
-								>
-									auto-start the next attempt (until the task is complete)
-								</Label>
-							</div>
+							{autoContinueToggle}
 						</>
 					) : (
 						<p className="text-sm text-muted-foreground">
@@ -211,6 +252,10 @@ export function TaskPanel(props: {
 						</div>
 					);
 				})}
+				{/* also here, not just on the active-attempt card: between attempts
+				    that card is unmounted, and a chain you cannot switch off is
+				    worse than one you have to re-arm. */}
+				{chainTaskId !== null && iAmDriving && autoContinueToggle}
 			</CardContent>
 		</Card>
 	);

@@ -18,7 +18,14 @@
  * `leaderMayDrive` — bound to whoever holds the lease.
  */
 import type { ServerWebSocket } from "bun";
-import { getLeader, getRig, impair, leaderMayDrive, shouldDrop } from "./store";
+import {
+	getLeader,
+	getRig,
+	impair,
+	isOnline,
+	leaderMayDrive,
+	shouldDrop,
+} from "./store";
 
 export interface WsData {
 	role: "rig" | "leader";
@@ -39,9 +46,6 @@ const leaderSockets = reg.__labWsLeaders;
 
 const socketsFor = (role: WsData["role"]) =>
 	role === "rig" ? rigSockets : leaderSockets;
-
-/** Is this rig reachable over a socket right now? (For logging/telemetry.) */
-export const rigSocketUp = (name: string): boolean => rigSockets.has(name);
 
 const open = (ws: Sock): void => {
 	const { role, name } = ws.data;
@@ -79,8 +83,17 @@ const message = async (ws: Sock, raw: string | Buffer): Promise<void> => {
 	if (!leaderMayDrive(leader, rig)) return;
 	await impair();
 	if (shouldDrop()) return;
-	const sock = rigSockets.get(rig.name);
-	if (sock) sock.send(JSON.stringify({ t: "input", joints: packet.joints }));
+	// Only trust the socket while the rig's own HTTP link says it is alive: a
+	// half-open socket (network partition, the rig reconnected over a fresh TCP
+	// connection) swallows sends silently, and input would vanish until Bun's
+	// idle timeout. The mailbox is the safer landing spot in that window.
+	const sock = isOnline(rig) ? rigSockets.get(rig.name) : undefined;
+	// `at` gives the rig the same 500ms freshness gate the mailbox path has
+	// (routes.ts): after a stall, a burst of buffered packets must not replay.
+	if (sock)
+		sock.send(
+			JSON.stringify({ t: "input", joints: packet.joints, at: Date.now() }),
+		);
 	else rig.input = { joints: packet.joints, at: Date.now() }; // mailbox
 };
 

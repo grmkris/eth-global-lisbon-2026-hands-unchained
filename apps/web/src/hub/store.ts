@@ -265,11 +265,32 @@ export const leaderMayDrive = (leader: Leader, rig: Rig): boolean =>
 	leader.boundTo !== null &&
 	leader.boundTo === leaseHolder(rig);
 
-/** Same rule, resolved from the leader alone (its bound rig may be gone). */
-export const leaderBound = (leader: Leader): boolean => {
-	if (leader.rig === null || leader.boundTo === null) return false;
-	const rig = rigs.get(leader.rig);
+/**
+ * The heartbeat's answer to "may I keep streaming?". It must be asked about
+ * the rig the AGENT says it is driving, not the one the hub has bound: if a
+ * second browser rebinds this leader elsewhere, the agent's packets to the old
+ * rig are rejected — silently, on the socket plane, which has no per-packet
+ * status — while `leader.rig` happily reports the new binding. Answering for
+ * the wrong rig left the agent streaming into a black hole forever.
+ * Idle (`driving === null`) falls back to the binding itself.
+ */
+export const leaderBound = (
+	leader: Leader,
+	driving?: string | null,
+): boolean => {
+	const name = driving ?? leader.rig;
+	if (name === null || leader.boundTo === null) return false;
+	const rig = rigs.get(name);
 	return rig !== undefined && leaderMayDrive(leader, rig);
+};
+
+/** Drop a binding that can no longer authorize input (the lease moved on).
+ * Without this the stale `boundTo` outlives a take-over and can be revived by
+ * the same browser tab simply re-claiming — clientId lives in sessionStorage. */
+export const pruneLeaderBinding = (leader: Leader): void => {
+	if (leader.boundTo === null || leaderBound(leader)) return;
+	leader.boundTo = null;
+	leader.rig = null;
 };
 
 /** Consume-once with the same staleness rule as rig commands. */

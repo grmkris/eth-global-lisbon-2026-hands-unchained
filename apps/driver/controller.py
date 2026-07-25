@@ -111,10 +111,11 @@ def open_input_socket(hub: str, name: str):
         print("websockets not installed (uv sync in apps/driver) — using HTTP input")
         return None
     url = re.sub(r"^http", "ws", hub) + "/api/hub/ws?role=leader&name=" + urllib.parse.quote(name)
-    if TOKEN:
-        url += "&token=" + urllib.parse.quote(TOKEN)
+    # token in a HEADER, not the query string: the hub's auth module calls the
+    # query form a curl-debug fallback, and proxies log query strings.
+    headers = {"authorization": f"Bearer {TOKEN}"} if TOKEN else {}
     try:
-        return connect(url, open_timeout=3, close_timeout=1)
+        return connect(url, additional_headers=headers, open_timeout=3, close_timeout=1)
     except Exception as exc:  # noqa: BLE001 — any failure means: use HTTP
         print(f"input socket unavailable ({exc}) — using HTTP input")
         return None
@@ -151,7 +152,7 @@ def resolve_port(explicit: str | None) -> str:
         print("invalid choice, try again")
 
 
-def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> None:
+def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> dict | None:
     """One driving session: a pure INPUT STREAM.
 
     This agent claims nothing and sends no verbs. The browser holds the rig's
@@ -201,6 +202,12 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> Non
                         # the browser released the rig or someone else took it
                         print(f"lost {rig_name} (control changed) — back to idle")
                         return
+                    if status >= 400:
+                        # 401 (token rotated), 404 (rig gone after a redeploy),
+                        # 5xx — every packet is being thrown away, so say so
+                        # instead of reporting a happy packets/s rate.
+                        print(f"input rejected by the hub (HTTP {status}) — back to idle")
+                        return
                     sent += 1
                 except (TimeoutError, OSError):
                     dropped += 1  # latest-wins on the hub; next packet corrects
@@ -213,9 +220,19 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> Non
                         "/api/hub/leaders/link", {"name": name, "driving": rig_name}
                     )
                     cmd = res.get("command")
-                    if cmd and cmd.get("action") == "stop":
-                        print("stopped from the web UI — back to idle")
-                        return
+                    if cmd:
+                        # ANY command mid-drive ends this session: `stop` is the
+                        # obvious one, and a `drive` means we were rebound to a
+                        # different rig — idling lets the main loop pick that up
+                        # instead of streaming into a rig that now rejects us.
+                        print(
+                            "stopped from the web UI — back to idle"
+                            if cmd.get("action") == "stop"
+                            else f"rebound while driving {rig_name} — back to idle"
+                        )
+                        # hand a `drive` back so the main loop honours it rather
+                        # than dropping it (the pending slot is consume-once)
+                        return cmd if cmd.get("action") != "stop" else None
                     if res.get("bound") is False:
                         print(f"lost {rig_name} (control changed) — back to idle")
                         return
@@ -305,18 +322,42 @@ def main() -> None:
     signal.signal(signal.SIGTERM, stop)
 
     link = HubLink(hub, timeout=2.0)
+    driving: str | None = None
+    next_command: dict | None = None
     while running["on"]:
         try:
-            _, res = link.post(
-                "/api/hub/leaders/link", {"name": args.name, "driving": None}
-            )
-            cmd = res.get("command")
+            cmd = next_command
+            next_command = None
+            if cmd is None:
+                _, res = link.post(
+                    "/api/hub/leaders/link", {"name": args.name, "driving": None}
+                )
+                cmd = res.get("command")
             if cmd and cmd.get("action") == "drive" and cmd.get("rig"):
-                drive(hub, leader, args.name, cmd["rig"], args.hz, running)
+                driving = cmd["rig"]
+                # a session may end by being rebound — honour that immediately
+                next_command = drive(hub, leader, args.name, driving, args.hz, running)
+                # keep `driving` set if we came out because of Ctrl-C: the
+                # unwind below needs to know we left a session open
+                if running["on"]:
+                    driving = None
         except (TimeoutError, OSError):
             pass  # hub blip — keep idling, next tick re-registers
-        time.sleep(1.0)
+        if next_command is None:
+            time.sleep(1.0)
 
+    if driving is not None:
+        # Ctrl-C mid-drive: the hub still has us bound and the rig is still in a
+        # remote teleop session with nobody feeding it. Best effort — the arm
+        # holds pose either way, but the UI's Stop button disappears with us.
+        try:
+            api(
+                hub,
+                f"/api/hub/leaders/{urllib.parse.quote(args.name)}/command",
+                {"action": "stop"},
+            )
+        except Exception:  # noqa: BLE001 — on the way out
+            pass
     leader.disconnect()
     print("bye")
 

@@ -180,11 +180,16 @@ export function OwnerPanel(props: {
 									<Input
 										id="t-max"
 										type="number"
+										min={1}
 										value={maxEpisodes}
 										placeholder="∞"
 										onChange={(e) =>
+											// 0 would render a NaN progress bar and mark the task
+											// complete before the first attempt — blank means ∞
 											setMaxEpisodes(
-												e.target.value === "" ? "" : Number(e.target.value),
+												e.target.value === ""
+													? ""
+													: Math.max(1, Number(e.target.value)),
 											)
 										}
 									/>
