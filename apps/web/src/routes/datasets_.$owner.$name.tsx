@@ -74,8 +74,8 @@ function DatasetReportPage() {
 			{r.episodes.length === 0 && (
 				<p className="mt-4 text-sm text-warn">
 					No episode meta — the dataset is not pushed to the Hub yet (or its
-					meta is unreachable). Push it from the recording rig to see the
-					report card.
+					meta is unreachable). Push it from the recording rig to see the report
+					card.
 				</p>
 			)}
 			{!r.local && r.episodes.length > 0 && (

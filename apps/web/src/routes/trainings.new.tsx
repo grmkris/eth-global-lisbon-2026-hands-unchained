@@ -16,11 +16,7 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { Spinner } from "#/components/ui/spinner";
-import {
-	ownerKeyStore,
-	rigsQuery,
-	sendRigCommand,
-} from "#/lib/hub-api";
+import { ownerKeyStore, rigsQuery, sendRigCommand } from "#/lib/hub-api";
 import { datasetsQuery } from "#/lib/queries";
 
 type NewTrainingSearch = { dataset?: string; episodes?: string };
@@ -97,7 +93,9 @@ function NewTrainingPage() {
 
 			<FieldGroup>
 				<Field>
-					<FieldLabel htmlFor="nt-rig">Rig (stores the run registry)</FieldLabel>
+					<FieldLabel htmlFor="nt-rig">
+						Rig (stores the run registry)
+					</FieldLabel>
 					<Select value={effectiveRig} onValueChange={setRigName}>
 						<SelectTrigger id="nt-rig" className="w-full">
 							<SelectValue placeholder="select a rig…" />

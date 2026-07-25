@@ -98,22 +98,6 @@ const get = async <T>(path: string, unreachable: string): Promise<T> => {
 	return res.json() as Promise<T>;
 };
 
-export type LabMode = "hub" | "rig";
-
-/**
- * One build, two roles. Resolved at runtime rather than baked in, so the same
- * artifact deploys to Railway as the hub and runs on the Mac as the rig.
- */
-export const modeQuery = queryOptions({
-	queryKey: ["mode"],
-	queryFn: async (): Promise<{ mode: LabMode; rigName: string }> => {
-		const res = await fetch("/api/mode");
-		if (!res.ok) return { mode: "rig", rigName: "local-rig" };
-		return res.json();
-	},
-	staleTime: Number.POSITIVE_INFINITY,
-});
-
 export const rigsQuery = queryOptions({
 	queryKey: ["hub", "rigs"],
 	queryFn: () =>

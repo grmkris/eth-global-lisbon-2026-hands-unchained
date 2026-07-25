@@ -33,13 +33,13 @@ this: rig stated once, intents are 1–3 fields.
 ## CLI → UI mapping
 | CLI today | UI | Status |
 |---|---|---|
-| cam-index verify snippet | Robot page probe + confirm | ✅ |
+| cam-index verify snippet | drive page Camera setup (probe + confirm over the verb pipe) | ✅ |
 | lerobot-teleoperate (5 lines) | Teleop with source select | ✅ |
 | lerobot-record (10 lines) | Record wizard | ✅ |
 | Colab cell assembly | Train form → generated cell | ✅ |
 | --dataset.episodes crafting | Episode table ticks | ✅ |
 | — (no CLI equivalent) | Lobby/Drive remote teleop, leader-over-wire | ✅ |
-| lerobot-calibrate ×2 | Robot page button + staleness badge | backlog |
+| lerobot-calibrate ×2 | drive page button + staleness badge | backlog |
 | --resume --dataset.root | "Extend" button | backlog |
 | lerobot-replay | "Replay" on episode row | backlog |
 | lerobot-rollout episodic/dagger | Rollout wizard | backlog |

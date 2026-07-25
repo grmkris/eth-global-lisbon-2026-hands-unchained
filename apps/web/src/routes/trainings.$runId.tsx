@@ -75,10 +75,7 @@ function RunPage() {
 	const checkpoints = useQuery(hfCheckpointsQuery(r?.hubModelId ?? ""));
 
 	const update = useMutation({
-		mutationFn: (patch: {
-			status: string | null;
-			finding: string | null;
-		}) => {
+		mutationFn: (patch: { status: string | null; finding: string | null }) => {
 			if (!owning) throw new Error("owning rig is offline");
 			return sendRigCommand(owning.rigName, "run_update", {
 				ownerKey: ownerKeyStore.get(owning.rigName),
@@ -229,8 +226,7 @@ function RunPage() {
 								size="sm"
 								disabled={finding === null || update.isPending}
 								onClick={() =>
-									finding !== null &&
-									update.mutate({ status: null, finding })
+									finding !== null && update.mutate({ status: null, finding })
 								}
 							>
 								{update.isPending && <Spinner />}

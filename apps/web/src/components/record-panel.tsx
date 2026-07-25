@@ -11,7 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/ui/select";
-import { type RigSummary, ownerKeyStore } from "#/lib/hub-api";
+import { ownerKeyStore, type RigSummary } from "#/lib/hub-api";
 
 const ts = () => {
 	const d = new Date();
@@ -57,8 +57,7 @@ export function RecordPanel(props: {
 
 	const start = () =>
 		onCommand("record_start", {
-			repoName:
-				repoName || `so101_${isSim ? "sim" : "session"}_${ts()}`,
+			repoName: repoName || `so101_${isSim ? "sim" : "session"}_${ts()}`,
 			task,
 			numEpisodes,
 			episodeS,

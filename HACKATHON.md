@@ -52,7 +52,7 @@ say so; honesty about it is what makes the 0G integration credible.
 
 ## What already ships (DO NOT REBUILD — see docs/SPEC.md "Shipped (v1)")
 
-- Hub live at **https://hub-production-3903.up.railway.app** (Railway project
+- Hub live at **https://web-production-b5106.up.railway.app** (Railway project
   `proof-of-hands`, service `web`; push to `main` deploys; 1 replica + sleep off are
   load-bearing — rig registry is in-memory).
 - Lobby + drive UI, MJPEG cam feeds (8 fps through Railway edge), jog pad, take/steal
@@ -63,7 +63,8 @@ say so; honesty about it is what makes the 0G integration credible.
   one recorded episode, task title = lerobot per-frame label, operator = lease holder
   stamped by the hub (not spoofable).
 - Leader-over-wire (`apps/driver/controller.py`), sim backend recording real LeRobot
-  datasets, console role (record wizard, datasets, trainings).
+  datasets, hub lab pages (camera setup, free-form record, datasets, trainings — all
+  over the rig verb pipe; the local console role is gone).
 - Safety: 15°/tick remote clamp, 0.5s deadman, owner-calibrated servo EEPROM limits,
   torque-drop on disconnect, e-stop for anyone.
 - `HUB_TOKEN` auth **built but unset** — the gating seam already exists.
@@ -192,7 +193,7 @@ bun run hub            # local hub :3001          bun run rig:sim     # headless
 bun run agent          # headless rig (env-configured)
 bun run check && bun run typecheck && bun run build && bun run driver:ast
 ```
-Hub: https://hub-production-3903.up.railway.app · Railway project `proof-of-hands`,
+Hub: https://web-production-b5106.up.railway.app · Railway project `proof-of-hands`,
 service `web`, push `main` → deploy · new env vars go on that service:
 `MARKET_MODE, WORLD_APP_ID, WORLD_ACTION, HEDERA_OPERATOR_ID/KEY, HCS_TOPIC_ID,
 ZG_PRIVATE_KEY, ZG_RPC, GRADER`.

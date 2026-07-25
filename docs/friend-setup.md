@@ -9,7 +9,7 @@ Your Mac runs a small headless agent; it dials OUT to the hub, so no port
 forwarding, no firewall changes, nothing exposed. Kristjan (or anyone with the
 lobby URL) sees your camera feed and drives the arm with their keyboard.
 
-Hub: **https://hub-production-3903.up.railway.app**
+Hub: **https://web-production-b5106.up.railway.app**
 
 ## 0. Prereqs (Apple Silicon Mac)
 
@@ -42,13 +42,13 @@ Then check `kris-sim` is online in the lobby and:
 
 ```sh
 .venv/bin/python controller.py \
-  --hub https://hub-production-3903.up.railway.app \
+  --hub https://web-production-b5106.up.railway.app \
   --rig kris-sim \
   --port /dev/tty.usbmodemXXXX
 ```
 
 Move your leader — the simulated arm at
-https://hub-production-3903.up.railway.app/drive/kris-sim follows (open it
+https://web-production-b5106.up.railway.app/drive/kris-sim follows (open it
 for the camera view; you'll be "driving", video stays live). Ctrl-C releases
 the rig. Notes: motion is clamped to 15°/tick on the rig side; if the wrist
 roll sits at a odd angle, that's the known cross-device wrist_roll zero
@@ -87,7 +87,7 @@ is deliberately ignored). No config — the agent finds it.
 From `apps/web` (one line — headless, no UI, no open ports):
 
 ```sh
-HUB_URL=https://hub-production-3903.up.railway.app \
+HUB_URL=https://web-production-b5106.up.railway.app \
 RIG_NAME=friend-arm \
 LAB_AUTOCONNECT=real \
 FOLLOWER_PORT=$(ls /dev/tty.usbmodem* | head -1) \

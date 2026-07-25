@@ -1,13 +1,15 @@
-# Lab Console — spec
+# Proof of Hands — spec
 
-Web app replacing phosphobot/LeLab for this lab, grown into a small teleop
-platform. Two products in one build:
+Crowdsourced teleop platform grown out of a LeLab-replacement lab tool. One
+deployed web app (the hub) + headless rig agents:
 
-1. **The lab tool** — run the data flywheel with quality gates: control →
-   guided record → grade → train → eval, for the SO-101 on this Mac, lerobot 0.6.0.
-2. **The platform** — registered rigs (real arms + MuJoCo sims) streaming to a
+1. **The platform** — registered rigs (real arms + MuJoCo sims) streaming to a
    deployed hub; operators browse a lobby, take a rig, and drive it with a
-   keyboard or their own leader arm. **Live: https://hub-production-3903.up.railway.app**
+   keyboard or their own leader arm; owners run the whole data flywheel
+   (cameras → record → datasets → train) from the same pages via owner verbs.
+   **Live: https://web-production-b5106.up.railway.app**
+2. **The lab tool is those same hub pages** — there is no separate local
+   console; every lab capability rides the rig verb pipe.
 
 > History note: v0 of this spec listed "multi-robot, cloud hosting, auth" as
 > non-goals. The platform pivot inverted that — those are now shipped. Still
@@ -27,31 +29,32 @@ platform. Two products in one build:
    identical in dev and prod. No WebSocket/WebRTC until a measured need; the
    single planned upgrade lever is a WS relay if teleop feel demands it.
 
-## Architecture — one build, three roles
+## Architecture — one web app (the hub) + portless agents
 ```
 apps/
   web/      ONE TypeScript app: TanStack Start (React 19, Router, Query,
             shadcn) + Effect v4 HttpApi. Bun. Dockerfile + railway.toml.
+            Two entries: src/server.ts (the hub) · src/agent.ts (a rig).
   driver/   Python, uv env pinned lerobot==0.6.0 — robot loops only.
             backends/{real,sim}.py · sources/{keys,phone,scripted,remote}.py
             controller.py (operator-side leader-over-wire bridge)
 ```
-Two web roles from `LAB_MODE` (`src/api/config.ts`) plus a portless daemon:
-- **hub** — lobby/drive UI + relay + READ-ONLY datasets/trainings straight
-  off the HF Hub API (local scans fail soft — zero hub persistence). Serves
-  `/api/mode`, `/api/hub/*` and an allowlist (health/docs/openapi +
-  datasets/runs/hf prefixes); hardware `/api/*` 404s. Railway: 1 replica,
-  sleep off — both load-bearing (in-memory registry).
-- **console** (default) — the local lab tool; setting `HUB_URL` also registers
-  it as a rig.
-- **agent** (`src/agent.ts`, plain bun — NOT a web role) — the entire
-  on-machine rig footprint: python driver + outbound link, in-process API,
-  NO LISTENING PORT. `LAB_AUTOCONNECT=sim|real` brings the backend up at
-  boot. `bun run agent` / `rig:sim` / `rig:real`.
+No `LAB_MODE`, no roles:
+- **hub** (`src/server.ts`, the only web server) — lobby/drive UI + relay +
+  READ-ONLY (GET-gated) datasets/trainings straight off the HF Hub API,
+  including remote-parquet episode report cards (no lerobot cache needed).
+  Serves `/api/mode` (healthcheck fossil), `/api/hub/*` and a GET-only
+  allowlist (health/docs/openapi + datasets/runs/hf prefixes); everything
+  else 404s — all writes ride the rig verb pipe. Railway: 1 replica, sleep
+  off — both load-bearing (in-memory registry).
+- **agent** (`src/agent.ts`, plain bun) — the entire on-machine rig
+  footprint: python driver + outbound link, in-process API, NO LISTENING
+  PORT. `LAB_AUTOCONNECT=sim|real` brings the backend up at boot.
+  `bun run agent` / `rig:sim` / `rig:real`.
 
 Server entry `src/server.ts`: explicit `PORT` env (Railway) / 3000 default;
 serves `dist/client/assets` itself in prod (TanStack Start ships no static
-middleware); `/api/*` → Effect HttpApi handler; rest → SSR.
+middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
 
 ### Hub ↔ rig ↔ operator (the platform wire)
 - **Rig dials OUT** (`src/rig/link.ts`): self-scheduling 50 ms link tick
@@ -112,7 +115,7 @@ ndjson-RPC over stdio (TS sends `{cmd, config}`, driver emits
 `ready/status/joints/robot_state/record_state/episode_saved/error`). Frames on
 an OS-assigned localhost MJPEG port reported in `ready` (several rigs per
 machine). Spawn is lazy on first RPC; crash → next RPC respawns. `connect
-{backend: real|sim}` picks who answers — the console never knows the
+{backend: real|sim}` picks who answers — callers never know the
 difference. Leader arm attach is optional on BOTH backends: attach failure
 warns and comes up follower-only (headless agents get one autoconnect attempt).
 
@@ -147,10 +150,12 @@ instead of `Config`; no `Effect.fn` spans; no test layers/vitest yet; driver
 subprocess is a plain class, not a scoped `Command` resource.
 
 ## Shipped (v1)
-- Local console: robot page (connect/teleop/e-stop, joint grid, cam previews),
-  record wizard + HUD (sources: leader/keys/phone*/scripted), datasets
-  (local+Hub merge, episode table, length-outlier flags, exclude-list
-  builder), trainings (registry, lineage, Colab cell, Hub ckpt polling).
+- Hub lab pages (all over the rig verb pipe — owner key required): camera
+  setup (probe/preview/confirm on the drive page), free-form record panel
+  (sources: leader/keys/phone*/scripted, live HUD from telemetry), datasets
+  (Hub merge + remote-parquet episode report cards, length-outlier flags,
+  exclude-list builder), trainings (rig-advertised runs ∪ imported Hub
+  models, lineage, client-generated Colab cell, HF ckpt polling).
   *phone source currently broken — driver venv lacks the lerobot patches
   (the phone-patch note in `docs/TESTING.md`).
 - Platform: deployed hub, lobby, drive page (cams, jog pad, take/steal

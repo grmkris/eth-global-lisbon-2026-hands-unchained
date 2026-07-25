@@ -12,8 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DatasetsRouteImport } from './routes/datasets'
 import { Route as LobbyRouteImport } from './routes/lobby'
-import { Route as RecordRouteImport } from './routes/record'
-import { Route as RobotRouteImport } from './routes/robot'
 import { Route as DriveRigRouteImport } from './routes/drive.$rig'
 import { Route as TrainingsIndexRouteImport } from './routes/trainings.index'
 import { Route as TrainingsRunIdRouteImport } from './routes/trainings.$runId'
@@ -33,16 +31,6 @@ const DatasetsRoute = DatasetsRouteImport.update({
 const LobbyRoute = LobbyRouteImport.update({
   id: '/lobby',
   path: '/lobby',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RecordRoute = RecordRouteImport.update({
-  id: '/record',
-  path: '/record',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RobotRoute = RobotRouteImport.update({
-  id: '/robot',
-  path: '/robot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DriveRigRoute = DriveRigRouteImport.update({
@@ -75,8 +63,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/datasets': typeof DatasetsRoute
   '/lobby': typeof LobbyRoute
-  '/record': typeof RecordRoute
-  '/robot': typeof RobotRoute
   '/drive/$rig': typeof DriveRigRoute
   '/trainings/$runId': typeof TrainingsRunIdRoute
   '/trainings/new': typeof TrainingsNewRoute
@@ -87,8 +73,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/datasets': typeof DatasetsRoute
   '/lobby': typeof LobbyRoute
-  '/record': typeof RecordRoute
-  '/robot': typeof RobotRoute
   '/drive/$rig': typeof DriveRigRoute
   '/trainings/$runId': typeof TrainingsRunIdRoute
   '/trainings/new': typeof TrainingsNewRoute
@@ -100,8 +84,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/datasets': typeof DatasetsRoute
   '/lobby': typeof LobbyRoute
-  '/record': typeof RecordRoute
-  '/robot': typeof RobotRoute
   '/drive/$rig': typeof DriveRigRoute
   '/trainings/$runId': typeof TrainingsRunIdRoute
   '/trainings/new': typeof TrainingsNewRoute
@@ -114,8 +96,6 @@ export interface FileRouteTypes {
     | '/'
     | '/datasets'
     | '/lobby'
-    | '/record'
-    | '/robot'
     | '/drive/$rig'
     | '/trainings/$runId'
     | '/trainings/new'
@@ -126,8 +106,6 @@ export interface FileRouteTypes {
     | '/'
     | '/datasets'
     | '/lobby'
-    | '/record'
-    | '/robot'
     | '/drive/$rig'
     | '/trainings/$runId'
     | '/trainings/new'
@@ -138,8 +116,6 @@ export interface FileRouteTypes {
     | '/'
     | '/datasets'
     | '/lobby'
-    | '/record'
-    | '/robot'
     | '/drive/$rig'
     | '/trainings/$runId'
     | '/trainings/new'
@@ -151,8 +127,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DatasetsRoute: typeof DatasetsRoute
   LobbyRoute: typeof LobbyRoute
-  RecordRoute: typeof RecordRoute
-  RobotRoute: typeof RobotRoute
   DriveRigRoute: typeof DriveRigRoute
   TrainingsRunIdRoute: typeof TrainingsRunIdRoute
   TrainingsNewRoute: typeof TrainingsNewRoute
@@ -181,20 +155,6 @@ declare module '@tanstack/react-router' {
       path: '/lobby'
       fullPath: '/lobby'
       preLoaderRoute: typeof LobbyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/record': {
-      id: '/record'
-      path: '/record'
-      fullPath: '/record'
-      preLoaderRoute: typeof RecordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/robot': {
-      id: '/robot'
-      path: '/robot'
-      fullPath: '/robot'
-      preLoaderRoute: typeof RobotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drive/$rig': {
@@ -239,8 +199,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DatasetsRoute: DatasetsRoute,
   LobbyRoute: LobbyRoute,
-  RecordRoute: RecordRoute,
-  RobotRoute: RobotRoute,
   DriveRigRoute: DriveRigRoute,
   TrainingsRunIdRoute: TrainingsRunIdRoute,
   TrainingsNewRoute: TrainingsNewRoute,

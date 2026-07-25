@@ -8,8 +8,8 @@ import { CameraSetup } from "#/components/camera-setup";
 import { ErrorNote } from "#/components/error-note";
 import { KeyJogPad } from "#/components/key-jog-pad";
 import { OwnerPanel } from "#/components/owner-panel";
-import { RecordPanel } from "#/components/record-panel";
 import { PageHeader } from "#/components/page-header";
+import { RecordPanel } from "#/components/record-panel";
 import {
 	ArmStateBadge,
 	SimBadge,

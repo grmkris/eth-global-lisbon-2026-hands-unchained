@@ -1,6 +1,5 @@
 /** biome-ignore-all lint/a11y/noNoninteractiveTabindex: intentional key-capture surface (role=application, needs focus) */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { robotTeleopInput } from "#/lib/queries";
 
 // browser-side key → EE axis map (lerobot units downstream; no pynput, no OS permissions)
 const KEY_AXES: Record<string, [string, number]> = {
@@ -14,14 +13,11 @@ const KEY_AXES: Record<string, [string, number]> = {
 	c: ["gripper", -1],
 };
 
-/**
- * `onAxes` lets the same pad drive a remote rig through the hub; it defaults to
- * the local driver so the Robot/Record pages are unchanged.
- */
+/** Axes always leave through `onAxes` — the drive page relays them to the rig. */
 export function KeyJogPad({
 	onAxes,
 }: {
-	onAxes?: (axes: Record<string, number>) => void;
+	onAxes: (axes: Record<string, number>) => void;
 }) {
 	const pressed = useRef<Record<string, number>>({});
 	const [focused, setFocused] = useState(false);
@@ -35,8 +31,7 @@ export function KeyJogPad({
 		}
 		for (const k of Object.keys(axes))
 			axes[k] = Math.max(-1, Math.min(1, axes[k]));
-		if (sink.current) sink.current(axes);
-		else robotTeleopInput(axes).catch(() => {});
+		sink.current(axes);
 	}, []);
 
 	useEffect(() => {

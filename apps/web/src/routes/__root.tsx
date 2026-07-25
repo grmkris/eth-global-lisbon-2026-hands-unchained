@@ -1,9 +1,5 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import {
-	QueryClient,
-	QueryClientProvider,
-	useQuery,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
 	createRootRoute,
 	HeadContent,
@@ -16,7 +12,6 @@ import { ExternalLink, FlaskConical } from "lucide-react";
 import { ShellStatus } from "#/components/shell-status";
 import { ThemeToggle } from "#/components/theme-toggle";
 import { Toaster } from "#/components/ui/sonner";
-import { modeQuery } from "#/lib/hub-api";
 import appCss from "../styles.css?url";
 
 const queryClient = new QueryClient();
@@ -32,7 +27,7 @@ export const Route = createRootRoute({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "Lab Console",
+				title: "Proof of Hands",
 			},
 		],
 		links: [
@@ -45,28 +40,17 @@ export const Route = createRootRoute({
 	shellComponent: RootDocument,
 });
 
-// A hub has no arm, no cameras and no lerobot cache — offering the lab pages
-// there would be lying. A rig is not a hub, so it has no lobby.
-// hub also serves read-only datasets/trainings straight off the HF Hub API
-const HUB_NAV = [
+// One app, one nav. Hardware lives behind each rig's drive page.
+const NAV = [
 	{ to: "/lobby", label: "Lobby" },
-	{ to: "/datasets", label: "Datasets" },
-	{ to: "/trainings", label: "Trainings" },
-] as const;
-const RIG_NAV = [
-	{ to: "/robot", label: "Robot" },
-	{ to: "/record", label: "Record" },
 	{ to: "/datasets", label: "Datasets" },
 	{ to: "/trainings", label: "Trainings" },
 ] as const;
 
 function Nav() {
-	const mode = useQuery(modeQuery);
-	// render no links until the role is known — a wrong link is worse than none
-	const items = mode.data ? (mode.data.mode === "hub" ? HUB_NAV : RIG_NAV) : [];
 	return (
 		<>
-			{items.map((item) => (
+			{NAV.map((item) => (
 				<Link
 					key={item.to}
 					to={item.to}
@@ -99,7 +83,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					<nav className="sticky top-0 z-10 flex items-center gap-4 border-b bg-background/90 px-6 py-3 text-sm backdrop-blur">
 						<Link to="/" className="flex items-center gap-2 font-semibold">
 							<FlaskConical className="size-4 text-muted-foreground" />
-							Lab Console
+							Proof of Hands
 						</Link>
 						<Nav />
 						<div className="ml-auto flex items-center gap-3">

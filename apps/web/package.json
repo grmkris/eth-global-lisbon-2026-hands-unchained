@@ -6,7 +6,7 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "vite dev --port 3001",
     "start": "bun dist/server/server.js",
     "generate-routes": "tsr generate",
     "build": "vite build",
@@ -15,8 +15,8 @@
     "lint": "biome lint",
     "check": "biome check",
     "rig:real": "HUB_URL=http://localhost:3001 RIG_NAME=kris-arm LAB_AUTOCONNECT=real bun src/agent.ts",
-    "hub": "LAB_MODE=hub vite dev --port 3001",
-    "hub:prod": "LAB_MODE=hub bun dist/server/server.js",
+    "hub": "vite dev --port 3001",
+    "hub:prod": "bun dist/server/server.js",
     "agent": "bun src/agent.ts",
     "rig:sim": "HUB_URL=http://localhost:3001 RIG_NAME=kris-sim LAB_AUTOCONNECT=sim bun src/agent.ts",
     "rig:sim:viewer": "LAB_SIM_VIEWER=1 LAB_DRIVER_PYTHON=../driver/.venv/bin/mjpython HUB_URL=http://localhost:3001 RIG_NAME=kris-sim LAB_AUTOCONNECT=sim bun src/agent.ts"

@@ -7,8 +7,8 @@
  *
  *   HUB_URL=https://<hub> RIG_NAME=my-arm LAB_AUTOCONNECT=real bun src/agent.ts
  *
- * The full console UI remains available separately (`bun run dev`) for local
- * lab work; this entry is what rig owners actually run.
+ * All UI lives on the hub — owners manage this rig (cameras, record,
+ * tasks, trainings) from its drive page with the owner key printed below.
  */
 import { HUB_URL, RIG_NAME } from "#/api/config";
 import { startRigLink } from "#/rig/link";

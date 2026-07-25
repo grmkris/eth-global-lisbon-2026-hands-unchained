@@ -56,12 +56,12 @@ function DatasetsPage() {
 						</EmptyMedia>
 						<EmptyTitle>No datasets yet</EmptyTitle>
 						<EmptyDescription>
-							Nothing in the local cache or on the Hub.
+							Record a session from a rig&apos;s drive page in the lobby.
 						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
 						<Button asChild>
-							<Link to="/record">Record a session</Link>
+							<Link to="/lobby">Go to the lobby</Link>
 						</Button>
 					</EmptyContent>
 				</Empty>

@@ -1,8 +1,8 @@
 import { Camera, Eye, EyeOff, Sun } from "lucide-react";
+import { CamFeed } from "#/components/cam-feed";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
-import { CamFeed } from "#/components/cam-feed";
-import { type RigSummary, ownerKeyStore } from "#/lib/hub-api";
+import { ownerKeyStore, type RigSummary } from "#/lib/hub-api";
 
 /**
  * Owner camera setup, entirely over the hub pipe: probe previews everything
@@ -12,10 +12,7 @@ import { type RigSummary, ownerKeyStore } from "#/lib/hub-api";
  */
 export function CameraSetup(props: {
 	rig: RigSummary;
-	onCommand: (
-		verb: string,
-		args?: Record<string, unknown>,
-	) => void;
+	onCommand: (verb: string, args?: Record<string, unknown>) => void;
 	busy: boolean;
 }) {
 	const { rig, onCommand, busy } = props;
@@ -23,7 +20,8 @@ export function CameraSetup(props: {
 	const mapping = rig.camMapping ?? { workspace: null, wrist: null };
 	// only cam<index> streams participate in mapping (sim cams have fixed names)
 	const indexed = rig.cams.filter((c) => /^cam\d+$/.test(c));
-	const indexOf = (name: string) => Number.parseInt(name.replace("cam", ""), 10);
+	const indexOf = (name: string) =>
+		Number.parseInt(name.replace("cam", ""), 10);
 	const brightnessOf = (name: string) => rig.camBrightness[name];
 
 	return (

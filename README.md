@@ -14,7 +14,7 @@ network deadman. Plain HTTP end to end: curl-debuggable, no WebRTC, no SDKs.
                       outbound │ HTTP only (50ms control / 8fps MJPEG)
             ┌──────────────────┴───────────────────┐
             │ RIG AGENT (any Mac)                   │  headless; dials OUT —
-            │ apps/web (agent role) + apps/driver   │  no ports, no NAT config
+            │ apps/web src/agent.ts + apps/driver   │  no ports, no NAT config
             │ → MuJoCo sim  OR  real SO-101 arm     │
             └───────────────────────────────────────┘
    controller.py ── your leader arm ──▶ hub ──▶ any rig   (leader-over-wire)
@@ -22,9 +22,11 @@ network deadman. Plain HTTP end to end: curl-debuggable, no WebRTC, no SDKs.
 
 ## Layout
 
-- `apps/web` — one TypeScript app (TanStack Start + Effect v4, Bun), three
-  roles by env: **hub** (deployed), **agent** (headless rig), **console**
-  (local lab tool: record datasets, trainings, camera preflight).
+- `apps/web` — one TypeScript app (TanStack Start + Effect v4, Bun), two
+  entries: **the hub** (`src/server.ts`, the deployed web app — lobby, drive,
+  datasets, trainings, camera setup, recording) and **the agent**
+  (`src/agent.ts`, a headless rig). Every owner action reaches the rig over
+  the hub's verb pipe — nothing runs locally but the agent.
 - `apps/driver` — Python (uv, pinned `lerobot==0.6.0`): real-arm serial +
   MuJoCo sim backends, teleop sources (keys/leader/phone/remote/scripted),
   `controller.py` (drive a remote rig with your leader arm). Sim model and
