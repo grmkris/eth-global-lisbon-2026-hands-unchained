@@ -1,5 +1,23 @@
 # PLAN: teleop latency + the 20-episode task loop
 
+> **STATUS (2026-07-25): implemented and deployed.** Phase A `fd6747c`,
+> B `ed19adc`, C `dbb0ae4`, D `d347b50` (+ `76a760e`). Checkpoints A/B/C/D
+> passed on loopback and against the deployed hub (24 packets/s over the socket
+> vs 10/s over HTTP at a 30 Hz target). Deviations, all documented in the
+> commits and in `docs/SPEC.md`:
+> - Phase B needed one unplanned driver fix: `sources/ee_chain.py`'s
+>   `make_input_source` had no `remote` branch, so recording with a bound
+>   leader failed with "unknown input source: remote" — the acceptance test.
+> - `TaskInfo.episodesDone` is `Schema.optional` (not `NullOr`): a required
+>   field would break decoding of existing `tasks.json` rows and of the owner
+>   panel's upsert payload.
+> - Auto-continue fires ONCE per finished attempt instead of retrying on every
+>   telemetry flip — the checkbox only exists on the active-attempt card, so a
+>   self-retrying chain could not be turned off.
+>
+> Still owed (needs hardware + a human present): Checkpoint B row 6 and
+> Checkpoint D row 2, both real-arm/real-leader reruns.
+
 Implementation plan for a fresh agent session. Written 2026-07-25 after the
 leader-agent feature landed (commit `4a01a0a`). Everything referenced below is
 committed and deployed. Work through the phases IN ORDER — each is
