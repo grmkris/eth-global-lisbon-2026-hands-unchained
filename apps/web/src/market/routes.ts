@@ -38,6 +38,7 @@ const rowSummary = (row: LedgerRow) => ({
 	rig: row.rig,
 	taskId: row.taskId,
 	taskTitle: row.taskTitle,
+	source: row.source,
 	operator: {
 		nullifier: row.operator.nullifier
 			? `${row.operator.nullifier.slice(0, 12)}…`

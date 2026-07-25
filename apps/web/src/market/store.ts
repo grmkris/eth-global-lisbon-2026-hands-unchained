@@ -21,6 +21,10 @@ export interface LedgerRow {
 	taskTitle: string | null;
 	/** the rig's own attempt id, captured from telemetry for cross-reference */
 	rigAttemptId: string | null;
+	/** how they drove: keys/phone/remote travel through the hub, so we can
+	 * measure them; a rig-local leader arm or a scripted run never touches
+	 * the network, so zero observed input is expected, not suspicious */
+	source: string | null;
 	operator: {
 		clientId: string;
 		nullifier: string | null;
@@ -151,6 +155,7 @@ export const openRow = (input: {
 		taskId: input.taskId,
 		taskTitle: null,
 		rigAttemptId: null,
+		source: null,
 		operator: {
 			clientId: input.clientId,
 			nullifier: nullifierFor(input.clientId),

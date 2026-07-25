@@ -54,6 +54,7 @@ export interface MarketLedgerRow {
 	rig: string;
 	taskId: string | null;
 	taskTitle: string | null;
+	source: string | null;
 	operator: { nullifier: string | null; evmAddress: string | null };
 	claimed: "success" | "discarded" | "abandoned" | null;
 	telemetry: {

@@ -22,6 +22,12 @@ export interface Grade {
  * worker is async and the demo narrates "the referee is deliberating". */
 const GRADE_TIMEOUT_MS = 90_000;
 
+/** Sources whose motion is invisible to the hub BY DESIGN: a leader arm
+ * plugged into the rig's own machine talks to the follower over USB, and a
+ * scripted run needs no operator at all. Zero input from these is expected. */
+const hubBlindSource = (source: string | null): boolean =>
+	source === "leader" || source === "scripted";
+
 export const grade = async (row: LedgerRow): Promise<Grade> => {
 	// A "success" claim with no saved episode is fraud-shaped regardless of
 	// grader: the work product does not exist. episodeSaved === null means the
@@ -62,8 +68,9 @@ export const grade = async (row: LedgerRow): Promise<Grade> => {
 			score: 70,
 			pass: true,
 			provider: "precheck(blind)",
-			reason:
-				"episode saved but no hub-observable input — this drive source bypasses the hub, so there is nothing to grade against and the claim is credited",
+			reason: hubBlindSource(row.source)
+				? `episode saved and driven by "${row.source}", which never sends input through the hub — there is nothing for us to measure, so the claim is credited`
+				: "episode saved but no hub-observable input reached us — we were blind, which is not evidence of fraud, so the claim is credited",
 			proof: null,
 		};
 

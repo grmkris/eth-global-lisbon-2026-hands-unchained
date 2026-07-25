@@ -94,6 +94,9 @@ const sample = (row: LedgerRow, state: SamplerState): void => {
 		row.rigAttemptId = rig.attempt.attemptId;
 	if (row.taskTitle === null && rig.attempt?.taskTitle)
 		row.taskTitle = rig.attempt.taskTitle;
+	// the live source, captured while the attempt runs (record.source wins —
+	// the recorder owns the arm during an attempt)
+	row.source = rig.record?.source ?? rig.source ?? row.source;
 
 	// --- motion evidence, from the hub's monotonic input odometer.
 	// NOT from rig.input: that is a consume-once mailbox the /link tick nulls
