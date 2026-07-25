@@ -31,7 +31,7 @@ cd ../driver && uv sync        # installs lerobot 0.6.0 + opencv (+ mujoco)
 ## A. Drive a rig with your leader arm
 
 Plug in your LEADER arm (the small one, no gearing) — nothing else on USB —
-then from `apps/web`:
+then from the repo root (or `apps/web`; both work):
 
 ```sh
 bun run teleop

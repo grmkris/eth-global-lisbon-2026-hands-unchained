@@ -15,7 +15,9 @@
     "hub:prod": "bun run --cwd apps/web hub:prod",
     "agent": "bun run --cwd apps/web agent",
     "rig:sim": "bun run --cwd apps/web rig:sim",
+    "rig:sim:viewer": "bun run --cwd apps/web rig:sim:viewer",
     "rig:real": "bun run --cwd apps/web rig:real",
+    "teleop": "bun run --cwd apps/web teleop",
     "driver:sync": "cd apps/driver && uv sync",
     "driver:ast": "cd apps/driver && for f in *.py backends/*.py sources/*.py; do .venv/bin/python -c \"import ast; ast.parse(open('$f').read())\" || echo FAIL $f; done"
   }

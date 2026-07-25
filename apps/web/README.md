@@ -13,6 +13,10 @@ for checklists.
 
 Loopback rehearsal of production: `bun run hub` + `bun run rig:sim` (or
 `rig:sim:viewer` for a native MuJoCo window, `rig:real` for the arm).
+Every script here is also proxied from the repo root (`bun run --cwd apps/web`)
+— run them from either place. The `--cwd` matters: the sidecar `.data/`
+(owner key, tasks, attempts) is resolved from the process's cwd, so an agent
+started from the repo root would build a second, empty one.
 Owner actions in the hub UI (camera setup, record, tasks, trainings) need the
 rig's owner key — printed by the agent at boot (`.data/owner.json`).
 

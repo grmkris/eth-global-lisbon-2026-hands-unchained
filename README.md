@@ -77,7 +77,9 @@ registers under your hostname; then click "Drive with your leader" on any
 rig's drive page):
 
 ```sh
-cd apps/web && bun run teleop
+bun run teleop
+# already driving a rig? Stop teleop on its page first — the driver refuses a
+# second session, so the remote source would never start.
 ```
 
 ## Safety model
