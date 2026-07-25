@@ -1,5 +1,5 @@
-# Railway config-as-code. Service root directory must be the REPO ROOT so the
-# Dockerfile's monorepo COPY paths resolve. GitHub pushes to main deploy.
+# Railway config-as-code (repo root — auto-discovered with the root build
+# context). GitHub pushes to main deploy once the repo is connected.
 # 1 replica + no sleep are load-bearing: the rig registry is in-memory.
 [build]
 builder = "DOCKERFILE"

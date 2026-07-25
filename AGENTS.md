@@ -14,7 +14,7 @@ monorepo: `apps/web` (TS: hub/agent/console roles via `LAB_MODE`) +
 ## Deploy topology
 - Railway project **proof-of-hands**, service **web** — GitHub-connected:
   push to `main` → build `apps/web/Dockerfile` with the REPO ROOT as context
-  (config-as-code: `apps/web/railway.toml`; service root directory must stay
+  (config-as-code: root `railway.toml`; service root directory must stay
   the repo root).
 - 1 replica + sleep off are LOAD-BEARING: the rig registry is in-memory; a
   redeploy wipes it and rigs re-register within ~50 ms (by design).
