@@ -1,0 +1,15 @@
+# Railway config-as-code. Service root directory must be the REPO ROOT so the
+# Dockerfile's monorepo COPY paths resolve. GitHub pushes to main deploy.
+# 1 replica + no sleep are load-bearing: the rig registry is in-memory.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "apps/web/Dockerfile"
+watchPatterns = ["apps/web/**", "bun.lock", "package.json"]
+
+[deploy]
+numReplicas = 1
+sleepApplication = false
+healthcheckPath = "/api/mode"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,13 @@
+# Build context is the repo root (monorepo Dockerfiles). Keep it lean:
+node_modules
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/.data
+*.local
+.git
+.github
+apps/driver
+docs
+**/*.md

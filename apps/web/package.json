@@ -1,0 +1,62 @@
+{
+  "name": "web",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "start": "bun dist/server/server.js",
+    "generate-routes": "tsr generate",
+    "build": "vite build",
+    "preview": "vite preview",
+    "format": "biome format",
+    "lint": "biome lint",
+    "check": "biome check",
+    "rig:real": "HUB_URL=http://localhost:3001 RIG_NAME=kris-arm LAB_AUTOCONNECT=real vite dev --port 3002",
+    "hub": "LAB_MODE=hub vite dev --port 3001",
+    "hub:prod": "LAB_MODE=hub bun dist/server/server.js",
+    "agent": "LAB_MODE=agent vite dev --port 3000",
+    "rig:sim": "HUB_URL=http://localhost:3001 RIG_NAME=kris-sim LAB_AUTOCONNECT=sim vite dev --port 3000",
+    "rig:sim:viewer": "LAB_SIM_VIEWER=1 LAB_DRIVER_PYTHON=../driver/.venv/bin/mjpython HUB_URL=http://localhost:3001 RIG_NAME=kris-sim LAB_AUTOCONNECT=sim vite dev --port 3000"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.101",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/react-devtools": "0.10.9",
+    "@tanstack/react-query": "5.101.4",
+    "@tanstack/react-router": "1.170.18",
+    "@tanstack/react-router-devtools": "1.167.0",
+    "@tanstack/react-start": "1.168.32",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "effect": "4.0.0-beta.101",
+    "hyparquet": "^1.26.2",
+    "lucide-react": "^0.577.0",
+    "radix-ui": "^1.6.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss": "^4.1.18",
+    "tw-animate-css": "^1.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.5",
+    "@tanstack/devtools-vite": "0.8.3",
+    "@tanstack/router-cli": "^1.132.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss"
+    ]
+  }
+}
