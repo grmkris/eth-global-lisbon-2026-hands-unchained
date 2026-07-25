@@ -168,3 +168,121 @@ export const postStake = (txHash: string) =>
 		"/api/market/stake",
 		{ txHash },
 	);
+
+// --- slots ------------------------------------------------------------------
+
+export interface SlotSummary {
+	slotId: number;
+	operator: string;
+	stakeOg: number;
+	startedAt: number;
+	endAt: number;
+	remainingMs: number;
+	episodes: number;
+	passes: number;
+	strikes: number;
+	creditsOg: number;
+	status: string;
+}
+
+export interface SlotEpisode {
+	attemptId: string;
+	episodeIndex: number | null;
+	taskTitle: string | null;
+	claimed: string | null;
+	status: string;
+	grade: {
+		score: number;
+		pass: boolean;
+		provider: string;
+		reason: string;
+	} | null;
+	/** false = graded with no 0G signature, so it CANNOT have cost a strike */
+	attested: boolean | null;
+	slotTx: string | null;
+	openedAt: number;
+	closedAt: number | null;
+}
+
+export interface RigSlotInfo {
+	rig: string;
+	rigId: string;
+	state: "free" | "awaiting-start" | "live" | "voided";
+	live: SlotSummary | null;
+	pending: SlotSummary | null;
+	queue: ReadonlyArray<{
+		slotId: number;
+		operator: string;
+		position: number;
+		bookedAt: number;
+		status: string;
+	}>;
+	stale: boolean;
+	error: string | null;
+	you?: { hasToken: boolean; slotId: number | null };
+	episodes?: ReadonlyArray<SlotEpisode>;
+}
+
+export interface SlotsConfig {
+	configured: boolean;
+	chainId: number;
+	contract: `0x${string}`;
+	namespace: string;
+	required: boolean;
+	faucet: string;
+	minPinLength: number;
+	params: {
+		slotSeconds: number;
+		gradeGraceSeconds: number;
+		noShowGraceSeconds: number;
+		minStakeOg: number;
+		rewardPerEpisodeOg: number;
+		maxStrikes: number;
+		rewardPoolOg: number;
+		settler: string;
+		zgSigner: string;
+	} | null;
+	rigs: ReadonlyArray<RigSlotInfo>;
+}
+
+/** 501 when the hub has no slot contract — that is a normal answer, not an
+ * error, so it resolves rather than throwing and the UI just hides slots. */
+export const slotsQuery = queryOptions({
+	queryKey: ["market", "slots"],
+	queryFn: async (): Promise<SlotsConfig | null> => {
+		const res = await fetch("/api/market/slots");
+		if (res.status === 501) return null;
+		if (!res.ok) throw new Error(`slots unreachable (${res.status})`);
+		return res.json() as Promise<SlotsConfig>;
+	},
+	refetchInterval: 5_000,
+});
+
+export const rigSlotQuery = (rig: string) =>
+	queryOptions({
+		queryKey: ["market", "slots", rig],
+		queryFn: async (): Promise<RigSlotInfo | null> => {
+			const res = await fetch(`/api/market/slots/${encodeURIComponent(rig)}`);
+			if (res.status === 501) return null;
+			if (!res.ok) throw new Error(`slot unreachable (${res.status})`);
+			return res.json() as Promise<RigSlotInfo>;
+		},
+		// the countdown is client-side; this poll only has to catch strikes,
+		// verdicts landing and the slot ending
+		refetchInterval: 3_000,
+	});
+
+export const unlockSlot = (rig: string, pin: string, clientId: string) =>
+	post<{
+		ok: true;
+		slotId: number;
+		startedAt: number;
+		endAt: number;
+		remainingMs: number;
+	}>(`/api/market/slots/${encodeURIComponent(rig)}/unlock`, { pin, clientId });
+
+/** Cache hint after a wallet booking, so the UI doesn't wait out a poll. */
+export const noteBooked = (rig: string, txHash: string) =>
+	post<RigSlotInfo>(`/api/market/slots/${encodeURIComponent(rig)}/booked`, {
+		txHash,
+	});

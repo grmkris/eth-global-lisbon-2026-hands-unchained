@@ -4,6 +4,7 @@ import { Cpu, Radio } from "lucide-react";
 import { ErrorNote } from "#/components/error-note";
 import { HubTokenGate } from "#/components/hub-token-gate";
 import { PageHeader } from "#/components/page-header";
+import { SlotBadge } from "#/components/slot-badge";
 import { SimBadge, StatusBadge } from "#/components/status-badge";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
@@ -16,6 +17,7 @@ import {
 } from "#/components/ui/empty";
 import { Skeleton } from "#/components/ui/skeleton";
 import { impairmentQuery, rigsQuery } from "#/lib/hub-api";
+import { slotsQuery } from "#/market/market-api";
 
 export const Route = createFileRoute("/lobby")({ component: LobbyPage });
 
@@ -23,7 +25,10 @@ export const Route = createFileRoute("/lobby")({ component: LobbyPage });
 export function LobbyPage() {
 	const rigs = useQuery(rigsQuery);
 	const impairment = useQuery(impairmentQuery);
+	const slots = useQuery(slotsQuery);
 	const imp = impairment.data;
+	const slotFor = (name: string) =>
+		slots.data?.rigs.find((r) => r.rig === name);
 
 	return (
 		<div>
@@ -76,6 +81,7 @@ export function LobbyPage() {
 									</span>
 									<span className="flex items-center gap-2">
 										{rig.backend === "sim" && <SimBadge />}
+										<SlotBadge info={slotFor(rig.name)} />
 										<StatusBadge tone={rig.online ? "success" : "neutral"}>
 											{rig.online ? "online" : "offline"}
 										</StatusBadge>
@@ -117,7 +123,17 @@ export function LobbyPage() {
 								{rig.online ? (
 									<Button asChild>
 										<Link to="/drive/$rig" params={{ rig: rig.name }}>
-											{rig.holder ? "Watch" : "Drive this rig"}
+											{slotFor(rig.name)?.live
+												? "Watch"
+												: slotFor(rig.name)?.pending
+													? "Unlock your slot"
+													: slots.data?.configured
+														? `Book ${Math.round(
+																(slots.data.params?.slotSeconds ?? 1800) / 60,
+															)} min · ${slots.data.params?.minStakeOg ?? 0.05} OG`
+														: rig.holder
+															? "Watch"
+															: "Drive this rig"}
 										</Link>
 									</Button>
 								) : (

@@ -16,7 +16,8 @@ import { KeyJogPad } from "#/components/key-jog-pad";
 import { LeaderInputDebugPanel } from "#/components/leader-input-debug";
 import { OwnerPanel } from "#/components/owner-panel";
 import { PageHeader } from "#/components/page-header";
-import { StakeGate } from "#/components/stake-gate";
+import { SlotGate } from "#/components/slot-gate";
+import { SlotPanel } from "#/components/slot-panel";
 import {
 	ArmStateBadge,
 	SimBadge,
@@ -26,7 +27,6 @@ import { TaskPanel } from "#/components/task-panel";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
-import { WalletChip } from "#/components/wallet-chip";
 import { apiErrorMessage } from "#/lib/errors";
 import {
 	claimRig,
@@ -40,6 +40,7 @@ import {
 	sendRigInput,
 } from "#/lib/hub-api";
 import { marketSessionQuery } from "#/market/market-api";
+import { useSlot } from "#/market/use-slot";
 
 export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
 
@@ -70,14 +71,18 @@ function DrivePage() {
 
 	const holder = rig.data?.holder ?? null;
 	const iAmDriving = holder === clientId;
-	// market on + not verified, or verified but no stake posted -> the hub
-	// will 402 every claim ("verification required" / "bond required")
+	// market on + not verified, or no slot on this rig -> the hub will 402
+	// every claim ("verification required" / "book a slot" / "unlock your slot")
 	const marketOn = market.data?.marketMode === true;
 	const needsVerify = marketOn && market.data?.verified === false;
-	const needsStake =
-		marketOn &&
-		market.data?.verified === true &&
-		market.data.stake?.bond == null;
+	const slot = useSlot(rigName, market.data);
+	// Slots configured: the slot IS the gate. Otherwise fall back to the
+	// (dormant) Hedera bond, so a hub without a slot contract is unchanged.
+	const needsStake = slot.enabled
+		? slot.needsBooking || slot.needsUnlock
+		: marketOn &&
+			market.data?.verified === true &&
+			market.data.stake?.bond == null;
 	const gated = needsVerify || needsStake;
 
 	// leader agents registered on the hub (controller.py on operator machines).
@@ -167,7 +172,7 @@ function DrivePage() {
 			toast.error(
 				needsVerify
 					? "verify your World ID above to take control"
-					: "stake above to take control",
+					: (slot.blockedReason ?? "stake above to take control"),
 			);
 			return;
 		}
@@ -349,9 +354,14 @@ function DrivePage() {
 				)}
 			</div>
 
-			{gated && market.data && (
+			{gated && market.data && slot.enabled && slot.config && (
 				<div className="mt-4">
-					<StakeGate session={market.data} />
+					<SlotGate
+						rig={rigName}
+						session={market.data}
+						slots={slot.config}
+						info={slot.info}
+					/>
 				</div>
 			)}
 
@@ -360,8 +370,6 @@ function DrivePage() {
 			    the same time — tasks in between pushed them a screen apart. */}
 			<Card className="mt-4">
 				<CardContent className="flex flex-col gap-3">
-					{/* the operator's money, visible while they work */}
-					{market.data && <WalletChip session={market.data} />}
 					<div className="flex flex-wrap items-center gap-4 text-sm">
 						<StatusBadge tone={iAmDriving ? "success" : "neutral"}>
 							{iAmDriving
@@ -559,9 +567,18 @@ function DrivePage() {
 				</CardContent>
 			</Card>
 
+			{slot.enabled &&
+				slot.info &&
+				(slot.live || slot.info.state === "voided") && (
+					<div className="mt-4">
+						<SlotPanel info={slot.info} maxStrikes={slot.maxStrikes} />
+					</div>
+				)}
+
 			{data && (
 				<div className="mt-4 flex flex-col gap-4">
 					<TaskPanel
+						slotEndsAt={slot.live?.endAt ?? null}
 						rig={data}
 						iAmDriving={iAmDriving}
 						myAttempt={myAttempt}

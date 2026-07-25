@@ -37,10 +37,31 @@ export function TaskPanel(props: {
 	 * this because it is the thing that knows what is driving. */
 	blockedReason: string | null;
 	busy: boolean;
+	/** end of the operator's booked slot, unix seconds; null = no slot layer.
+	 * The ONLY thing this panel knows about slots: don't offer an attempt that
+	 * cannot finish before the arm is taken away. */
+	slotEndsAt?: number | null;
 }) {
-	const { rig, iAmDriving, myAttempt, onStart, onFinish, blockedReason, busy } =
-		props;
+	const {
+		rig,
+		iAmDriving,
+		myAttempt,
+		onStart,
+		onFinish,
+		blockedReason,
+		busy,
+		slotEndsAt = null,
+	} = props;
 	const active = rig.tasks.filter((t) => t.active);
+	/** An episode needs its own seconds plus the reset. Offering one that the
+	 * clock will cut off wastes the operator's stake-backed minutes and lands
+	 * them a `slot_expired` row they did not ask for. */
+	const fitsInSlot = (task: TaskInfo): boolean => {
+		if (slotEndsAt === null) return true;
+		const needMs =
+			((task.episodeSeconds ?? 20) + (task.resetSeconds ?? 5) + 5) * 1000;
+		return slotEndsAt * 1000 - now > needMs;
+	};
 	const attempt = rig.attempt;
 	const recording = rig.record?.active === true;
 
@@ -49,10 +70,10 @@ export function TaskPanel(props: {
 	const [now, setNow] = useState(() => Date.now());
 	const [autoContinue, setAutoContinue] = useState(false);
 	useEffect(() => {
-		if (!attempt?.active && !autoContinue) return;
+		if (!attempt?.active && !autoContinue && slotEndsAt === null) return;
 		const t = setInterval(() => setNow(Date.now()), 500);
 		return () => clearInterval(t);
-	}, [attempt?.active, autoContinue]);
+	}, [attempt?.active, autoContinue, slotEndsAt]);
 
 	// --- the episode chain -------------------------------------------------
 	// Collecting 20 episodes is 20 attempts; without this the operator clicks
@@ -250,9 +271,18 @@ export function TaskPanel(props: {
 									size="sm"
 									onClick={() => start(task.id)}
 									disabled={
-										blockedReason !== null || recording || busy || complete
+										blockedReason !== null ||
+										recording ||
+										busy ||
+										complete ||
+										!fitsInSlot(task)
 									}
-									title={blockedReason ?? undefined}
+									title={
+										blockedReason ??
+										(fitsInSlot(task)
+											? undefined
+											: "less than one episode left in your slot")
+									}
 								>
 									<Play />
 									{task.maxEpisodes !== null
