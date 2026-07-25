@@ -19,9 +19,19 @@ if (process.env.LAB_MODE === "agent")
 	);
 
 // The hub serves ONLY these /api paths (an allowlist, not a deny-regex —
-// every other endpoint is rig-local and must not exist on a machine with no
-// arm, no cameras and no lerobot cache).
-const HUB_API = new Set(["/api/health", "/api/docs", "/api/openapi.json"]);
+// hardware endpoints are rig-local and must not exist on a machine with no
+// arm and no cameras). Datasets/runs/hf ARE allowed: on the hub they read
+// the HF Hub API (the local scans fail soft to empty), giving read-only
+// datasets + trainings pages without any hub-side persistence.
+const HUB_API_EXACT = new Set([
+	"/api/health",
+	"/api/docs",
+	"/api/openapi.json",
+]);
+const HUB_API_PREFIX = ["/api/datasets", "/api/runs", "/api/hf"];
+const hubServes = (pathname: string): boolean =>
+	HUB_API_EXACT.has(pathname) ||
+	HUB_API_PREFIX.some((p) => pathname.startsWith(p));
 
 const boot = globalThis as unknown as { __labRigLinkStarted?: boolean };
 if (HUB_URL && ROLE !== "hub" && !boot.__labRigLinkStarted) {
@@ -58,7 +68,7 @@ export default {
 
 		if (ROLE === "hub") {
 			// allowlist, defined above
-			if (url.pathname.startsWith("/api/") && !HUB_API.has(url.pathname))
+			if (url.pathname.startsWith("/api/") && !hubServes(url.pathname))
 				return json({ error: "this is a hub — no robot attached" }, 404);
 		} else if (url.pathname.startsWith("/api/cams/")) {
 			// MJPEG passthrough — outside the typed contract (infinite multipart)

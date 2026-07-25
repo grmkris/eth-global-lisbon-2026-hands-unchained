@@ -47,7 +47,12 @@ export const Route = createRootRoute({
 
 // A hub has no arm, no cameras and no lerobot cache — offering the lab pages
 // there would be lying. A rig is not a hub, so it has no lobby.
-const HUB_NAV = [{ to: "/lobby", label: "Lobby" }] as const;
+// hub also serves read-only datasets/trainings straight off the HF Hub API
+const HUB_NAV = [
+	{ to: "/lobby", label: "Lobby" },
+	{ to: "/datasets", label: "Datasets" },
+	{ to: "/trainings", label: "Trainings" },
+] as const;
 const RIG_NAV = [
 	{ to: "/robot", label: "Robot" },
 	{ to: "/record", label: "Record" },

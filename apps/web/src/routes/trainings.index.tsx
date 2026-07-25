@@ -22,6 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/ui/table";
+import { modeQuery } from "#/lib/hub-api";
 import { runsQuery } from "#/lib/queries";
 
 export const Route = createFileRoute("/trainings/")({
@@ -38,6 +39,9 @@ const statusTone: Record<string, StatusTone> = {
 
 function TrainingsPage() {
 	const runs = useQuery(runsQuery);
+	const mode = useQuery(modeQuery);
+	// creating runs writes the rig-local sidecar — console only
+	const canCreate = mode.data?.mode !== "hub";
 
 	return (
 		<div>
@@ -45,9 +49,11 @@ function TrainingsPage() {
 				title="Trainings"
 				description="Sidecar registry merged with kris0/* Hub models"
 				actions={
-					<Button asChild>
-						<Link to="/trainings/new">New training</Link>
-					</Button>
+					canCreate ? (
+						<Button asChild>
+							<Link to="/trainings/new">New training</Link>
+						</Button>
+					) : undefined
 				}
 			/>
 
@@ -72,11 +78,13 @@ function TrainingsPage() {
 							Runs registered here track Hub checkpoints automatically.
 						</EmptyDescription>
 					</EmptyHeader>
-					<EmptyContent>
-						<Button asChild>
-							<Link to="/trainings/new">New training</Link>
-						</Button>
-					</EmptyContent>
+					{canCreate && (
+						<EmptyContent>
+							<Button asChild>
+								<Link to="/trainings/new">New training</Link>
+							</Button>
+						</EmptyContent>
+					)}
 				</Empty>
 			) : (
 				<Table className="mt-2">
