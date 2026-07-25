@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import type { AttemptState, RecordStatus, TaskInfo } from "#/api/contract";
 import { HUB_TOKEN_COOKIE } from "#/lib/constants";
 
 export interface RigSummary {
@@ -10,10 +11,30 @@ export interface RigSummary {
 	cams: ReadonlyArray<string>;
 	joints: Record<string, number>;
 	lastError: string | null;
+	record: RecordStatus | null;
+	attempt: AttemptState | null;
+	tasks: ReadonlyArray<TaskInfo>;
+	lastCommandResult: {
+		verb: string;
+		ok: boolean;
+		error: string | null;
+		at: number;
+	} | null;
 	holder: string | null;
 	linkMs: number;
 	lastSeen: number;
 }
+
+/** Owner key for a rig, remembered per browser (printed by the rig at boot). */
+export const ownerKeyStore = {
+	get: (rig: string): string =>
+		typeof window === "undefined"
+			? ""
+			: (localStorage.getItem(`lab-owner-key:${rig}`) ?? ""),
+	set: (rig: string, v: string): void => {
+		localStorage.setItem(`lab-owner-key:${rig}`, v);
+	},
+};
 
 /** One id per browser tab — the lease is held by this, not by a user account. */
 export const clientId = ((): string => {
@@ -122,5 +143,16 @@ export const releaseRig = (name: string) =>
 	post(`/api/hub/rigs/${encodeURIComponent(name)}/release`);
 export const sendRigInput = (name: string, axes: Record<string, number>) =>
 	post(`/api/hub/rigs/${encodeURIComponent(name)}/input`, { axes });
-export const sendRigCommand = (name: string, verb: string) =>
-	post(`/api/hub/rigs/${encodeURIComponent(name)}/command`, { verb });
+export const sendRigCommand = (
+	name: string,
+	verb: string,
+	options: {
+		args?: Record<string, unknown>;
+		ownerKey?: string;
+	} = {},
+) =>
+	post(`/api/hub/rigs/${encodeURIComponent(name)}/command`, {
+		verb,
+		...(options.args ? { args: options.args } : {}),
+		...(options.ownerKey ? { ownerKey: options.ownerKey } : {}),
+	});

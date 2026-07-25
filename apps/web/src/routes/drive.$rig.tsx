@@ -6,12 +6,14 @@ import { toast } from "sonner";
 import { CamFeed, CamOffAir } from "#/components/cam-feed";
 import { ErrorNote } from "#/components/error-note";
 import { KeyJogPad } from "#/components/key-jog-pad";
+import { OwnerPanel } from "#/components/owner-panel";
 import { PageHeader } from "#/components/page-header";
 import {
 	ArmStateBadge,
 	SimBadge,
 	StatusBadge,
 } from "#/components/status-badge";
+import { TaskPanel } from "#/components/task-panel";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
@@ -50,6 +52,22 @@ function DrivePage() {
 		mutationFn: (verb: string) => sendRigCommand(rigName, verb),
 		onError: (e) => toast.error(apiErrorMessage(e)),
 	});
+	const commandWith = useMutation({
+		mutationFn: (input: {
+			verb: string;
+			args?: Record<string, unknown>;
+			ownerKey?: string;
+		}) =>
+			sendRigCommand(rigName, input.verb, {
+				args: input.args,
+				ownerKey: input.ownerKey,
+			}),
+		onError: (e) => toast.error(apiErrorMessage(e)),
+	});
+
+	const myAttempt =
+		rig.data?.attempt?.active === true &&
+		rig.data.attempt.operator === clientId;
 
 	// Hand control back when the tab closes so the rig is not stuck held.
 	useEffect(() => {
@@ -72,11 +90,13 @@ function DrivePage() {
 	// Hold the slot with a lease renewal that carries NO axes. Renewing via the
 	// input path would resend the last command forever and a frozen tab would
 	// leave the arm driving — the keepalive must not be a control packet.
+	// While MY attempt runs, keep claiming even if the lease evaporated (a hub
+	// redeploy wipes leases; without this the attempt would be orphaned).
 	useEffect(() => {
-		if (!iAmDriving) return;
+		if (!iAmDriving && !myAttempt) return;
 		const t = setInterval(() => void claimRig(rigName).catch(() => {}), 5_000);
 		return () => clearInterval(t);
-	}, [iAmDriving, rigName]);
+	}, [iAmDriving, myAttempt, rigName]);
 
 	const onAxes = (axes: Record<string, number>) => {
 		const started = performance.now();
@@ -157,6 +177,23 @@ function DrivePage() {
 					),
 				)}
 			</div>
+
+			{data && (
+				<div className="mt-4 flex flex-col gap-4">
+					<TaskPanel
+						rig={data}
+						iAmDriving={iAmDriving}
+						myAttempt={myAttempt}
+						busy={commandWith.isPending}
+						onStart={(taskId) =>
+							commandWith.mutate({ verb: "attempt_start", args: { taskId } })
+						}
+						onFinish={(success) =>
+							commandWith.mutate({ verb: "attempt_finish", args: { success } })
+						}
+					/>
+				</div>
+			)}
 
 			<Card className="mt-4">
 				<CardContent className="flex flex-col gap-3">
@@ -275,6 +312,29 @@ function DrivePage() {
 					)}
 				</CardContent>
 			</Card>
+
+			{data && (
+				<div className="mt-4">
+					<OwnerPanel
+						rig={data}
+						busy={commandWith.isPending}
+						onUpsert={(ownerKey, task) =>
+							commandWith.mutate({
+								verb: "task_upsert",
+								ownerKey,
+								args: { task },
+							})
+						}
+						onDelete={(ownerKey, id) =>
+							commandWith.mutate({
+								verb: "task_delete",
+								ownerKey,
+								args: { id },
+							})
+						}
+					/>
+				</div>
+			)}
 		</div>
 	);
 }

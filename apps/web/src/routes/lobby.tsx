@@ -102,6 +102,16 @@ export function LobbyPage() {
 									{rig.holder ? " · in use" : ""}
 								</p>
 
+								{rig.tasks.filter((t) => t.active).length > 0 && (
+									<p className="text-xs">
+										<span className="text-muted-foreground">tasks: </span>
+										{rig.tasks
+											.filter((t) => t.active)
+											.map((t) => t.title)
+											.join(" · ")}
+									</p>
+								)}
+
 								{/* `disabled` on an asChild anchor does nothing — render a
 								    real disabled button instead of a clickable dead link */}
 								{rig.online ? (
