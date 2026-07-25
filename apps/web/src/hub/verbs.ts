@@ -45,7 +45,6 @@ const table = {
 	},
 	teleop_stop: { path: "/api/robot/teleop/stop", safety: true },
 	estop: { path: "/api/robot/estop", safety: true },
-	disconnect: { path: "/api/robot/disconnect" },
 	// tasks (owner-managed, key validated rig-side)
 	task_upsert: { path: "/api/tasks/upsert", owner: true, args: ["task"] },
 	task_delete: { path: "/api/tasks/delete", owner: true, args: ["id"] },
@@ -97,9 +96,6 @@ const table = {
 		owner: true,
 		args: ["id", "status", "hypothesis", "finding"],
 	},
-	// hand-repositioning a real arm is a real owner workflow
-	torque_on: { path: "/api/robot/torque", owner: true, body: { on: true } },
-	torque_off: { path: "/api/robot/torque", owner: true, body: { on: false } },
 } as const satisfies Record<string, VerbSpec>;
 
 export type Verb = keyof typeof table;

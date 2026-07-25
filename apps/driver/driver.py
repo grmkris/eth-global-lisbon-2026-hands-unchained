@@ -35,6 +35,10 @@ from shared import BRIGHTNESS, FRAMES, LOCK, emit, log
 BACKEND = None  # RealBackend | SimBackend | None
 RECORDING: dict = {"events": None, "thread": None}
 STOP_FLAGS: list[threading.Event] = []
+# What cmd_preview_start last started. A record session STEALS the camera
+# devices (macOS: one owner per device) and only this remembers what was
+# streaming, so the worker can put the previews back when it is done.
+PREVIEW_SPECS: list[dict] = []
 
 
 # ---------- camera preview (real cameras; sim feeds FRAMES itself) ----------
@@ -111,6 +115,7 @@ def cmd_preview_start(cameras: list[dict]) -> dict:
             daemon=True,
         ).start()
         started.append(cam["name"])
+    PREVIEW_SPECS[:] = [dict(cam) for cam in cameras]
     return {"started": started}
 
 
@@ -201,6 +206,7 @@ def cmd_record_start(req: dict) -> dict:
         raise ValueError("recording already active")
     backend = require_backend()
     teleop_loop.stop(wait=True)  # recorder owns the arm — a live teleop loop must end first
+    resume_previews = [dict(cam) for cam in PREVIEW_SPECS]  # put these back afterwards
     stop_previews()  # recorder owns the cameras (real backend)
 
     cfg = {
@@ -227,7 +233,17 @@ def cmd_record_start(req: dict) -> dict:
             log(f"record session failed: {exc}")
         finally:
             teleop_loop.set_record_source(None)
+            # after_record puts the ARM back (see real.py); this puts the CAMERAS
+            # back. Without it a real rig's feeds stay dark for everyone after the
+            # first attempt — recorder.run_session has already released the
+            # devices in its own finally, so re-opening here is safe.
             backend.after_record()
+            if resume_previews:
+                try:
+                    time.sleep(0.5)  # macOS: let the recorder's handles close first
+                    cmd_preview_start(resume_previews)
+                except Exception as exc:  # noqa: BLE001 — a replugged camera must
+                    log(f"preview restore failed: {exc}")  # not poison the session
 
     RECORDING["events"] = events
     RECORDING["thread"] = threading.Thread(target=worker, name="record-session", daemon=True)
@@ -320,6 +336,7 @@ def main() -> None:
                 result = cmd_preview_start(req.get("cameras", []))
             elif cmd == "preview_stop":
                 stop_previews()
+                PREVIEW_SPECS.clear()  # deliberate stop: don't resurrect after a record
                 result = {"stopped": True}
             elif cmd == "connect":
                 result = cmd_connect(req)
@@ -328,8 +345,12 @@ def main() -> None:
             elif cmd == "torque":
                 result = require_backend().torque(bool(req.get("on")))
             elif cmd == "estop":
+                # E-STOP is the one control the UI shows unconditionally, to
+                # everyone, lease or not — so it must never answer "not
+                # connected — connect first". Stopping the teleop loop IS the
+                # stop when there is no backend to kill torque on.
                 teleop_loop.stop()
-                result = require_backend().estop()
+                result = BACKEND.estop() if BACKEND is not None else {"estopped": True}
             elif cmd == "teleop_start":
                 result = teleop_loop.start(
                     req,

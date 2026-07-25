@@ -138,6 +138,10 @@ class DriverProc {
 					this.robotState = String(msg.state);
 					if (msg.backend) this.backendName = String(msg.backend);
 					this.sourceName = msg.source ? String(msg.source) : null;
+					// The backends stamp `leader` on every transition (connect,
+					// disconnect, estop, prepare_record, after_record) — presence-gated
+					// because teleop_loop emits robot_state without it.
+					if (msg.leader !== undefined) this.hasLeader = msg.leader === true;
 				} else if (msg.event === "record_state") {
 					const phase = String(msg.phase);
 					this.recordState = {
@@ -231,7 +235,6 @@ export interface DriverManagerShape {
 		lastError: string | null;
 	}>;
 	readonly record: () => Effect.Effect<RecordState>;
-	readonly setLeader: (leader: boolean) => Effect.Effect<void>;
 }
 
 export class DriverManager extends Context.Service<
@@ -256,9 +259,5 @@ export class DriverManager extends Context.Service<
 				lastError: driverProc.lastError,
 			})),
 		record: () => Effect.sync(() => ({ ...driverProc.recordState })),
-		setLeader: (leader: boolean) =>
-			Effect.sync(() => {
-				driverProc.hasLeader = leader;
-			}),
 	});
 }

@@ -83,6 +83,9 @@ class SimBackend:
     name = "sim"
 
     def __init__(self) -> None:
+        # connect() sets this too, but _emit_state reads it — and a connect that
+        # fails early still leaves an object that disconnect/estop will emit for.
+        self.teleop = None
         if not (MENAGERIE_DIR / "so_arm100.xml").exists():
             # The model is vendored in this repo (Apache-2.0, MuJoCo Menagerie
             # trs_so_arm100) — missing means a broken checkout, not a setup step.
@@ -135,6 +138,16 @@ class SimBackend:
         # streams a real rig pushes — there is deliberately no native window.
         threading.Thread(target=self._render_loop, name="sim-render", daemon=True).start()
         log("sim backend up (MuJoCo)")
+
+    def _emit_state(self) -> None:
+        # `leader` rides every transition — the UI hides the rig-local leader
+        # button on it, so a stale value is a button that fails.
+        emit({
+            "event": "robot_state",
+            "state": self.state,
+            "backend": self.name,
+            "leader": self.teleop is not None,
+        })
 
     # ---------- unit conversion (lerobot: degrees, gripper 0..100) ----------
 
@@ -243,7 +256,7 @@ class SimBackend:
                     "error": f"leader arm unavailable on {leader_port} ({exc}) — sim up without it",
                 })
                 log(f"sim: leader attach failed ({exc}) — continuing without leader")
-        emit({"event": "robot_state", "state": self.state, "backend": self.name})
+        self._emit_state()
         return {"state": self.state, "leader": self.teleop is not None}
 
     def disconnect(self) -> dict:
@@ -258,7 +271,7 @@ class SimBackend:
         with LOCK:
             FRAMES.pop("workspace_cam", None)
             FRAMES.pop("wrist_cam", None)
-        emit({"event": "robot_state", "state": self.state, "backend": self.name})
+        self._emit_state()
         return {"state": "disconnected"}
 
     def torque(self, on: bool) -> dict:
@@ -269,7 +282,7 @@ class SimBackend:
         """Sim E-stop = pause physics (muscle memory parity with the real button)."""
         self.paused = True
         self.state = "connected"
-        emit({"event": "robot_state", "state": self.state, "backend": self.name})
+        self._emit_state()
         return {"estopped": True}
 
     def teleop_ready(self, source: str) -> None:
@@ -301,7 +314,7 @@ class SimBackend:
             raise ValueError("connect with the leader arm first (sim + leader)")
         self.paused = False
         self.state = "recording"
-        emit({"event": "robot_state", "state": self.state, "backend": self.name})
+        self._emit_state()
 
         if source == "scripted":
             expert = ScriptedExpert(self, KEYFRAMES)
@@ -323,7 +336,7 @@ class SimBackend:
 
     def after_record(self) -> None:
         self.state = "connected"
-        emit({"event": "robot_state", "state": self.state, "backend": self.name})
+        self._emit_state()
 
 
 class SimArm:

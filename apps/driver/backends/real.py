@@ -19,7 +19,16 @@ class RealBackend:
     # ---------- lifecycle ----------
 
     def _emit_state(self) -> None:
-        emit({"event": "robot_state", "state": self.state, "backend": self.name})
+        # `leader` rides EVERY transition, not just the connect reply: attaching is
+        # best-effort (unplugged arm, port held by a leader agent), and the flag
+        # goes stale on disconnect/after_record. The UI hides "drive with the rig's
+        # own leader arm" on this, so a stale true = a button that fails.
+        emit({
+            "event": "robot_state",
+            "state": self.state,
+            "backend": self.name,
+            "leader": self.teleop is not None,
+        })
 
     @staticmethod
     def _safe_disconnect(device) -> None:
@@ -224,7 +233,26 @@ class RealBackend:
         return robot, teleop, None
 
     def after_record(self) -> None:
-        # recorder disconnected the devices it owned; back to square one
+        """Put the arm BACK, don't leave it disconnected.
+
+        The recorder disconnected the devices it owned (recorder.run_session's own
+        finally), so we reopen them here. Leaving the rig disconnected made every
+        real-arm attempt a dead end: attempts.ts restores teleop the moment this
+        returns (and failed silently inside Effect.ignore), and the next attempt in
+        a 20-episode run died on "arm not connected". Sim already came back
+        `connected`, which is why this only ever bit real hardware.
+        """
         self.robot = self.teleop = None
-        self.state = "disconnected"
-        self._emit_state()
+        self.state = "disconnected"  # connect() refuses any other state
+        if not self._ports.get("followerPort"):
+            self._emit_state()  # never connected in the first place
+            return
+        try:
+            self.connect(self._ports)  # rebuilds, rewrites calibration, emits
+        except Exception as exc:  # noqa: BLE001 — an unplugged arm must not kill
+            emit({                 # the record worker's finally
+                "event": "error",
+                "where": "real.after_record",
+                "error": f"could not reopen the arm after recording ({exc})",
+            })
+            self._emit_state()

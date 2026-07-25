@@ -59,13 +59,18 @@ export class RobotSvc extends Context.Service<RobotSvc, RobotShape>()(
 				command,
 				connect: (withLeader, backend) =>
 					Effect.gen(function* () {
+						// No leader bookkeeping here on purpose: whether an arm actually
+						// attached is the DRIVER's answer, and it changes again on
+						// disconnect/estop/after_record. It rides `robot_state` events
+						// into DriverManager.hasLeader. Guessing it here (`backend ===
+						// "sim" ? true : withLeader`) is what made "Teleop (leader arm)"
+						// offer itself on every rig and then fail.
 						yield* driver.rpc("connect", {
 							backend,
 							followerPort: RIG.followerPort,
 							leaderPort: withLeader ? RIG.leaderPort : null,
 							robotId: RIG.robotId,
 						});
-						yield* driver.setLeader(backend === "sim" ? true : withLeader);
 						return yield* state();
 					}).pipe(Effect.mapError(toDriverError)),
 				input: (payload) =>
