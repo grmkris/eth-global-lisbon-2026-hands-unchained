@@ -48,6 +48,18 @@ export interface LedgerRow {
 		 * telemetry never appeared (unknown, NOT a proven non-save) */
 		episodeSaved: boolean | null;
 		samples: number;
+		/** measured from the RECORDED EPISODE on disk — the follower's real
+		 * trajectory. Present for every drive source and unforgeable by the
+		 * operator, so it outranks every other signal here. Null = the rig
+		 * could not read the episode back, which means unknown, not zero. */
+		episode: {
+			frames: number;
+			durationS: number;
+			jointPathDeg: number;
+			maxJointRangeDeg: number;
+			gripperCycles: number;
+			stillFraction: number;
+		} | null;
 	};
 	evidence: { frameJpeg: Uint8Array | null; cam: string | null };
 	grade: {
@@ -170,6 +182,7 @@ export const openRow = (input: {
 			gripperCycles: 0,
 			episodeSaved: null,
 			samples: 0,
+			episode: null,
 		},
 		evidence: { frameJpeg: null, cam: null },
 		grade: null,

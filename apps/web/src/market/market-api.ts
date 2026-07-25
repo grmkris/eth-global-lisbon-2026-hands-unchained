@@ -65,6 +65,14 @@ export interface MarketLedgerRow {
 		gripperCycles: number;
 		episodeSaved: boolean | null;
 		samples: number;
+		episode: {
+			frames: number;
+			durationS: number;
+			jointPathDeg: number;
+			maxJointRangeDeg: number;
+			gripperCycles: number;
+			stillFraction: number;
+		} | null;
 	};
 	hasEvidence: boolean;
 	grade: {

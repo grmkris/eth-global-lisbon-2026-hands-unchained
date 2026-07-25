@@ -75,6 +75,18 @@ const sample = (row: LedgerRow, state: SamplerState): void => {
 	const rig = getRig(row.rig);
 	if (!rig) return;
 
+	// the recorded episode's own numbers, once the rig has read them back
+	const ep = rig.attempt?.lastEpisode;
+	if (ep && row.telemetry.episode === null)
+		row.telemetry.episode = {
+			frames: ep.frames,
+			durationS: ep.durationS,
+			jointPathDeg: ep.jointPathDeg,
+			maxJointRangeDeg: ep.maxJointRangeDeg,
+			gripperCycles: ep.gripperCycles,
+			stillFraction: ep.stillFraction,
+		};
+
 	// episode saved: the recorder count moved past its value at open. Valid
 	// during the grace window too — that is the window it moves in.
 	const saved = rig.record?.saved;

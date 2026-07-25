@@ -27,6 +27,14 @@ row.telemetry = {
 	gripperCycles: 3,
 	episodeSaved: true,
 	samples: 200,
+	episode: {
+		frames: 1240,
+		durationS: 41.3,
+		jointPathDeg: 812.4,
+		maxJointRangeDeg: 96.2,
+		gripperCycles: 3,
+		stillFraction: 0.12,
+	},
 };
 closeRow("bridge-smoke", "success");
 

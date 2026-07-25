@@ -1,0 +1,35 @@
+# Proof of Hands contracts — 0G Chain (Galileo testnet, chain 16602).
+#
+# 0G's docs are explicit that `cancun` is REQUIRED: build for an older EVM
+# version and deployed calls fail with "invalid opcode". viaIR is not a taste
+# call either — TeeAttestation's 9-argument attestation function builds a
+# string and runs the legacy codegen out of stack slots.
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+solc = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+bytecode_hash = "none"
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+
+# `forge script --rpc-url og_testnet`. Mainnet is listed so the id is written
+# down somewhere; nothing here is deployed to it.
+[rpc_endpoints]
+og_testnet = "https://evmrpc-testnet.0g.ai"
+og_mainnet = "https://evmrpc.0g.ai"
+
+# `forge verify-contract --chain 16602` against 0G Chain Scan's open API. The
+# explorer does not require a real key; the placeholder keeps forge happy.
+[etherscan]
+og_testnet = {key = "${OG_SCAN_KEY}", chain = 16602, url = "https://chainscan-galileo.0g.ai/open/api"}
+og_mainnet = {key = "${OG_SCAN_KEY}", chain = 16661, url = "https://chainscan.0g.ai/open/api"}

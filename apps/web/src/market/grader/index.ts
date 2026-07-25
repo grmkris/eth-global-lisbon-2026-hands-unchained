@@ -59,7 +59,11 @@ export const grade = async (row: LedgerRow): Promise<Grade> => {
 	// operator failed for "zero commanded motion" and their stake slashed,
 	// which happened for real. If the rig saved the episode and we simply
 	// could not watch, credit the work and say the telemetry was blind.
+	// Only "blind" when the RECORDING could not be read back either. With the
+	// episode in hand there is nothing to be blind about — it is the arm's
+	// real trajectory, whatever the drive source was.
 	if (
+		row.telemetry.episode === null &&
 		row.telemetry.inputPackets === 0 &&
 		row.telemetry.jointTravelDeg === 0 &&
 		row.telemetry.episodeSaved === true

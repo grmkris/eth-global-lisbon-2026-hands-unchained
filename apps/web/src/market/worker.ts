@@ -83,17 +83,40 @@ const abandonStaleRows = (): void => {
 
 const advance = async (row: LedgerRow): Promise<void> => {
 	if (row.status === "closed") {
-		// A success claim waits for the rig's episode save (the sampler keeps
-		// watching record.saved through this window): grade the moment it
-		// lands, or after GRADE_GRACE_MS worst-case. Discard/abandon grade
-		// immediately — there is nothing to wait for.
+		// The rig measures the SAVED EPISODE in the background and reports it
+		// on the next telemetry tick; that measurement is the best evidence we
+		// will ever get, so a success claim waits for it rather than grading a
+		// proxy. Pull it here as well as in the sampler — by now the sampler
+		// has usually stopped.
+		if (row.telemetry.episode === null) {
+			const ep = getRig(row.rig)?.attempt?.lastEpisode;
+			if (ep)
+				row.telemetry.episode = {
+					frames: ep.frames,
+					durationS: ep.durationS,
+					jointPathDeg: ep.jointPathDeg,
+					maxJointRangeDeg: ep.maxJointRangeDeg,
+					gripperCycles: ep.gripperCycles,
+					stillFraction: ep.stillFraction,
+				};
+		}
+		// Wait out the grace window for either the episode measurement or the
+		// save counter. Discard/abandon grade immediately — nothing to wait for.
 		if (
 			row.claimed === "success" &&
+			row.telemetry.episode === null &&
 			row.telemetry.episodeSaved !== true &&
 			row.closedAt !== null &&
 			Date.now() - row.closedAt < GRADE_GRACE_MS
 		)
 			return;
+		if (
+			row.claimed === "success" &&
+			row.telemetry.episode === null &&
+			row.closedAt !== null &&
+			Date.now() - row.closedAt < GRADE_GRACE_MS
+		)
+			return; // the save landed; give the measurement its full window too
 		stopSampler(row.id);
 		row.grade = await grade(row);
 		row.status = "graded";

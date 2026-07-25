@@ -379,6 +379,24 @@ export class TaskInfo extends Schema.Class<TaskInfo>("TaskInfo")(
 	}),
 ) {}
 
+/** Motion measured from the RECORDED EPISODE on disk — the follower's real
+ * trajectory at 30fps, i.e. the same rows that train the model. Unlike input
+ * counting it exists for every drive source (a leader arm included), and the
+ * operator cannot inflate it. Null until an episode has been saved. */
+export class EpisodeMotionInfo extends Schema.Class<EpisodeMotionInfo>(
+	"EpisodeMotionInfo",
+)(
+	Schema.Struct({
+		episodeIndex: Schema.Number,
+		frames: Schema.Number,
+		durationS: Schema.Number,
+		jointPathDeg: Schema.Number,
+		maxJointRangeDeg: Schema.Number,
+		gripperCycles: Schema.Number,
+		stillFraction: Schema.Number,
+	}),
+) {}
+
 export class AttemptState extends Schema.Class<AttemptState>("AttemptState")(
 	Schema.Struct({
 		active: Schema.Boolean,
@@ -388,6 +406,8 @@ export class AttemptState extends Schema.Class<AttemptState>("AttemptState")(
 		operator: Schema.NullOr(Schema.String),
 		episodeSeconds: Schema.NullOr(Schema.Number),
 		startedAt: Schema.NullOr(Schema.String),
+		/** survives the attempt going inactive so the hub can still read it */
+		lastEpisode: Schema.optional(Schema.NullOr(EpisodeMotionInfo)),
 	}),
 ) {}
 

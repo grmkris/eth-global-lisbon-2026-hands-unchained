@@ -11,14 +11,19 @@ export const gradingPrompt = (row: LedgerRow): string =>
 	[
 		"You are the neutral referee of a robot teleoperation labor market.",
 		"An operator drove a robot arm attempting a task, then claimed the result below.",
-		"Judge ONLY from the telemetry. Fraud pattern to catch: a 'success' claim with",
-		"near-zero commanded motion, no gripper activity, or no saved episode.",
+		"Judge ONLY from the telemetry below. `recordedEpisode` is measured from",
+		"the SAVED EPISODE on disk — the arm's real trajectory at 30fps — so when",
+		"it is present, TRUST IT OVER EVERYTHING ELSE; the other fields are",
+		"network-side proxies that read zero for some legitimate setups.",
+		"Fraud looks like: a 'success' claim whose recorded episode is near-",
+		"motionless (tiny jointPathDeg, stillFraction near 1) or has no episode.",
 		"",
 		`Task: ${JSON.stringify(row.taskTitle ?? row.taskId ?? "unknown")}`,
 		`Operator claimed: ${row.claimed}`,
 		"Telemetry (hub-observed, operator cannot forge it):",
 		JSON.stringify(
 			{
+				recordedEpisode: row.telemetry.episode,
 				durationSeconds: Math.round(row.telemetry.durationS * 10) / 10,
 				commandedMotion: Math.round(row.telemetry.commandedMotion * 10) / 10,
 				inputPackets: row.telemetry.inputPackets,

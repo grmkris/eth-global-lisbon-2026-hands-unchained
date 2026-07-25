@@ -52,6 +52,7 @@ const rowSummary = (row: LedgerRow) => ({
 		jointTravelDeg: Math.round(row.telemetry.jointTravelDeg),
 		commandedMotion: Math.round(row.telemetry.commandedMotion),
 	},
+	episode: row.telemetry.episode,
 	hasEvidence: row.evidence.frameJpeg !== null,
 	grade: row.grade,
 	payment: row.payment,

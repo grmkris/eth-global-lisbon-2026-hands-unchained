@@ -17,12 +17,14 @@ import {
 	AttemptLogRow,
 	AttemptState,
 	DriverError,
+	EpisodeMotionInfo,
 	type PreflightError,
 	type TaskInfo,
 } from "#/api/contract";
 import { RIG } from "#/api/rig";
 import { getHolder } from "#/rig/holder";
 import { DatasetCatalog } from "./dataset-catalog";
+import { awaitEpisodeMotion } from "./episode-motion";
 import { Recorder } from "./record";
 import { RobotSvc } from "./robot";
 import { TasksRegistry } from "./tasks-registry";
@@ -79,6 +81,9 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 			const catalog = yield* DatasetCatalog;
 
 			let current: Current | null = null;
+			/** last saved episode's real motion — outlives `current` on purpose:
+			 * the hub reads this after the attempt goes inactive */
+			let lastEpisode: EpisodeMotionInfo | null = null;
 
 			const toState = (): AttemptState =>
 				new AttemptState(
@@ -91,6 +96,7 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 								operator: current.operator,
 								episodeSeconds: current.task.episodeSeconds,
 								startedAt: current.startedAt,
+								lastEpisode,
 							}
 						: {
 								active: false,
@@ -100,6 +106,7 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 								operator: null,
 								episodeSeconds: null,
 								startedAt: null,
+								lastEpisode,
 							},
 				);
 
@@ -291,6 +298,8 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 								(existing?.totalEpisodes ?? 0) > 0,
 							source: priorSource,
 						});
+						// a new attempt must never inherit the previous measurement
+						lastEpisode = null;
 						current = {
 							attemptId: crypto.randomUUID().slice(0, 8),
 							task,
@@ -309,15 +318,40 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 							return yield* Effect.fail(
 								new DriverError({ message: "no attempt running" }),
 							);
+						// Read back what the arm ACTUALLY did from the episode we just
+						// wrote. This is the only motion evidence that exists for every
+						// drive source and cannot be inflated by the operator.
+						// Measure in the BACKGROUND: the recorder flushes parquet after
+						// it reports done, and the operator should not wait on evidence
+						// collection. The hub polls telemetry continuously, so
+						// `lastEpisode` is picked up whenever it lands.
+						const measure = () => {
+							const repoId = `${RIG.hfUser}/${cur.task.repoName}`;
+							void awaitEpisodeMotion(repoId)
+								.then((m) => {
+									if (m) {
+										lastEpisode = new EpisodeMotionInfo(m);
+										console.error(
+											`[attempts] episode ${m.episodeIndex} measured: ${m.frames} frames, ${m.jointPathDeg}° travel, ${Math.round((1 - m.stillFraction) * 100)}% moving`,
+										);
+									}
+								})
+								.catch(() => {
+									// evidence, not a gate — never fail an attempt over it
+								});
+						};
+
 						const status = yield* recorder.status();
 						if (status.active) {
 							// keep saves + session (1 episode) ends; discard clears the
 							// unsaved buffer and stops — nothing saved is ever touched.
 							yield* recorder.control(success ? "keep" : "discard");
+							if (success) measure();
 							yield* closeAttempt(success ? "success" : "discarded");
 						} else {
 							// timeout race: session already ended (auto-saved) — just
 							// annotate the outcome.
+							if (success) measure();
 							yield* closeAttempt(success ? "success" : "timeout");
 						}
 						return toState();
