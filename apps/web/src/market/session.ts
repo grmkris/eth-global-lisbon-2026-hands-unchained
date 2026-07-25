@@ -24,26 +24,43 @@ const sign = (payload: string): string =>
 export interface MarketSession {
 	nullifier: string;
 	expiresAt: number;
+	/** the wallet this human proved themselves on — the World proof carries it
+	 * as its signal, so identity and money are one chain of custody rather
+	 * than a cookie sitting next to an unrelated address */
+	address: string | null;
 }
 
-export const mintSessionValue = (nullifier: string): string => {
+export const mintSessionValue = (
+	nullifier: string,
+	address?: string | null,
+): string => {
 	const exp = Date.now() + SESSION_TTL_MS;
-	const payload = `${b64url(nullifier)}.${exp}`;
+	const payload = `${b64url(nullifier)}.${exp}.${b64url(address ?? "")}`;
 	return `${payload}.${sign(payload)}`;
 };
 
 export const parseSessionValue = (value: string): MarketSession | null => {
 	const parts = value.split(".");
-	if (parts.length !== 3) return null;
-	const payload = `${parts[0]}.${parts[1]}`;
+	// 3 parts = a session minted before wallet binding; still valid, just
+	// unbound, so nobody gets logged out by the upgrade.
+	if (parts.length !== 3 && parts.length !== 4) return null;
+	const bound = parts.length === 4;
+	const payload = bound
+		? `${parts[0]}.${parts[1]}.${parts[2]}`
+		: `${parts[0]}.${parts[1]}`;
 	const expected = sign(payload);
-	const got = parts[2];
+	const got = bound ? parts[3] : parts[2];
 	if (expected.length !== got.length) return null;
 	if (!timingSafeEqual(Buffer.from(expected), Buffer.from(got))) return null;
 	const expiresAt = Number(parts[1]);
 	if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return null;
 	try {
-		return { nullifier: unb64url(parts[0]), expiresAt };
+		const address = bound ? unb64url(parts[2]) : "";
+		return {
+			nullifier: unb64url(parts[0]),
+			expiresAt,
+			address: address === "" ? null : address.toLowerCase(),
+		};
 	} catch {
 		return null;
 	}

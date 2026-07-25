@@ -24,7 +24,7 @@ import type {
 	SlotsConfig,
 } from "#/market/market-api";
 import { noteBooked, unlockSlot } from "#/market/market-api";
-import { bookSlot, walletAvailable } from "#/market/zg-wallet";
+import { bookSlot, connect, walletAvailable } from "#/market/zg-wallet";
 
 function Step({
 	n,
@@ -142,22 +142,43 @@ export function SlotGate({
 }: {
 	rig: string;
 	session: MarketSessionInfo;
-	slots: SlotsConfig;
+	/** null when this hub has no slot market wired. The gate still renders —
+	 * it must, or a blocked operator sees an error with nothing to click,
+	 * which is exactly what used to happen. */
+	slots: SlotsConfig | null;
 	info: RigSlotInfo | null;
 }) {
 	const queryClient = useQueryClient();
 	const [key, setKey] = useState(() => generateSlotKey());
 	const [busy, setBusy] = useState(false);
+	// Held here, not inside a step: the address is what the World proof is
+	// signed against AND what books the slot, so both steps need it.
+	const [address, setAddress] = useState<`0x${string}` | null>(null);
 	const verified = session.verified;
-	const stakeOg = slots.params?.minStakeOg ?? 0.05;
-	const rewardOg = slots.params?.rewardPerEpisodeOg ?? 0.002;
-	const minutes = Math.round((slots.params?.slotSeconds ?? 1800) / 60);
+	const stakeOg = slots?.params?.minStakeOg ?? 0.05;
+	const rewardOg = slots?.params?.rewardPerEpisodeOg ?? 0.002;
+	const minutes = Math.round((slots?.params?.slotSeconds ?? 1800) / 60);
 
 	const pending = info?.pending ?? null;
 	const live = info?.live ?? null;
 	const needsUnlock = (pending ?? live) !== null;
 
+	const doConnect = async () => {
+		setBusy(true);
+		try {
+			setAddress(await connect());
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : "could not connect");
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const doBook = async () => {
+		if (slots === null) {
+			toast.error("booking is not configured on this hub");
+			return;
+		}
 		if (key.trim().length < slots.minPinLength) {
 			toast.error(`your key needs at least ${slots.minPinLength} characters`);
 			return;
@@ -199,16 +220,44 @@ export function SlotGate({
 					didn't earn three times and the whole stake is slashed.
 				</p>
 
-				<Step n={1} title="Prove you're human" done={verified}>
-					<WorldStep session={session} />
+				{/* Wallet FIRST: the address is the identity everything else hangs
+				    off — the World proof is signed against it, the stake comes from
+				    it, and the payout goes back to it. */}
+				<Step n={1} title="Connect your wallet" done={address !== null}>
+					{address !== null ? (
+						<span className="flex items-center gap-2 text-sm">
+							<StatusBadge tone="success">connected</StatusBadge>
+							<span className="font-mono text-muted-foreground">
+								{shortAddress(address)}
+							</span>
+						</span>
+					) : !walletAvailable() ? (
+						<span className="text-muted-foreground text-sm">
+							No wallet detected — install MetaMask on this device.
+						</span>
+					) : (
+						<Button size="sm" onClick={() => void doConnect()} disabled={busy}>
+							<Wallet />
+							{busy ? "connecting…" : "Connect wallet"}
+						</Button>
+					)}
+				</Step>
+
+				<Step n={2} title="Prove you're human" done={verified}>
+					<WorldStep session={session} address={address} />
 				</Step>
 
 				<Step
-					n={2}
+					n={3}
 					title={`Book ${minutes} minutes · ${stakeOg} OG`}
 					done={needsUnlock}
 				>
-					{!verified ? (
+					{slots === null ? (
+						<span className="text-muted-foreground text-sm">
+							Booking isn't configured on this hub yet — ask whoever deployed it
+							to set ZG_SLOT_MARKET_ADDRESS.
+						</span>
+					) : !verified ? (
 						<span className="text-muted-foreground text-sm">verify first</span>
 					) : live !== null ? (
 						<div className="flex flex-col gap-2">
@@ -223,10 +272,6 @@ export function SlotGate({
 						</div>
 					) : pending !== null ? (
 						<SlotUnlock rig={rig} slotId={pending.slotId} mine={true} />
-					) : !walletAvailable() ? (
-						<span className="text-muted-foreground text-sm">
-							No wallet detected — install MetaMask on this device.
-						</span>
 					) : (
 						<div className="flex flex-col gap-3">
 							<div className="flex flex-col gap-1.5">

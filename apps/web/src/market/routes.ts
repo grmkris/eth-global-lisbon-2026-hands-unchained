@@ -104,7 +104,10 @@ export const handleMarketRequest = async (
 		if (!marketEnabled()) return json({ marketMode: false, verified: false });
 		ensureWorker();
 
-		const describe = async (nullifier: string) => {
+		const describe = async (
+			nullifier: string,
+			boundAddress: string | null = null,
+		) => {
 			const bond = getBond(nullifier);
 			// what happened to their most recent attempt — without this the
 			// operator finishes an attempt and has no idea whether a referee
@@ -114,6 +117,7 @@ export const handleMarketRequest = async (
 				marketMode: true,
 				verified: true,
 				nullifier: `${nullifier.slice(0, 12)}…`,
+				boundAddress,
 				devAutoverify: DEV_AUTOVERIFY,
 				world: worldConfig,
 				stake: {
@@ -146,7 +150,8 @@ export const handleMarketRequest = async (
 		};
 
 		const session = readSession(request);
-		if (session !== null) return json(await describe(session.nullifier));
+		if (session !== null)
+			return json(await describe(session.nullifier, session.address));
 
 		if (DEV_AUTOVERIFY) {
 			// local bring-up: mint a verified session on sight — the deny path
@@ -189,11 +194,21 @@ export const handleMarketRequest = async (
 				result.identityAttested === false
 			)
 				return json({ error: "identity attributes not attested" }, 403);
-			const value = mintSessionValue(result.nullifier);
+			// Bind the human to the wallet they proved on. The address arrives
+			// alongside the proof and is the same one IDKit signed as the
+			// signal, so identity and money share one chain of custody instead
+			// of being a cookie sitting next to an unrelated address.
+			const claimed =
+				typeof body.address === "string" &&
+				/^0x[0-9a-fA-F]{40}$/.test(body.address)
+					? body.address.toLowerCase()
+					: null;
+			const value = mintSessionValue(result.nullifier, claimed);
 			return new Response(
 				JSON.stringify({
 					verified: true,
 					identityAttested: result.identityAttested,
+					boundAddress: claimed,
 				}),
 				{
 					headers: {

@@ -7,21 +7,34 @@ import { type MarketSessionInfo, verifyWorldProof } from "#/market/market-api";
 /**
  * Step one, everywhere: prove you're a unique adult human.
  *
- * Lifted out of stake-gate.tsx unchanged so the slot flow and the (dormant)
- * Hedera flow share one implementation. World ID gates EXECUTION RIGHTS OVER
- * PHYSICAL HARDWARE, which is why it stays mandatory even though the stake
- * moved chains — the money stops a liar, but only identity stops a thousand
- * sybils queueing for the same arm.
+ * World ID gates EXECUTION RIGHTS OVER PHYSICAL HARDWARE, which is why it
+ * stays mandatory even though the stake moved chains — money stops a liar,
+ * but only identity stops a thousand sybils queueing for the same arm.
  *
- * The two steps deliberately live on different devices: World ID shows a QR
- * here and you approve on your phone, then the wallet is back on this machine.
- * Both land in this browser, which is what the hub gates on.
+ * BOUND TO THE WALLET. The proof carries the operator's address as its
+ * signal, so it is cryptographically tied to the address that will stake and
+ * be paid. Without that binding a browser cookie was the only link between
+ * "a human verified" and "this wallet booked", which meant one nullifier
+ * could book from unlimited wallets and a shared browser could lend its
+ * humanity to strangers. The address must therefore be known BEFORE the
+ * proof is requested — that is why connecting comes first.
+ *
+ * The two steps still live on different devices: World ID shows a QR here and
+ * you approve on your phone, while the wallet stays on this machine. Both
+ * land in this browser, which is what the hub gates on.
  */
 const IDKitRequestWidget = lazy(() =>
 	import("@worldcoin/idkit").then((m) => ({ default: m.IDKitRequestWidget })),
 );
 
-export function WorldStep({ session }: { session: MarketSessionInfo }) {
+export function WorldStep({
+	session,
+	address,
+}: {
+	session: MarketSessionInfo;
+	/** the connected wallet — the proof is bound to it */
+	address: `0x${string}` | null;
+}) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [rpContext, setRpContext] = useState<Record<string, unknown> | null>(
@@ -39,11 +52,16 @@ export function WorldStep({ session }: { session: MarketSessionInfo }) {
 				if (!res.ok) throw new Error("rp-context unavailable");
 				setRpContext((await res.json()) as Record<string, unknown>);
 				const idkit = await import("@worldcoin/idkit");
+				// The signal is what binds this proof to this wallet. IDKit spells
+				// it differently per preset: `signal` on proofOfHuman, and
+				// `legacy_signal` on identityCheck.
+				const signal = address ?? undefined;
 				setPreset(
 					world.preset === "proof-of-human"
-						? idkit.proofOfHuman({})
+						? idkit.proofOfHuman({ signal })
 						: idkit.identityCheck({
 								attributes: [{ type: "minimum_age", value: 18 }],
+								legacy_signal: signal,
 							}),
 				);
 			} catch (e) {
@@ -53,12 +71,20 @@ export function WorldStep({ session }: { session: MarketSessionInfo }) {
 				setOpen(false);
 			}
 		})();
-	}, [open, world]);
+	}, [open, world, address]);
 
 	if (session.verified)
 		return (
 			<span className="text-sm text-muted-foreground">
 				verified{session.nullifier ? ` · ${session.nullifier}` : ""}
+				{session.boundAddress ? " · bound to your wallet" : ""}
+			</span>
+		);
+
+	if (address === null)
+		return (
+			<span className="text-sm text-muted-foreground">
+				connect your wallet first — the proof is bound to it
 			</span>
 		);
 
@@ -91,9 +117,12 @@ export function WorldStep({ session }: { session: MarketSessionInfo }) {
 						// a simulator has no camera to prove liveness with
 						require_user_presence={world.requirePresence === true}
 						handleVerify={async (result) => {
-							await verifyWorldProof(
-								result as unknown as Record<string, unknown>,
-							);
+							await verifyWorldProof({
+								...(result as unknown as Record<string, unknown>),
+								// the hub records WHICH wallet this human is, and
+								// refuses a proof whose signal is someone else's
+								address,
+							});
 						}}
 						onSuccess={() => {
 							toast.success("verified");

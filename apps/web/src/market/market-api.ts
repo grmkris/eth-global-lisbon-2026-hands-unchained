@@ -27,6 +27,8 @@ export interface MarketSessionInfo {
 	marketMode: boolean;
 	verified: boolean;
 	nullifier?: string;
+	/** the wallet this human's World proof was signed against */
+	boundAddress?: string | null;
 	devAutoverify?: boolean;
 	world?: {
 		appId: string;
@@ -156,10 +158,11 @@ const post = async <T>(
 
 /** Forward an IDKit proof payload to the hub for cloud verification. */
 export const verifyWorldProof = (payload: Record<string, unknown>) =>
-	post<{ verified: boolean; identityAttested: boolean | null }>(
-		"/api/market/verify",
-		payload,
-	);
+	post<{
+		verified: boolean;
+		identityAttested: boolean | null;
+		boundAddress: string | null;
+	}>("/api/market/verify", payload);
 
 /** Tell the hub about the stake transaction the operator just signed. The
  * hub verifies it against the mirror node — we only ever send a hash. */

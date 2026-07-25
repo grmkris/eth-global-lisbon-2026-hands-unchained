@@ -354,12 +354,15 @@ function DrivePage() {
 				)}
 			</div>
 
-			{gated && market.data && slot.enabled && slot.config && (
+			{/* Renders whenever the operator is blocked — NOT only when slots
+			    happen to be configured. Tying it to slot.config is what let the
+			    page tell someone to stake while showing them no way to. */}
+			{gated && market.data && (
 				<div className="mt-4">
 					<SlotGate
 						rig={rigName}
 						session={market.data}
-						slots={slot.config}
+						slots={slot.config ?? null}
 						info={slot.info}
 					/>
 				</div>
