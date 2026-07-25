@@ -68,7 +68,6 @@ contract SlotMarket is TeeVerifier {
         Voided, // 4  terminal — third strike, stake and credits to the pool
         Skipped, // 5  terminal — no-show at the head, stake refunded
         Cancelled // 6  terminal — left the queue voluntarily, stake refunded
-
     }
 
     /// uint40 timestamps are good until the year 36812.
@@ -119,6 +118,13 @@ contract SlotMarket is TeeVerifier {
     mapping(bytes32 => uint256) private _live;
     /// Replay guard: an episode may be graded onto a slot exactly once.
     mapping(bytes32 => bool) public episodeSeen;
+    /// The OTHER replay guard, and the less obvious one. `episodeSeen` stops
+    /// the same episode being graded twice; this stops ONE valid attestation
+    /// being stapled onto many episodes. Nothing in the signed text names an
+    /// episode, so without it the settler could take a single genuine `pass`
+    /// and mint a reward per replay — which would hollow out the whole "can
+    /// choose which verdict to submit, cannot forge one" claim.
+    mapping(bytes32 => bool) public attestationUsed;
     /// Pull-payment fallback; push is attempted first.
     mapping(address => uint256) public owed;
 
@@ -164,9 +170,16 @@ contract SlotMarket is TeeVerifier {
         uint256 reward
     );
     event Strike(uint256 indexed slotId, address indexed operator, uint8 strikes);
-    event SlotVoided(uint256 indexed slotId, address indexed operator, uint256 slashed, uint256 forfeited);
+    event SlotVoided(
+        uint256 indexed slotId, address indexed operator, uint256 slashed, uint256 forfeited
+    );
     event SlotSettled(
-        uint256 indexed slotId, address indexed operator, uint256 stakeBack, uint256 reward, uint16 passes, uint8 strikes
+        uint256 indexed slotId,
+        address indexed operator,
+        uint256 stakeBack,
+        uint256 reward,
+        uint16 passes,
+        uint8 strikes
     );
     event SlotSkipped(uint256 indexed slotId, address indexed operator, uint256 refund);
     event SlotCancelled(uint256 indexed slotId, address indexed operator, uint256 refund);
@@ -217,7 +230,12 @@ contract SlotMarket is TeeVerifier {
      *
      * This is the ONLY transaction an operator is ever required to sign.
      */
-    function bookSlot(bytes32 rigId, bytes32 pinHash) external payable lock returns (uint256 slotId) {
+    function bookSlot(bytes32 rigId, bytes32 pinHash)
+        external
+        payable
+        lock
+        returns (uint256 slotId)
+    {
         require(msg.value >= minStake, "stake below minimum");
         require(msg.value <= type(uint96).max, "stake too large");
         require(pinHash != bytes32(0), "pin hash required");
@@ -294,6 +312,9 @@ contract SlotMarket is TeeVerifier {
     ) external {
         require(msg.sender == settler, "settler only");
         _requireTee(requestHashHex, responseBytes, tlsFingerprintHex, teeSignature);
+        bytes32 responseHash = sha256(responseBytes);
+        require(!attestationUsed[responseHash], "attestation already used");
+        attestationUsed[responseHash] = true;
         _applyEpisode(slotId, episodeId, score, pass, claimedSuccess, storageRoot, true);
     }
 
@@ -357,7 +378,9 @@ contract SlotMarket is TeeVerifier {
             emit Strike(slotId, s.operator, s.strikes);
         }
 
-        emit EpisodeRecorded(slotId, episodeId, score, pass, claimedSuccess, attested, storageRoot, reward);
+        emit EpisodeRecorded(
+            slotId, episodeId, score, pass, claimedSuccess, attested, storageRoot, reward
+        );
 
         if (s.strikes >= MAX_STRIKES) _void(slotId);
     }
@@ -377,7 +400,8 @@ contract SlotMarket is TeeVerifier {
         require(s.status == Status.Running, "slot not running");
         require(block.timestamp >= s.endAt, "slot still running");
         require(
-            msg.sender == settler || block.timestamp > uint256(s.endAt) + gradeGrace, "grading window still open"
+            msg.sender == settler || block.timestamp > uint256(s.endAt) + gradeGrace,
+            "grading window still open"
         );
         _settle(slotId);
     }
@@ -406,7 +430,10 @@ contract SlotMarket is TeeVerifier {
         uint256 slotId = _head(rigId);
         require(slotId != 0, "queue empty");
         require(slots[slotId].status == Status.Booked, "head already started");
-        require(block.timestamp >= uint256(rigQueue[rigId].headSince) + noShowGrace, "still within the no-show grace");
+        require(
+            block.timestamp >= uint256(rigQueue[rigId].headSince) + noShowGrace,
+            "still within the no-show grace"
+        );
         _skip(slotId);
     }
 

@@ -51,7 +51,9 @@ contract TeeAttestation is TeeVerifier {
         bytes calldata teeSignature
     ) external {
         _requireTee(requestHashHex, responseBytes, tlsFingerprintHex, teeSignature);
-        emit Graded(attemptId, operator, score, pass, sha256(responseBytes), chatID, block.timestamp);
+        emit Graded(
+            attemptId, operator, score, pass, sha256(responseBytes), chatID, block.timestamp
+        );
     }
 
     /**

@@ -8,10 +8,10 @@ pragma solidity ^0.8.24;
 contract EpisodeRegistry {
     event Episode(
         bytes32 indexed episodeHash, // hash of attemptId|rig|taskId
-        bytes32 indexed operator,    // hash of the operator's World ID nullifier
-        uint16 score,                // referee score 0-100 (0G Compute grade)
-        bool pass,                   // referee verdict
-        bytes32 storageRoot,         // 0G Storage root of {telemetry, verdict, frame}
+        bytes32 indexed operator, // hash of the operator's World ID nullifier
+        uint16 score, // referee score 0-100 (0G Compute grade)
+        bool pass, // referee verdict
+        bytes32 storageRoot, // 0G Storage root of {telemetry, verdict, frame}
         uint256 ts
     );
 
