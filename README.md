@@ -82,6 +82,49 @@ bun run teleop
 # second session, so the remote source would never start.
 ```
 
+## The market — verified humans, graded work, real payment
+
+`MARKET_MODE=1` turns the platform into a labor market. The loop above has
+one honest hole: **success is self-declared** — the operator clicks ✓ and the
+episode counts. The moment strangers get *paid* for this, that hole (and two
+others) must close, one per sponsor:
+
+| Hole | Fix |
+|---|---|
+| Operator identity is a random per-tab `clientId` — sybils get execution rights on physical hardware | **World ID** gates lease acquisition. Unverified → **HTTP 402**, arm stays locked. |
+| The worker grades their own paid work | **0G Compute** is the referee: a TEE-attested model judges the telemetry, and its verdict — not the operator — decides payment. |
+| A $0.50 work unit every 20 s fits no invoice or bank rail | **Hedera**: HBAR bond + per-episode bonus, sub-cent fees, HCS audit trail. |
+
+```
+verify (World ID, 18+ & live)  →  lease granted
+  ↓ first attempt                 bond 0.5 ℏ  operator → escrow
+drive · attempt · claim ✓/✗
+  ↓ hub-observed telemetry (motion, gripper, episode-saved — unforgeable)
+0G Compute referee  →  {score, pass, teeVerified}
+  ↓ pass                          bonus 0.5 ℏ  treasury → operator   (autonomous)
+  ↓ fail after claiming success   bond SLASHED escrow  → treasury
+anchor: HCS digest · 0G Storage root · EpisodeRegistry event
+```
+
+Every payment is submitted by the settlement worker on the referee's verdict —
+no human clicks pay. The `/market` dashboard shows each attempt with its
+grade, TEE badge, payout link and evidence frame.
+
+**Per-sponsor detail:** [WORLD](docs/market/WORLD.md) (gate + Identity Check
+testing docs) · [HEDERA](docs/market/HEDERA.md) (payment flow mechanics) ·
+[0G](docs/market/0G.md) (proof of inference + contract).
+
+Live testnet artifacts:
+
+| What | Where |
+|---|---|
+| HCS provenance topic | [`0.0.9746374`](https://hashscan.io/testnet/topic/0.0.9746374) |
+| EpisodeRegistry (0G Galileo, 16602) | [`0x80669DE19A96F0004adbC3C81c528Ef1abB9a494`](https://chainscan-galileo.0g.ai/address/0x80669DE19A96F0004adbC3C81c528Ef1abB9a494) |
+| Example autonomous payout | [`0.0.9700388-1784993892-227625527`](https://hashscan.io/testnet/transaction/0.0.9700388-1784993892-227625527) |
+
+Off by default: with `MARKET_MODE` unset the platform behaves exactly as the
+sections above describe — no gate, no chain, no market.
+
 ## Safety model
 
 15°/tick clamp on remote input · 0.5 s deadman (hold pose on silence) · servo

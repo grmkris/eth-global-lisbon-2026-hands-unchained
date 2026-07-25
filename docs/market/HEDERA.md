@@ -54,9 +54,26 @@ HEDERA_OPERATOR_ID=0.0.x HEDERA_OPERATOR_KEY=... MARKET_SECRET=... \
 Code: `apps/web/src/market/hedera.ts` (transfers, HCS, mirror rehydrate) ·
 `apps/web/src/market/worker.ts` (the autonomous agent).
 
-## Live artifacts
+## Live artifacts (testnet, 2026-07-25)
 
-<!-- filled after smoke test / demo day -->
-- Topic: `https://hashscan.io/testnet/topic/<HCS_TOPIC_ID>`
-- Example bonus payout: `https://hashscan.io/testnet/transaction/<txid>`
-- Example slash: `https://hashscan.io/testnet/transaction/<txid>`
+| What | Link |
+|---|---|
+| Treasury / operator account | [`0.0.9700388`](https://hashscan.io/testnet/account/0.0.9700388) |
+| Escrow account (bonds) | [`0.0.9746375`](https://hashscan.io/testnet/account/0.0.9746375) |
+| **HCS provenance topic** | [`0.0.9746374`](https://hashscan.io/testnet/topic/0.0.9746374) |
+| Autonomous bonus payout (0.5 ℏ, paid on a 0G `pass`) | [`0.0.9700388-1784993892-227625527`](https://hashscan.io/testnet/transaction/0.0.9700388-1784993892-227625527) |
+| Bond lock (operator → escrow) | [`0.0.9700388-1784992610-550787196`](https://hashscan.io/testnet/transaction/0.0.9700388-1784992610-550787196) |
+| Bond release (escrow → operator) | [`0.0.9700388-1784992611-089534480`](https://hashscan.io/testnet/transaction/0.0.9700388-1784992611-089534480) |
+| Example derived operator account | [`0.0.9746646`](https://hashscan.io/testnet/account/0.0.9746646) |
+
+Digest as written to the topic (one message per graded attempt, 235 bytes):
+
+```json
+{"v":1,"a":"att-ms0iil5v-1","rig":"kris-sim","task":"t1","n":"…","acct":"0.0.9746373",
+ "claimed":"success","s":100,"p":true,"gp":"0g-compute","tx":"0.0.9700388-…","zg":"…","tee":true,"root":"0x…"}
+```
+
+Verified end to end on 2026-07-25: one sim-rig attempt → 0G verdict
+(`score 80, teeVerified true`) → autonomous 0.5 ℏ bonus → HCS seq 5 → 0G
+Storage root → EpisodeRegistry event. A restart of the hub then rehydrated
+its running totals from this topic, proving HCS is the durable ledger.
