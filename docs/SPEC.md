@@ -74,12 +74,19 @@ middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
   (API/rig link), cookie (MJPEG `<img>` + sendBeacon can't set headers), query
   param (curl debug). Unset ⇒ open. **Currently unset.** Real identity is a
   later problem; the lease is collision avoidance, not security.
-- **Leader-over-wire** (`apps/driver/controller.py` → hub → `sources/remote.py`):
-  operator's leader read at 30 Hz, lerobot-space dict (degrees + gripper
-  0..100) over one kept-alive HTTPS connection (~16 packets/s WAN). Values
-  clamped + non-finite dropped on the rig BEFORE lerobot. Cross-device works
-  by construction (each end normalizes through its own calibration); known
-  wart: wrist_roll zero is calibration-pose-relative across devices.
+- **Leader-over-wire** (`apps/driver/controller.py` = the LEADER AGENT → hub
+  → `sources/remote.py`): symmetric to the rig agent — `bun run teleop`
+  auto-detects the leader's port, connects it, and registers on the hub's
+  `leaders` registry (dial-out heartbeat `/api/hub/leaders/link`, in-memory,
+  redeploy self-heals). The BROWSER picks the rig: "Drive with <name>'s
+  leader" on the drive page queues a consume-once `{drive, rig}` command
+  (15s TTL); the agent force-claims the rig, sends `teleop_start_remote`,
+  and streams the leader's lerobot-space dict (degrees + gripper 0..100)
+  at 30 Hz over one kept-alive HTTPS connection (~16 packets/s WAN). Web
+  stop / take-over returns it to idle (no exit). Values clamped + non-finite
+  dropped on the rig BEFORE lerobot. Cross-device works by construction
+  (each end normalizes through its own calibration); known wart: wrist_roll
+  zero is calibration-pose-relative across devices.
 
 ### Tasks + attempts (the crowdsourcing loop)
 Tasks live RIG-SIDE (`.data/tasks.json`, `tasks-registry.ts`) and are

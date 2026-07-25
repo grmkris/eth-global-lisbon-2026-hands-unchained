@@ -190,3 +190,66 @@ export const releaseLease = (rig: Rig, holder: string): void => {
 export const setFrame = (rig: Rig, cam: string, data: Uint8Array): void => {
 	rig.frames.set(cam, { data, at: Date.now() });
 };
+
+// --- leaders ---------------------------------------------------------------
+// Operator-side leader arms, registered by controller.py exactly like rigs
+// register themselves: dial-out heartbeat, in-memory, re-registers after a
+// redeploy. The browser commands a leader ("drive rig X") through the same
+// consume-once pending-slot pattern as rig commands.
+
+export interface LeaderCommand {
+	action: "drive" | "stop";
+	rig?: string;
+	queuedAt: number;
+}
+
+export interface Leader {
+	name: string;
+	/** rig name while streaming, null while idle — reported by the agent */
+	driving: string | null;
+	pending: LeaderCommand | null;
+	lastSeen: number;
+}
+
+const leaderStore = globalThis as unknown as {
+	__labHubLeaders?: Map<string, Leader>;
+};
+leaderStore.__labHubLeaders ??= new Map<string, Leader>();
+const leaders = leaderStore.__labHubLeaders;
+
+export const upsertLeader = (name: string, driving: string | null): Leader => {
+	const existing = leaders.get(name);
+	if (existing) {
+		existing.driving = driving;
+		existing.lastSeen = Date.now();
+		return existing;
+	}
+	const leader: Leader = {
+		name,
+		driving,
+		pending: null,
+		lastSeen: Date.now(),
+	};
+	leaders.set(name, leader);
+	return leader;
+};
+
+export const getLeader = (name: string): Leader | undefined =>
+	leaders.get(name);
+
+export const listLeaders = (): ReadonlyArray<Leader> => [...leaders.values()];
+
+export const leaderOnline = (leader: Leader): boolean =>
+	Date.now() - leader.lastSeen < RIG_TTL_MS;
+
+/** Consume-once with the same staleness rule as rig commands. */
+export const takeLeaderCommand = (leader: Leader): LeaderCommand | null => {
+	const cmd = leader.pending;
+	leader.pending = null;
+	if (cmd === null) return null;
+	if (Date.now() - cmd.queuedAt >= COMMAND_TTL_MS) {
+		console.error(`[hub] dropped stale leader command for ${leader.name}`);
+		return null;
+	}
+	return cmd;
+};

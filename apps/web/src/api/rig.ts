@@ -1,9 +1,11 @@
-/** Rig profile — the flags nobody should ever retype (crib-sheet convention).
- * Defaults are Kristjan's arms; another machine overrides via env
- * (FOLLOWER_PORT=$(ls /dev/tty.usbmodem*)). */
+/** Rig profile. Ports are null unless set via env: the driver auto-detects
+ * the follower when exactly one serial device is plugged in, and the leader
+ * attaches ONLY when LEADER_PORT is explicit (so a leader agent on the same
+ * machine can own that port). Kristjan's serials live in package.json
+ * scripts (`rig:real`, `rig:sim*`), not here. */
 export const RIG = {
-	followerPort: process.env.FOLLOWER_PORT ?? "/dev/tty.usbmodem5AE60832001",
-	leaderPort: process.env.LEADER_PORT ?? "/dev/tty.usbmodem5AE60538411",
+	followerPort: process.env.FOLLOWER_PORT || null,
+	leaderPort: process.env.LEADER_PORT || null,
 	robotId: process.env.ROBOT_ID ?? "arm",
 	brightnessBand: { min: 115, max: 131 },
 	hfUser: "kris0",

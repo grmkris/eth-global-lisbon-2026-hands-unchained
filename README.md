@@ -47,12 +47,12 @@ bun run rig:sim                            # headless sim rig (no port), autocon
 # open http://localhost:3001 → Take control → Teleop (keys) → WASD/QE
 ```
 
-Register a rig with the deployed hub:
+Register a rig with the deployed hub (zero config — hub URL is the baked-in
+default, follower port auto-detected, rig named after your hostname):
 
 ```sh
 cd apps/web
-HUB_URL=<hub url> RIG_NAME=my-arm LAB_AUTOCONNECT=real \
-FOLLOWER_PORT=$(ls /dev/tty.usbmodem* | head -1) bun run agent
+LAB_AUTOCONNECT=real bun run agent
 # headless: no UI, no listening port — the rig only dials out.
 # The terminal prints your RIG OWNER KEY — you need it to define tasks.
 ```
@@ -72,11 +72,12 @@ operator: Take control → drive → Start attempt → do the task
 dataset: grows episode by episode, labeled, on the rig owner's machine
 ```
 
-Drive a rig with your own leader arm:
+Drive a rig with your own leader arm (also zero config — port auto-detected,
+registers under your hostname; then click "Drive with your leader" on any
+rig's drive page):
 
 ```sh
-apps/driver/.venv/bin/python apps/driver/controller.py \
-  --hub <hub url> --rig <rig-name> --port /dev/tty.usbmodemXXXX
+cd apps/web && bun run teleop
 ```
 
 ## Safety model

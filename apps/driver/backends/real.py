@@ -3,6 +3,7 @@ Connect/teleop structure cribbed from LeLab's teleoperate.py (worker owns discon
 """
 
 
+from ports import resolve_follower
 from shared import emit, log
 
 
@@ -37,20 +38,25 @@ class RealBackend:
         from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
 
         robot_id = req.get("robotId", "arm")
+        # None -> auto-detect (exactly one serial device); raises friendly text
+        follower_port = resolve_follower(req.get("followerPort"))
+        if not req.get("followerPort"):
+            log(f"real: follower on {follower_port} (auto-detected)")
+        # store the RESOLVED port — prepare_record reads _ports later
         self._ports = {
-            "followerPort": req["followerPort"],
+            "followerPort": follower_port,
             "leaderPort": req.get("leaderPort"),
             "robotId": robot_id,
         }
         robot = None
         teleop = None
         try:
-            robot = SO101Follower(SO101FollowerConfig(port=req["followerPort"], id=robot_id))
+            robot = SO101Follower(SO101FollowerConfig(port=follower_port, id=robot_id))
             try:
                 robot.bus.connect()
             except Exception as exc:
                 raise RuntimeError(
-                    f"Could not connect to the follower arm on {req['followerPort']}. "
+                    f"Could not connect to the follower arm on {follower_port}. "
                     "Plugged in, powered, and not held by LeLab/CLI?"
                 ) from exc
             robot.bus.write_calibration(robot.calibration)

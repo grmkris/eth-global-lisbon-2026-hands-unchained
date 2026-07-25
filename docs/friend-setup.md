@@ -2,14 +2,14 @@
 
 Two independent things you can do; each works without the other:
 
-- **A. Drive Kristjan's sim with YOUR leader arm** — needs only steps 0–1 + "A" below.
-- **B. Put your follower on the hub** so others can drive it — steps 0–5.
+- **A. Drive a rig with YOUR leader arm** — steps 0–1, then one command.
+- **B. Put your follower on the hub** so others can drive it — steps 0–1, then one command.
 
-Your Mac runs a small headless agent; it dials OUT to the hub, so no port
-forwarding, no firewall changes, nothing exposed. Kristjan (or anyone with the
-lobby URL) sees your camera feed and drives the arm with their keyboard.
+Your Mac runs a small headless agent either way; it dials OUT to the hub, so
+no port forwarding, no firewall changes, nothing exposed.
 
-Hub: **https://web-production-b5106.up.railway.app**
+Hub: **https://web-production-b5106.up.railway.app** (baked in as the
+default — no URL to type)
 
 ## 0. Prereqs (Apple Silicon Mac)
 
@@ -28,75 +28,56 @@ cd eth-global-lisbon-2026-proof-of-hands/apps/web && bun install
 cd ../driver && uv sync        # installs lerobot 0.6.0 + opencv (+ mujoco)
 ```
 
-## A. Drive Kristjan's sim with your leader arm
+## A. Drive a rig with your leader arm
 
-Plug in your LEADER arm (the small one, no gearing). Find its port
-(`ls /dev/tty.usbmodem*`) and calibrate it once (from `apps/driver`):
-
-```sh
-.venv/bin/lerobot-calibrate --teleop.type=so101_leader \
-  --teleop.port=/dev/tty.usbmodemXXXX --teleop.id=arm
-```
-
-Then check `kris-sim` is online in the lobby and:
+Plug in your LEADER arm (the small one, no gearing) — nothing else on USB —
+then from `apps/web`:
 
 ```sh
-.venv/bin/python controller.py \
-  --hub https://web-production-b5106.up.railway.app \
-  --rig kris-sim \
-  --port /dev/tty.usbmodemXXXX
+bun run teleop
 ```
 
-Move your leader — the simulated arm at
-https://web-production-b5106.up.railway.app/drive/kris-sim follows (open it
-for the camera view; you'll be "driving", video stays live). Ctrl-C releases
-the rig. Notes: motion is clamped to 15°/tick on the rig side; if the wrist
-roll sits at a odd angle, that's the known cross-device wrist_roll zero
-offset — recalibrate the leader holding the wrist how you want "zero" to be.
+That's it. The port is auto-detected, the hub is the default, and your first
+run walks you through lerobot's calibration wizard (middle position, then
+full range of every joint). The script registers your leader under your
+hostname and idles.
 
-## 2. (Track B) Plug in the follower, find its port
+Now open a rig in the lobby → **Take control** → **Drive with \<your\>'s
+leader**. Move your leader — the remote arm follows; the page keeps the
+camera view. Stop from the page or Ctrl-C.
 
-Follower arm on USB + its power supply. Then:
+Notes: motion is clamped to 15°/tick on the rig side; if the wrist roll sits
+at an odd angle, that's the known cross-device wrist_roll zero offset —
+recalibrate the leader holding the wrist how you want "zero" to be.
 
-```sh
-ls /dev/tty.usbmodem*          # -> e.g. /dev/tty.usbmodem58FA0812345
-```
+## B. Put your follower on the hub
 
-If you see two entries, unplug/replug the arm and note which one changes.
-
-## 3. Calibrate (once)
-
-From `apps/driver`:
+Plug in the follower (USB + its power supply) — nothing else on USB — and a
+webcam pointed at the workspace (the built-in laptop cam is deliberately
+ignored). Calibrate once if this arm never has been (from `apps/driver`;
+this also writes the servo limits that the hub can never drive past):
 
 ```sh
 .venv/bin/lerobot-calibrate --robot.type=so101_follower \
-  --robot.port=/dev/tty.usbmodemXXXX --robot.id=arm
+  --robot.port=$(ls /dev/tty.usbmodem*) --robot.id=arm
 ```
 
-Middle position first, then move every joint through its full range.
-This writes limits into the servos — it is also the safety envelope: the hub
-can never drive your arm past what YOU calibrated.
-
-## 4. Camera
-
-Plug any USB webcam pointed at the arm's workspace (the built-in laptop cam
-is deliberately ignored). No config — the agent finds it.
-
-## 5. Run the agent
-
-From `apps/web` (one line — headless, no UI, no open ports):
+Then from `apps/web` (headless, no UI, no open ports):
 
 ```sh
-HUB_URL=https://web-production-b5106.up.railway.app \
-RIG_NAME=friend-arm \
-LAB_AUTOCONNECT=real \
-FOLLOWER_PORT=$(ls /dev/tty.usbmodem* | head -1) \
-bun run agent
+LAB_AUTOCONNECT=real bun run agent
 ```
 
-Within ~2 s your rig appears at the hub's Lobby, camera streaming. You're done —
-leave the terminal running. Ctrl-C fully stops it (arm goes limp and torque
-drops on disconnect; that is intentional).
+Port auto-detected, rig named after your hostname, hub defaulted.
+(`FOLLOWER_PORT` / `RIG_NAME` / `HUB_URL` override any of that.) Within ~2 s
+your rig appears in the Lobby, camera streaming. The terminal prints your
+**owner key** — paste it on the drive page to define tasks, set up cameras,
+or record. Ctrl-C fully stops it (arm goes limp; intentional).
+
+**Both arms on ONE machine?** Auto-detect can't tell them apart — set the
+ports explicitly for the agent (`FOLLOWER_PORT=... bun run agent`), leave
+`LEADER_PORT` unset so the agent doesn't grab the leader, and give
+`bun run teleop` its port via `LEADER_PORT=...` (or pick from its list).
 
 ## Safety, please actually read
 
@@ -110,15 +91,17 @@ drops on disconnect; that is intentional).
 - **Auth is built but currently switched off** (`HUB_TOKEN` unset on the hub)
   — anyone with the URL can drive whatever rig is registered. Only run the
   agent while we're actually testing. If Kristjan sets a token, add
-  `HUB_TOKEN=<shared secret>` to the agent command (and controller runs get
-  it too) — everything else stays the same.
+  `HUB_TOKEN=<shared secret>` to both commands — everything else stays the
+  same.
 
 ## If something's off
 
 - Rig shows offline in the lobby → the agent terminal will say why
   (`[rig-link] hub unreachable …`).
-- "leader arm unavailable" warning on the drive page → expected, ignore. You
-  have no leader arm; keyboard driving is unaffected.
+- "no serial device found" → plug the arm in BEFORE starting (auto-connect
+  tries once), or set the port env explicitly.
+- "leader arm unavailable" warning on the drive page → expected on a
+  follower-only rig; keyboard driving is unaffected.
 - Port busy → close anything else that talks to the arm (LeLab, another
   terminal).
 - No camera feed → check the webcam is USB, not the built-in one.

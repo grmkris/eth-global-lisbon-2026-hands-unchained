@@ -12,11 +12,15 @@ import type {
 import {
 	claimLease,
 	drainCommands,
+	getLeader,
 	getRig,
 	impair,
 	impairment,
 	isOnline,
+	type Leader,
+	leaderOnline,
 	leaseHolder,
+	listLeaders,
 	listRigs,
 	MAX_PENDING,
 	type Rig,
@@ -24,6 +28,8 @@ import {
 	setFrame,
 	shouldDrop,
 	sleep,
+	takeLeaderCommand,
+	upsertLeader,
 	upsertRig,
 } from "./store";
 import { isVerb, VERBS } from "./verbs";
@@ -62,6 +68,12 @@ const rigSummary = (rig: Rig) => ({
 	holder: leaseHolder(rig),
 	linkMs: rig.linkMs,
 	lastSeen: rig.lastSeen,
+});
+
+const leaderSummary = (leader: Leader) => ({
+	name: leader.name,
+	online: leaderOnline(leader),
+	driving: leader.driving,
 });
 
 /** Multipart stream assembled from whatever frames the rig last pushed. */
@@ -179,6 +191,47 @@ export const handleHubRequest = async (
 		await impair();
 		setFrame(rig, cam, buf);
 		return json({ ok: true, bytes: buf.length });
+	}
+
+	// --- leader agents (operator-side leader arms) --------------------------
+
+	// Heartbeat up, command down — the leader-agent mirror of /link.
+	if (path === "/leaders/link" && request.method === "POST") {
+		const body = (await request.json().catch(() => ({}))) as {
+			name?: string;
+			driving?: string | null;
+		};
+		if (!body.name) return json({ error: "name required" }, 400);
+		const leader = upsertLeader(body.name, body.driving ?? null);
+		await impair();
+		return json({ command: takeLeaderCommand(leader) });
+	}
+
+	if (path === "/leaders" && request.method === "GET") {
+		return json(listLeaders().map(leaderSummary));
+	}
+
+	const leaderMatch = path.match(/^\/leaders\/([^/]+)\/command$/);
+	if (leaderMatch && request.method === "POST") {
+		const leader = getLeader(decodeURIComponent(leaderMatch[1]));
+		if (!leader) return json({ error: "unknown leader" }, 404);
+		if (!leaderOnline(leader)) return json({ error: "leader offline" }, 409);
+		const body = (await request.json().catch(() => ({}))) as {
+			action?: string;
+			rig?: string;
+		};
+		if (body.action === "drive") {
+			const rig = body.rig ? getRig(body.rig) : undefined;
+			if (!rig) return json({ error: "unknown rig" }, 404);
+			if (!isOnline(rig)) return json({ error: "rig offline" }, 409);
+			leader.pending = { action: "drive", rig: rig.name, queuedAt: Date.now() };
+			return json({ ok: true, queued: "drive" });
+		}
+		if (body.action === "stop") {
+			leader.pending = { action: "stop", queuedAt: Date.now() };
+			return json({ ok: true, queued: "stop" });
+		}
+		return json({ error: "action must be drive|stop" }, 400);
 	}
 
 	// --- operator side ------------------------------------------------------

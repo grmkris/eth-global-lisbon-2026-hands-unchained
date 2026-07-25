@@ -93,8 +93,8 @@ HUB_URL=https://web-production-b5106.up.railway.app RIG_NAME=kris-sim \
 |---|------|--------|
 | 1 | Hub lobby in any browser | rig online, streaming, `link` ≈ your RTT |
 | 2 | Drive with the keyboard from another network (phone off wifi) | ~100–200 ms feel; deadman holds on silence |
-| 3 | Leader-over-wire: `apps/driver/.venv/bin/python controller.py --hub https://web-production-b5106.up.railway.app --rig kris-sim --port /dev/tty.usbmodemXXXX` | sim mirrors the physical leader; ~15 packets/s in the controller log |
-| 4 | While the controller drives: **Take over** in the browser (confirm) | controller prints `lost the rig` and exits; browser drives immediately |
+| 3 | Leader-over-wire: `bun run teleop` (leader plugged in, port auto-detected) → drive page → **Drive with \<name\>'s leader** | sim mirrors the physical leader; ~15 packets/s in the leader-agent log |
+| 4 | While the leader drives: **Take over** in the browser (confirm) | leader agent prints `lost <rig>` and returns to idle; browser drives immediately; clicking Drive again resumes |
 | 5 | As a non-holder: **E-STOP** | works without the lease — safety verbs bypass it |
 | 6 | Redeploy mid-session | rig re-registers in seconds; operator re-claims (lease loss expected) |
 | 7 | `POST /api/runs` (or any non-GET) against the hub API | 404 `read-only hub` — writes only ride the verb pipe |

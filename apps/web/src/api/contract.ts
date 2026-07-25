@@ -198,8 +198,8 @@ export class RobotState extends Schema.Class<RobotState>("RobotState")(
 		lastError: Schema.NullOr(Schema.String),
 		joints: Schema.Record(Schema.String, Schema.Number),
 		rig: Schema.Struct({
-			followerPort: Schema.String,
-			leaderPort: Schema.String,
+			followerPort: Schema.NullOr(Schema.String),
+			leaderPort: Schema.NullOr(Schema.String),
 			robotId: Schema.String,
 		}),
 	}),

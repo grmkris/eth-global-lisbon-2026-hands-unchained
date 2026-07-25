@@ -1,23 +1,23 @@
 #!/usr/bin/env python
-"""Leader-over-wire controller: your leader arm drives a remote rig via the hub.
+"""Leader agent: plug in your leader arm, run this, drive rigs from the hub UI.
 
 Runs on the OPERATOR's machine (nothing else needed — no console, no driver).
-Reads the local leader at ~30 Hz and ships its lerobot-space action dict
-(degrees + gripper 0..100) to the hub, which relays it to the rig's
-remote-joints teleop source. Cross-device is safe by construction: each arm
-normalizes through its OWN calibration; the servo EEPROM limits on the
-follower side are the hard stop.
+Zero-config: hub defaults to the deployed instance, the leader's serial port
+is auto-detected, the agent registers under this machine's hostname. Then
+everything happens in the browser — open a rig's drive page and click
+"Drive with <name>'s leader"; the hub relays the command here, this process
+claims the rig and streams the leader's lerobot-space action dict (degrees +
+gripper 0..100) at ~30 Hz to the rig's remote-joints teleop source.
 
-Usage (from app/driver, after `uv sync` and calibrating the leader with id
-`arm`):
+Cross-device is safe by construction: each arm normalizes through its OWN
+calibration; the follower's servo EEPROM limits are the hard stop. Losing the
+network mid-drive is safe: the rig holds pose after 0.5 s without packets.
 
-    .venv/bin/python controller.py \
-        --hub https://hub-production-3903.up.railway.app \
-        --rig kris-sim \
-        --port /dev/tty.usbmodemXXXX
+    bun run teleop            # from apps/web, or:
+    .venv/bin/python controller.py
 
-Ctrl-C stops teleop and releases the rig. Losing the network mid-run is safe:
-the rig holds pose after 0.5 s without packets.
+First run on a new arm enters lerobot's interactive calibration wizard.
+Ctrl-C stops teleop (if driving), releases the rig, and exits.
 """
 
 import argparse
@@ -25,14 +25,17 @@ import http.client
 import json
 import os
 import signal
+import socket
+import re
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
+from ports import candidate_ports
 
+DEFAULT_HUB = "https://web-production-b5106.up.railway.app"
 
 TOKEN = ""  # set from --token / HUB_TOKEN in main()
 
@@ -44,13 +47,19 @@ def _headers() -> dict:
     return h
 
 
-def api(hub: str, path: str, payload: dict, timeout: float = 2.0) -> dict:
+def api(hub: str, path: str, payload: dict, timeout: float = 3.0) -> dict:
     req = urllib.request.Request(
         f"{hub}{path}",
         data=json.dumps(payload).encode(),
         headers=_headers(),
         method="POST",
     )
+    with urllib.request.urlopen(req, timeout=timeout) as res:
+        return json.loads(res.read() or b"{}")
+
+
+def api_get(hub: str, path: str, timeout: float = 3.0) -> dict:
+    req = urllib.request.Request(f"{hub}{path}", headers=_headers(), method="GET")
     with urllib.request.urlopen(req, timeout=timeout) as res:
         return json.loads(res.read() or b"{}")
 
@@ -73,8 +82,8 @@ class HubLink:
             self.conn = cls(self.host, timeout=self.timeout)
         return self.conn
 
-    def post(self, path: str, payload: dict) -> int:
-        """Returns the HTTP status. Raises OSError-family on transport failure."""
+    def post(self, path: str, payload: dict) -> tuple[int, dict]:
+        """Returns (status, body). Raises OSError-family on transport failure."""
         try:
             conn = self._connect()
             conn.request(
@@ -84,8 +93,12 @@ class HubLink:
                 headers=_headers(),
             )
             res = conn.getresponse()
-            res.read()  # drain so the connection is reusable
-            return res.status
+            raw = res.read()  # drain so the connection is reusable
+            try:
+                body = json.loads(raw or b"{}")
+            except ValueError:
+                body = {}
+            return res.status, body
         except Exception:
             # drop the connection; next call reopens
             if self.conn is not None:
@@ -94,11 +107,145 @@ class HubLink:
             raise
 
 
+def default_name() -> str:
+    host = socket.gethostname().split(".")[0].lower()
+    return re.sub(r"[^a-z0-9-]", "-", host) or "leader"
+
+
+def resolve_port(explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    ports = candidate_ports()
+    if len(ports) == 1:
+        print(f"leader port auto-detected: {ports[0]}")
+        return ports[0]
+    if len(ports) == 0:
+        sys.exit("no serial device found — plug in your leader arm (USB) and re-run")
+    if not sys.stdin.isatty():
+        sys.exit(
+            "several serial devices found:\n  "
+            + "\n  ".join(ports)
+            + "\nre-run with --port <one of these> (or LEADER_PORT env)"
+        )
+    print("several serial devices found — pick the LEADER arm")
+    print("(picking the follower would overwrite its calibration!)")
+    for i, p in enumerate(ports):
+        print(f"  [{i}] {p}")
+    while True:
+        choice = input("number: ").strip()
+        if choice.isdigit() and int(choice) < len(ports):
+            return ports[int(choice)]
+        print("invalid choice, try again")
+
+
+def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> None:
+    """One driving session: claim -> teleop_start_remote -> stream. Returns to
+    idle on stop command, lost lease, or Ctrl-C. Never raises for rig-side
+    problems — prints and returns."""
+    rig = f"/api/hub/rigs/{urllib.parse.quote(rig_name)}"
+    client = {"clientId": f"leader-{name}"}
+    # short timeout: a stalled POST must not outlive the rig's 0.5s deadman
+    link = HubLink(hub, timeout=0.5)
+
+    try:
+        summary = api_get(hub, rig)
+    except urllib.error.HTTPError as err:
+        print(f"rig {rig_name} not found on the hub (HTTP {err.code}) — ignoring")
+        return
+    if not summary.get("online"):
+        print(f"rig {rig_name} is offline — ignoring")
+        return
+
+    claimed = False
+    try:
+        # deliberate handoff: the operator clicked the button in the browser
+        api(hub, f"{rig}/claim", {**client, "force": True})
+        claimed = True
+        api(hub, f"{rig}/command", {**client, "verb": "teleop_start_remote"})
+    except urllib.error.HTTPError as err:
+        detail = ""
+        try:
+            detail = err.read().decode()
+        except Exception:  # noqa: BLE001
+            pass
+        print(f"could not start driving {rig_name} (HTTP {err.code}) {detail}")
+        if claimed:
+            try:
+                api(hub, f"{rig}/release", client)
+            except Exception:  # noqa: BLE001
+                pass
+        return
+
+    print(f"driving {rig_name} — move the leader. Stop from the web UI or Ctrl-C.")
+    sent = dropped = packets = 0
+    window = time.time()
+    stopped_remotely = False
+    lease_lost = False
+    while running["on"]:
+        tick = time.time()
+        action = leader.get_action()  # {"<joint>.pos": deg, "gripper.pos": 0..100}
+        try:
+            status, _ = link.post(f"{rig}/input", {**client, "joints": action})
+            if status == 403:
+                # someone force-took the rig in the browser — it's theirs now
+                print(f"lost {rig_name} (someone took over) — back to idle")
+                lease_lost = True
+                break
+            sent += 1
+        except (TimeoutError, OSError):
+            dropped += 1  # latest-wins on the hub; the next packet corrects
+        packets += 1
+        # heartbeat the leader registry + poll for a web-UI stop (~2x/s)
+        if packets % 15 == 0:
+            try:
+                _, res = link.post(
+                    "/api/hub/leaders/link", {"name": name, "driving": rig_name}
+                )
+                cmd = res.get("command")
+                if cmd and cmd.get("action") == "stop":
+                    print("stopped from the web UI — back to idle")
+                    stopped_remotely = True
+                    break
+            except (TimeoutError, OSError):
+                pass
+        if time.time() - window >= 5.0:
+            rate = sent / (time.time() - window)
+            print(f"  {rate:.0f} packets/s up, {dropped} dropped")
+            sent = dropped = 0
+            window = time.time()
+        time.sleep(max(0.0, 1.0 / hz - (time.time() - tick)))
+
+    if not lease_lost:
+        # stop the session and hand the rig back (best effort)
+        for path, payload in (
+            (f"{rig}/command", {**client, "verb": "teleop_stop"}),
+            (f"{rig}/release", client),
+        ):
+            try:
+                api(hub, path, payload)
+            except Exception:  # noqa: BLE001
+                pass
+        if not stopped_remotely and not running["on"]:
+            print(f"released {rig_name}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hub", required=True, help="hub base URL")
-    parser.add_argument("--rig", required=True, help="rig name from the lobby")
-    parser.add_argument("--port", required=True, help="leader serial port")
+    parser.add_argument(
+        "--hub",
+        default=os.environ.get("HUB_URL") or DEFAULT_HUB,
+        help="hub base URL (default: HUB_URL env, then the deployed hub)",
+    )
+    parser.add_argument(
+        "--name",
+        default=os.environ.get("LEADER_NAME") or default_name(),
+        help="how this leader shows up in the web UI (default: hostname)",
+    )
+    parser.add_argument(
+        "--port",
+        default=os.environ.get("LEADER_PORT"),
+        help="leader serial port (default: auto-detect)",
+    )
     parser.add_argument("--id", default="arm", help="leader calibration id")
     parser.add_argument("--hz", type=float, default=30.0)
     parser.add_argument(
@@ -111,68 +258,60 @@ def main() -> None:
     TOKEN = args.token
 
     hub = args.hub.rstrip("/")
-    rig = f"/api/hub/rigs/{args.rig}"
-    client = {"clientId": f"leader-{int(time.time()) % 100000}"}
+    source = "--hub" if args.hub != (os.environ.get("HUB_URL") or DEFAULT_HUB) else (
+        "HUB_URL env" if os.environ.get("HUB_URL") else "built-in default"
+    )
+    print(f"hub: {hub} ({source})")
 
-    print(f"connecting leader on {args.port} …")
-    leader = SO101Leader(SO101LeaderConfig(port=args.port, id=args.id))
-    leader.connect()
-    print("leader up — claiming the rig")
-
+    # hub reachable? fail here, before touching hardware
     try:
-        api(hub, f"{rig}/claim", client)
+        api_get(hub, "/api/hub/leaders")
     except urllib.error.HTTPError as err:
-        if err.code == 409:
-            sys.exit("rig is held by another operator — try again later")
-        raise
-    api(hub, f"{rig}/command", {**client, "verb": "teleop_start_remote"})
-    print("driving — move the leader. Ctrl-C to stop.")
+        if err.code == 401:
+            sys.exit("hub requires a token — set HUB_TOKEN / --token")
+        sys.exit(f"hub error: HTTP {err.code}")
+    except OSError as exc:
+        sys.exit(f"hub unreachable at {hub} ({exc})")
 
-    running = True
+    port = resolve_port(args.port)
+    print("connecting leader (first run on a new arm enters lerobot's calibration wizard)")
+    from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
+
+    leader = SO101Leader(SO101LeaderConfig(port=port, id=args.id))
+    try:
+        leader.connect()
+    except Exception as exc:  # noqa: BLE001
+        sys.exit(
+            f"could not open the leader on {port}: {exc}\n"
+            "hints: close LeLab/other terminals using the arm; replug and re-run"
+        )
+
+    print(f"leader '{args.name}' registered — pick a rig on {hub} and click")
+    print("\"Drive with your leader\". Ctrl-C to quit.")
+
+    running = {"on": True}
 
     def stop(*_sig) -> None:
-        nonlocal running
-        running = False
+        running["on"] = False
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
 
-    link = HubLink(hub)
-    lease_lost = False
-    sent = dropped = 0
-    window = time.time()
-    while running:
-        tick = time.time()
-        action = leader.get_action()  # {"<joint>.pos": deg, "gripper.pos": 0..100}
+    link = HubLink(hub, timeout=2.0)
+    while running["on"]:
         try:
-            status = link.post(f"{rig}/input", {**client, "joints": action})
-            if status == 403:
-                # someone force-took the rig in the browser — it's theirs now
-                print("lost the rig (someone took over) — exiting")
-                lease_lost = True
-                break
-            sent += 1
+            _, res = link.post(
+                "/api/hub/leaders/link", {"name": args.name, "driving": None}
+            )
+            cmd = res.get("command")
+            if cmd and cmd.get("action") == "drive" and cmd.get("rig"):
+                drive(hub, leader, args.name, cmd["rig"], args.hz, running)
         except (TimeoutError, OSError):
-            dropped += 1  # latest-wins on the hub; the next packet corrects
-        if time.time() - window >= 5.0:
-            rate = sent / (time.time() - window)
-            print(f"  {rate:.0f} packets/s up, {dropped} dropped")
-            sent = dropped = 0
-            window = time.time()
-        time.sleep(max(0.0, 1.0 / args.hz - (time.time() - tick)))
+            pass  # hub blip — keep idling, next tick re-registers
+        time.sleep(1.0)
 
-    if not lease_lost:
-        # normal exit: stop the session and hand the rig back
-        print("\nstopping teleop, releasing the rig")
-        for path, payload in (
-            (f"{rig}/command", {**client, "verb": "teleop_stop"}),
-            (f"{rig}/release", client),
-        ):
-            try:
-                api(hub, path, payload)
-            except Exception:  # noqa: BLE001 — best effort on the way out
-                pass
     leader.disconnect()
+    print("bye")
 
 
 if __name__ == "__main__":

@@ -116,6 +116,30 @@ export const rigQuery = (name: string) =>
 		refetchInterval: 500,
 	});
 
+/** Operator-side leader arms registered on the hub (controller.py). */
+export interface LeaderSummary {
+	name: string;
+	online: boolean;
+	driving: string | null;
+}
+
+export const leadersQuery = queryOptions({
+	queryKey: ["hub", "leaders"],
+	queryFn: () =>
+		get<ReadonlyArray<LeaderSummary>>("/api/hub/leaders", "hub unreachable"),
+	refetchInterval: 2_000,
+});
+
+export const sendLeaderCommand = (
+	name: string,
+	action: "drive" | "stop",
+	rig?: string,
+) =>
+	post(`/api/hub/leaders/${encodeURIComponent(name)}/command`, {
+		action,
+		...(rig ? { rig } : {}),
+	});
+
 export const impairmentQuery = queryOptions({
 	queryKey: ["hub", "impairment"],
 	queryFn: () =>

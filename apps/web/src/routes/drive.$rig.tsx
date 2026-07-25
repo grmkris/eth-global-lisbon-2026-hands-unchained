@@ -19,26 +19,83 @@ import { TaskPanel } from "#/components/task-panel";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
+import { DEFAULT_HUB } from "#/lib/constants";
 import { apiErrorMessage } from "#/lib/errors";
 import {
 	claimRig,
 	clientId,
+	leadersQuery,
 	ownerKeyStore,
 	releaseRig,
 	rigQuery,
+	sendLeaderCommand,
 	sendRigCommand,
 	sendRigInput,
 } from "#/lib/hub-api";
 
 export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
 
+/** Bring-your-own-leader onboarding: run one command, then a "Drive with
+ * your leader" button appears in the controls above. */
+function LeaderOnboardCard() {
+	const origin = typeof window === "undefined" ? "" : window.location.origin;
+	const hubFlag = origin && origin !== DEFAULT_HUB ? ` --hub ${origin}` : "";
+	const commands = `cd apps/driver && uv sync   # first time only\ncd ../web && bun run teleop${hubFlag}`;
+	return (
+		<Card className="mt-4">
+			<CardContent className="flex flex-col gap-2 text-sm">
+				<div className="font-medium">Drive with your own leader arm</div>
+				<p className="text-muted-foreground">
+					Plug in your SO-101 leader, run this from a clone of the repo, and a
+					"Drive with your leader" button appears here. First run walks you
+					through lerobot's calibration.
+				</p>
+				<pre className="overflow-x-auto rounded bg-muted p-3 font-mono text-xs">
+					{commands}
+				</pre>
+				<div>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => {
+							navigator.clipboard.writeText(commands.replace(/ {3}#.*$/m, ""));
+							toast.success("commands copied");
+						}}
+					>
+						copy
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 function DrivePage() {
 	const { rig: rigName } = Route.useParams();
 	const rig = useQuery(rigQuery(rigName));
+	const leaders = useQuery(leadersQuery);
 	const [rtt, setRtt] = useState<number | null>(null);
 
 	const holder = rig.data?.holder ?? null;
 	const iAmDriving = holder === clientId;
+
+	// leader agents registered on the hub (controller.py on operator machines)
+	const onlineLeaders = (leaders.data ?? []).filter((l) => l.online);
+	const drivingLeader = onlineLeaders.find((l) => l.driving === rigName);
+	// the lease holder may BE a leader agent — name it instead of "someone"
+	const holderLeader = onlineLeaders.find((l) => `leader-${l.name}` === holder);
+
+	const leaderCommand = useMutation({
+		mutationFn: (input: { name: string; action: "drive" | "stop" }) =>
+			sendLeaderCommand(input.name, input.action, rigName),
+		onSuccess: (_d, input) =>
+			toast.success(
+				input.action === "drive"
+					? `${input.name}'s leader is taking the rig`
+					: `stopping ${input.name}'s leader`,
+			),
+		onError: (e) => toast.error(apiErrorMessage(e)),
+	});
 
 	const claim = useMutation({
 		// Taking over from a live holder is a force-steal (friends-only hub);
@@ -212,10 +269,28 @@ function DrivePage() {
 						<StatusBadge tone={iAmDriving ? "success" : "neutral"}>
 							{iAmDriving
 								? "you are driving"
-								: holder
-									? "someone else is driving"
-									: "nobody driving"}
+								: holderLeader
+									? `${holderLeader.name}'s leader is driving`
+									: holder
+										? "someone else is driving"
+										: "nobody driving"}
 						</StatusBadge>
+						{drivingLeader && (
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={leaderCommand.isPending}
+								onClick={() =>
+									leaderCommand.mutate({
+										name: drivingLeader.name,
+										action: "stop",
+									})
+								}
+							>
+								<Square />
+								Stop {drivingLeader.name}'s leader
+							</Button>
+						)}
 						<span className="font-mono text-muted-foreground">
 							link {data?.linkMs ?? "…"}ms
 							{rtt !== null ? ` · your rtt ${rtt}ms` : ""}
@@ -254,6 +329,23 @@ function DrivePage() {
 								<Play />
 								Teleop (leader arm)
 							</Button>
+							{/* remote leader agents — the hub relays "drive this rig" */}
+							{onlineLeaders
+								.filter((l) => l.driving === null)
+								.map((l) => (
+									<Button
+										key={l.name}
+										size="sm"
+										variant="outline"
+										disabled={leaderCommand.isPending}
+										onClick={() =>
+											leaderCommand.mutate({ name: l.name, action: "drive" })
+										}
+									>
+										<Play />
+										Drive with {l.name}'s leader
+									</Button>
+								))}
 							<Button
 								size="sm"
 								variant="outline"
@@ -323,6 +415,8 @@ function DrivePage() {
 					)}
 				</CardContent>
 			</Card>
+
+			{data?.online && <LeaderOnboardCard />}
 
 			{data && (
 				<div className="mt-4 flex flex-col gap-4">
