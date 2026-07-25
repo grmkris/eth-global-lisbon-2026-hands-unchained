@@ -164,10 +164,15 @@ function MarketPage() {
 								</TableCell>
 								<TableCell className="font-mono text-xs">
 									{row.operator.nullifier ?? "unverified"}
-									{row.operator.hederaAccountId && (
-										<span className="block text-muted-foreground">
-											{row.operator.hederaAccountId}
-										</span>
+									{row.operator.evmAddress && (
+										<a
+											className="block text-muted-foreground underline"
+											href={`https://hashscan.io/testnet/account/${row.operator.evmAddress}`}
+											target="_blank"
+											rel="noreferrer"
+										>
+											{row.operator.evmAddress.slice(0, 10)}…
+										</a>
 									)}
 								</TableCell>
 								<TableCell>

@@ -5,12 +5,36 @@
  */
 import { queryOptions } from "@tanstack/react-query";
 
+export interface MarketBond {
+	evmAddress: string;
+	amountHbar: number;
+	stakeTxHash: string;
+	lockedAt: number;
+}
+
+export interface MarketStakeInfo {
+	bondHbar: number;
+	bonusHbar: number;
+	chainId: number;
+	faucet: string;
+	escrowEvmAddress: string | null;
+	/** the operator's currently posted stake, null until they stake */
+	bond?: MarketBond | null;
+	earnedHbar?: number;
+}
+
 export interface MarketSessionInfo {
 	marketMode: boolean;
 	verified: boolean;
 	nullifier?: string;
 	devAutoverify?: boolean;
-	world?: { appId: string; action: string; preset: string } | null;
+	world?: {
+		appId: string;
+		action: string;
+		preset: string;
+		env: string;
+	} | null;
+	stake?: MarketStakeInfo;
 }
 
 export interface MarketLedgerRow {
@@ -18,7 +42,7 @@ export interface MarketLedgerRow {
 	rig: string;
 	taskId: string | null;
 	taskTitle: string | null;
-	operator: { nullifier: string | null; hederaAccountId: string | null };
+	operator: { nullifier: string | null; evmAddress: string | null };
 	claimed: "success" | "discarded" | "abandoned" | null;
 	telemetry: {
 		durationS: number;
@@ -60,11 +84,10 @@ export interface MarketStats {
 	operators: number;
 	bondsLocked: number;
 	bonds: ReadonlyArray<{
-		nullifier: string;
-		rig: string;
+		evmAddress: string;
 		status: "locked" | "released" | "slashed";
 		amountHbar: number;
-		lockTxId: string | null;
+		stakeTxHash: string;
 		settleTxId: string | null;
 	}>;
 }
@@ -93,16 +116,31 @@ export const marketStatsQuery = queryOptions({
 	refetchInterval: 2_000,
 });
 
-/** Forward an IDKit proof payload to the hub for cloud verification. */
-export const verifyWorldProof = async (
-	payload: Record<string, unknown>,
-): Promise<{ verified: boolean; accountId: string | null }> => {
-	const res = await fetch("/api/market/verify", {
+const post = async <T>(
+	path: string,
+	body: Record<string, unknown>,
+): Promise<T> => {
+	const res = await fetch(path, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
-		body: JSON.stringify(payload),
+		body: JSON.stringify(body),
 	});
-	const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-	if (!res.ok) throw new Error(String(body.error ?? res.statusText));
-	return body as { verified: boolean; accountId: string | null };
+	const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+	if (!res.ok) throw new Error(String(json.error ?? res.statusText));
+	return json as T;
 };
+
+/** Forward an IDKit proof payload to the hub for cloud verification. */
+export const verifyWorldProof = (payload: Record<string, unknown>) =>
+	post<{ verified: boolean; identityAttested: boolean | null }>(
+		"/api/market/verify",
+		payload,
+	);
+
+/** Tell the hub about the stake transaction the operator just signed. The
+ * hub verifies it against the mirror node — we only ever send a hash. */
+export const postStake = (txHash: string) =>
+	post<{ ok: true; evmAddress: string; amountHbar: number }>(
+		"/api/market/stake",
+		{ txHash },
+	);

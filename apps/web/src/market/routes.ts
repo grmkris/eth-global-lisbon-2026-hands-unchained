@@ -6,18 +6,30 @@
  */
 import { randomBytes } from "node:crypto";
 import { json } from "#/hub/routes";
-import { DEV_AUTOVERIFY, HEDERA, marketEnabled, WORLD } from "#/market/config";
+import {
+	BOND_HBAR,
+	BONUS_HBAR,
+	DEV_AUTOVERIFY,
+	HEDERA,
+	HEDERA_EVM,
+	marketEnabled,
+	WORLD,
+} from "#/market/config";
 import {
 	mintSessionValue,
 	readSession,
 	sessionSetCookie,
 } from "#/market/session";
 import {
+	earningsFor,
+	getBond,
 	getRow,
 	type LedgerRow,
 	listBonds,
 	listRows,
 	marketStats,
+	putBond,
+	stakeAlreadyUsed,
 } from "#/market/store";
 import { ensureWorker } from "#/market/worker";
 
@@ -30,7 +42,7 @@ const rowSummary = (row: LedgerRow) => ({
 		nullifier: row.operator.nullifier
 			? `${row.operator.nullifier.slice(0, 12)}…`
 			: null,
-		hederaAccountId: row.operator.hederaAccountId,
+		evmAddress: row.operator.evmAddress,
 	},
 	claimed: row.claimed,
 	telemetry: {
@@ -48,51 +60,90 @@ const rowSummary = (row: LedgerRow) => ({
 	closedAt: row.closedAt,
 });
 
+/** The escrow's EVM address is derived from a key we hold, so it needs no
+ * network call — but it does need Hedera to be configured at all. */
+const escrowAddressOrNull = async (): Promise<string | null> => {
+	if (!HEDERA.configured) return null;
+	try {
+		const { escrowEvmAddress } = await import("#/market/hedera");
+		return escrowEvmAddress();
+	} catch {
+		return null;
+	}
+};
+
 export const handleMarketRequest = async (
 	request: Request,
 	url: URL,
 ): Promise<Response> => {
 	const path = url.pathname.slice("/api/market".length) || "/";
 
-	// reachable even when the market is off so the UI can ask one question
+	// The one question the UI asks on every page: am I allowed to drive, and
+	// what is my money doing? Reachable even when the market is off.
+	const worldConfig = WORLD.configured
+		? {
+				appId: WORLD.appId,
+				action: WORLD.action,
+				preset: WORLD.preset,
+				env: WORLD.env,
+			}
+		: null;
+	const stakeConfig = {
+		bondHbar: BOND_HBAR,
+		bonusHbar: BONUS_HBAR,
+		chainId: HEDERA_EVM.chainId,
+		faucet: HEDERA_EVM.faucet,
+	};
+
 	if (path === "/session" && request.method === "GET") {
 		if (!marketEnabled()) return json({ marketMode: false, verified: false });
 		ensureWorker();
-		const session = readSession(request);
-		if (session !== null)
-			return json({
+
+		const describe = async (nullifier: string) => {
+			const bond = getBond(nullifier);
+			return {
 				marketMode: true,
 				verified: true,
-				nullifier: `${session.nullifier.slice(0, 12)}…`,
+				nullifier: `${nullifier.slice(0, 12)}…`,
 				devAutoverify: DEV_AUTOVERIFY,
-			});
+				world: worldConfig,
+				stake: {
+					...stakeConfig,
+					escrowEvmAddress: await escrowAddressOrNull(),
+					bond: bond
+						? {
+								evmAddress: bond.evmAddress,
+								amountHbar: bond.amountHbar,
+								stakeTxHash: bond.stakeTxHash,
+								lockedAt: bond.lockedAt,
+							}
+						: null,
+					earnedHbar: earningsFor(nullifier),
+				},
+			};
+		};
+
+		const session = readSession(request);
+		if (session !== null) return json(await describe(session.nullifier));
+
 		if (DEV_AUTOVERIFY) {
 			// local bring-up: mint a verified session on sight — the deny path
 			// is rehearsed by simply not setting MARKET_DEV_AUTOVERIFY
 			const nullifier = `dev-${randomBytes(8).toString("hex")}`;
 			const value = mintSessionValue(nullifier);
-			return new Response(
-				JSON.stringify({
-					marketMode: true,
-					verified: true,
-					nullifier: `${nullifier.slice(0, 12)}…`,
-					devAutoverify: true,
-				}),
-				{
-					headers: {
-						"content-type": "application/json",
-						"set-cookie": sessionSetCookie(value, url.protocol === "https:"),
-					},
+			return new Response(JSON.stringify(await describe(nullifier)), {
+				headers: {
+					"content-type": "application/json",
+					"set-cookie": sessionSetCookie(value, url.protocol === "https:"),
 				},
-			);
+			});
 		}
 		return json({
 			marketMode: true,
 			verified: false,
 			devAutoverify: false,
-			world: WORLD.configured
-				? { appId: WORLD.appId, action: WORLD.action, preset: WORLD.preset }
-				: null,
+			world: worldConfig,
+			stake: { ...stakeConfig, escrowEvmAddress: await escrowAddressOrNull() },
 		});
 	}
 
@@ -107,25 +158,82 @@ export const handleMarketRequest = async (
 		try {
 			const { verifyWorldProof } = await import("#/market/world");
 			const result = await verifyWorldProof(body);
-			// Identity Check must actually attest the requested attributes;
-			// proof-of-human returns null here and passes
-			if (result.identityAttested === false)
+			// Identity Check must actually attest the requested attributes.
+			// null = the credential didn't carry an attestation (proof-of-human,
+			// or a simulator that doesn't evaluate attributes) — allowed, but
+			// we must not then claim an age check we never got.
+			if (
+				WORLD.preset === "identity-check" &&
+				result.identityAttested === false
+			)
 				return json({ error: "identity attributes not attested" }, 403);
-			let accountId: string | null = null;
-			if (HEDERA.configured) {
-				const h = await import("#/market/hedera");
-				accountId = (await h.ensureOperatorAccount(result.nullifier)).accountId;
-			}
 			const value = mintSessionValue(result.nullifier);
-			return new Response(JSON.stringify({ verified: true, accountId }), {
-				headers: {
-					"content-type": "application/json",
-					"set-cookie": sessionSetCookie(value, url.protocol === "https:"),
+			return new Response(
+				JSON.stringify({
+					verified: true,
+					identityAttested: result.identityAttested,
+				}),
+				{
+					headers: {
+						"content-type": "application/json",
+						"set-cookie": sessionSetCookie(value, url.protocol === "https:"),
+					},
 				},
-			});
+			);
 		} catch (e) {
 			console.error("[market] verify failed:", e);
-			return json({ error: "verification failed" }, 400);
+			return json(
+				{ error: e instanceof Error ? e.message : "verification failed" },
+				400,
+			);
+		}
+	}
+
+	/**
+	 * The operator posts the hash of a transaction THEY signed, moving their
+	 * own HBAR into escrow. We verify it against the mirror node — we never
+	 * hold their key, and a hash can only ever fund one stake.
+	 */
+	if (path === "/stake" && request.method === "POST") {
+		const session = readSession(request);
+		if (session === null) return json({ error: "verification required" }, 402);
+		if (!HEDERA.configured)
+			return json({ error: "payments not configured on this hub" }, 501);
+		const body = (await request.json().catch(() => ({}))) as {
+			txHash?: string;
+		};
+		const txHash = body.txHash?.trim();
+		if (!txHash) return json({ error: "txHash required" }, 400);
+		if (stakeAlreadyUsed(txHash))
+			return json({ error: "that stake was already used" }, 409);
+		if (getBond(session.nullifier))
+			return json({ error: "you already have an active stake" }, 409);
+
+		try {
+			const { verifyStakeTx } = await import("#/market/hedera");
+			const proof = await verifyStakeTx(txHash, BOND_HBAR);
+			putBond({
+				nullifier: session.nullifier,
+				evmAddress: proof.from,
+				stakeTxHash: txHash,
+				status: "locked",
+				settleTxId: null,
+				amountHbar: proof.amountHbar,
+				lockedAt: Date.now(),
+			});
+			console.error(
+				`[market] stake accepted: ${proof.amountHbar} ℏ from ${proof.from}`,
+			);
+			return json({
+				ok: true,
+				evmAddress: proof.from,
+				amountHbar: proof.amountHbar,
+			});
+		} catch (e) {
+			return json(
+				{ error: e instanceof Error ? e.message : "stake not verified" },
+				400,
+			);
 		}
 	}
 
@@ -145,11 +253,10 @@ export const handleMarketRequest = async (
 		return json({
 			...marketStats(),
 			bonds: listBonds().map((b) => ({
-				nullifier: `${b.nullifier.slice(0, 12)}…`,
-				rig: b.rig,
+				evmAddress: b.evmAddress,
 				status: b.status,
 				amountHbar: b.amountHbar,
-				lockTxId: b.lockTxId,
+				stakeTxHash: b.stakeTxHash,
 				settleTxId: b.settleTxId,
 			})),
 		});

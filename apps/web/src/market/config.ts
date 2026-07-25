@@ -35,14 +35,31 @@ export const GRADER = process.env.GRADER ?? "local";
 export const BOND_HBAR = Number(process.env.BOND_HBAR ?? 0.5);
 export const BONUS_HBAR = Number(process.env.BONUS_HBAR ?? 0.5);
 
+/** `wallet` = the operator stakes their own HBAR from MetaMask (the product).
+ * `custodial` = the old hub-funded path, kept only as a break-glass rollback
+ * if the wallet flow fails during a live demo. Never advertised. */
+export const STAKE_MODE = process.env.STAKE_MODE ?? "wallet";
+
 export const HEDERA = {
 	operatorId: process.env.HEDERA_OPERATOR_ID ?? "",
 	operatorKey: process.env.HEDERA_OPERATOR_KEY ?? "",
 	topicId: process.env.HCS_TOPIC_ID ?? "",
 	escrowId: process.env.HEDERA_ESCROW_ID ?? "",
+	/** Escrow's private key. Explicit beats derived now that exactly one
+	 * hub-held key exists (see docs/market/HEDERA.md). */
+	escrowKey: process.env.HEDERA_ESCROW_KEY ?? "",
 	get configured(): boolean {
 		return this.operatorId !== "" && this.operatorKey !== "";
 	},
+};
+
+/** Hedera testnet EVM — the chain the operator's MetaMask talks to. viem
+ * ships the full chain definition (`hederaTestnet`); this is only what the
+ * server needs to state in /api/market/config. */
+export const HEDERA_EVM = {
+	chainId: 296,
+	mirror: "https://testnet.mirrornode.hedera.com",
+	faucet: "https://portal.hedera.com/faucet",
 };
 
 export const ZG = {
@@ -71,6 +88,11 @@ export const WORLD = {
 	/** identity-check (min age 18 + liveness) | proof-of-human (fallback if
 	 * the Identity Check preview is not granted at the booth). */
 	preset: process.env.WORLD_PRESET ?? "identity-check",
+	/** staging (default — simulator, no Orb, what the demo runs on) |
+	 * production. The RP is registered in BOTH registries, so the same
+	 * app_id/rp_id/key work either way. Asserted server-side on verify:
+	 * without that check a simulator proof could mint a production session. */
+	env: process.env.WORLD_ENV ?? "staging",
 	get configured(): boolean {
 		return this.appId !== "" && this.rpId !== "";
 	},

@@ -1,19 +1,17 @@
 /**
  * Hedera settlement — testnet HBAR is the market's only money.
  *
- * Custody model (stated out loud in the demo): the hub is custodial for the
- * weekend. Every key is DERIVED — HMAC(MARKET_SECRET, nullifier) for
- * operators, HMAC(MARKET_SECRET, "escrow") for the escrow account — and
- * account ids are recovered from the mirror node by EVM-address alias, so
- * the hub keeps ZERO durable state and still survives redeploys.
+ * NON-CUSTODIAL: the operator stakes from their own MetaMask wallet and is
+ * paid back to that same address. The hub holds exactly two keys — the
+ * treasury (its own funds, pays bonuses) and the escrow (holds stakes in
+ * flight) — and never touches an operator key, because there isn't one.
  *
- * Money flow per session:
- *   bond   operator -> escrow    (locked at first attempt_start)
- *   bonus  treasury -> operator  (per 0G-passed episode — autonomous)
- *   release escrow -> operator   (walk away clean)
- *   slash  escrow  -> treasury   (claimed success, referee said no)
- * Every graded attempt also gets a <=1024-byte HCS digest — the one artifact
- * binding humanId + grade + payout + 0G evidence.
+ * Money flow per graded attempt:
+ *   stake   operator's wallet -> escrow    (an EVM transfer THEY sign; we only verify it)
+ *   pass    escrow + treasury -> operator  (one atomic tx: stake back + bonus)
+ *   fail    escrow            -> treasury  (stake slashed after a false success claim)
+ * Plus a <=1024-byte HCS digest per graded attempt — the artifact binding
+ * the World nullifier, the 0G verdict and the Hedera payout.
  */
 import { createHmac } from "node:crypto";
 import {
@@ -26,25 +24,23 @@ import {
 	TopicMessageSubmitTransaction,
 	TransferTransaction,
 } from "@hashgraph/sdk";
-import { BONUS_HBAR, HEDERA, MARKET_SECRET } from "#/market/config";
+import { BONUS_HBAR, HEDERA, HEDERA_EVM, MARKET_SECRET } from "#/market/config";
 import type { BondState, LedgerRow } from "#/market/store";
 import { rehydratedStats } from "#/market/store";
 
-const MIRROR = "https://testnet.mirrornode.hedera.com";
+const MIRROR = HEDERA_EVM.mirror;
 
 interface HederaState {
 	client: Client;
 	topicId: string | null;
 	escrow: { accountId: string; key: PrivateKey } | null;
-	/** nullifier -> account id (cache over the deterministic derivation) */
-	accounts: Map<string, string>;
 }
 
 const g = globalThis as unknown as { __marketHedera?: HederaState };
 
 /** The portal hands out DER ED25519 ("302e…") or hex ECDSA ("0x…") keys —
  * accept either without making the user care. */
-const parseOperatorKey = (raw: string): PrivateKey => {
+const parseKey = (raw: string): PrivateKey => {
 	const s = raw.trim();
 	if (s.startsWith("0x")) return PrivateKey.fromStringECDSA(s);
 	try {
@@ -59,85 +55,73 @@ const state = (): HederaState => {
 		if (!HEDERA.configured) throw new Error("HEDERA_OPERATOR_ID/KEY unset");
 		const client = Client.forTestnet().setOperator(
 			AccountId.fromString(HEDERA.operatorId),
-			parseOperatorKey(HEDERA.operatorKey),
+			parseKey(HEDERA.operatorKey),
 		);
 		g.__marketHedera = {
 			client,
 			topicId: HEDERA.topicId || null,
 			escrow: null,
-			accounts: new Map(),
 		};
 	}
 	return g.__marketHedera;
-};
-
-/** Deterministic ECDSA key from the market secret + a label. */
-const deriveKey = (label: string): PrivateKey => {
-	const seed = createHmac("sha256", MARKET_SECRET).update(label).digest();
-	return PrivateKey.fromBytesECDSA(seed);
 };
 
 /** Hashscan wants 0.0.x-sss-nnn, the SDK prints 0.0.x@sss.nnn. */
 const txIdForLinks = (raw: string): string =>
 	raw.replace("@", "-").replace(/\.(\d+)$/, "-$1");
 
-/** Find an account by its EVM-address alias, or create it (1 HBAR seed —
- * NOT more: every creation draws down the portal account and the daily
- * refill only tops back up to 1000). */
-const ensureAccount = async (
-	label: string,
-	initialHbar: number,
-): Promise<{ accountId: string; key: PrivateKey }> => {
-	const s = state();
-	const key = deriveKey(label);
-	const evm = key.publicKey.toEvmAddress();
-	const found = await fetch(`${MIRROR}/api/v1/accounts/0x${evm}`)
-		.then((r) => (r.ok ? r.json() : null))
-		.catch(() => null);
-	const existing = (found as { account?: string } | null)?.account;
-	if (existing) return { accountId: existing, key };
+/** LEGACY: the escrow account was originally created with a key derived from
+ * MARKET_SECRET. Prefer the explicit HEDERA_ESCROW_KEY; this exists so the
+ * existing escrow account keeps working until that env var is set (run
+ * scripts/smoke-stake.ts to print the value to pin). */
+const legacyEscrowKey = (): PrivateKey =>
+	PrivateKey.fromBytesECDSA(
+		createHmac("sha256", MARKET_SECRET).update("escrow").digest(),
+	);
 
+export const escrowKey = (): PrivateKey =>
+	HEDERA.escrowKey ? parseKey(HEDERA.escrowKey) : legacyEscrowKey();
+
+export const ensureEscrow = async (): Promise<{
+	accountId: string;
+	key: PrivateKey;
+	evmAddress: string;
+}> => {
+	const s = state();
+	const key = escrowKey();
+	const evmAddress = `0x${key.publicKey.toEvmAddress()}`;
+	if (s.escrow)
+		return { accountId: s.escrow.accountId, key: s.escrow.key, evmAddress };
+
+	if (HEDERA.escrowId) {
+		s.escrow = { accountId: HEDERA.escrowId, key };
+		return { accountId: HEDERA.escrowId, key, evmAddress };
+	}
+	// look it up by alias before creating — the account may already exist
+	const found = (await fetch(`${MIRROR}/api/v1/accounts/${evmAddress}`)
+		.then((r) => (r.ok ? r.json() : null))
+		.catch(() => null)) as { account?: string } | null;
+	if (found?.account) {
+		s.escrow = { accountId: found.account, key };
+		return { accountId: found.account, key, evmAddress };
+	}
 	const receipt = await (
 		await new AccountCreateTransaction()
 			.setECDSAKeyWithAlias(key)
-			.setInitialBalance(new Hbar(initialHbar))
+			.setInitialBalance(new Hbar(0))
 			.execute(s.client)
 	).getReceipt(s.client);
 	const accountId = receipt.accountId?.toString();
-	if (!accountId) throw new Error("account creation returned no id");
+	if (!accountId) throw new Error("escrow creation returned no id");
+	s.escrow = { accountId, key };
 	console.error(
-		`[market] created hedera account ${accountId} (${label.slice(0, 12)}…)`,
+		`[market] created escrow ${accountId} (${evmAddress}) — pin HEDERA_ESCROW_ID`,
 	);
-	return { accountId, key };
+	return { accountId, key, evmAddress };
 };
 
-export const ensureOperatorAccount = async (
-	nullifier: string,
-): Promise<{ accountId: string }> => {
-	const s = state();
-	const cached = s.accounts.get(nullifier);
-	if (cached) return { accountId: cached };
-	const { accountId } = await ensureAccount(nullifier, 1);
-	s.accounts.set(nullifier, accountId);
-	return { accountId };
-};
-
-const ensureEscrow = async (): Promise<{
-	accountId: string;
-	key: PrivateKey;
-}> => {
-	const s = state();
-	if (s.escrow) return s.escrow;
-	if (HEDERA.escrowId) {
-		s.escrow = { accountId: HEDERA.escrowId, key: deriveKey("escrow") };
-		return s.escrow;
-	}
-	s.escrow = await ensureAccount("escrow", 0);
-	console.error(
-		`[market] escrow account ${s.escrow.accountId} — set HEDERA_ESCROW_ID to pin it`,
-	);
-	return s.escrow;
-};
+export const escrowEvmAddress = (): string =>
+	`0x${escrowKey().publicKey.toEvmAddress()}`;
 
 export const ensureTopic = async (): Promise<string> => {
 	const s = state();
@@ -156,58 +140,115 @@ export const ensureTopic = async (): Promise<string> => {
 	return topicId;
 };
 
-/** operator -> escrow. The tx fee rides on the treasury (client operator);
- * the derived operator key co-signs the debit. */
-export const submitBondLock = async (bond: BondState): Promise<string> => {
-	const s = state();
-	const { accountId } = await ensureOperatorAccount(bond.nullifier);
+// --- the stake (operator -> escrow, signed by THEM) ------------------------
+
+export interface StakeProof {
+	from: string; // operator's EVM address, canonical
+	amountHbar: number;
+}
+
+const TINYBAR = 100_000_000;
+
+/**
+ * Hedera reports a sender in one of two shapes: the account's real
+ * keccak-derived alias (what the user sees in MetaMask), or a "long-zero"
+ * address that is just the account number hex-padded. Both spend correctly,
+ * but only the alias is recognisable to the person who staked — so resolve
+ * through the mirror node and prefer the alias.
+ */
+const canonicalEvmAddress = async (address: string): Promise<string> => {
+	const looksLongZero = /^0x0{24}/i.test(address);
+	if (!looksLongZero) return address.toLowerCase();
+	const acct = (await fetch(`${MIRROR}/api/v1/accounts/${address}`)
+		.then((r) => (r.ok ? r.json() : null))
+		.catch(() => null)) as { evm_address?: string } | null;
+	const alias = acct?.evm_address;
+	return alias && !/^0x0{24}/i.test(alias)
+		? alias.toLowerCase()
+		: address.toLowerCase();
+};
+
+/**
+ * Confirm an EVM transaction really staked to our escrow. Two traps this
+ * navigates: the mirror node lags MetaMask by ~3s (so "not found" is
+ * PENDING, never failure), and for ETHEREUMTRANSACTION the transaction
+ * payer is the RELAY's account — the sender must come from `.from`, never
+ * from `transaction_id`.
+ */
+export const verifyStakeTx = async (
+	txHash: string,
+	minHbar: number,
+): Promise<StakeProof> => {
 	const escrow = await ensureEscrow();
-	const key = deriveKey(bond.nullifier);
-	const tx = await (
-		await new TransferTransaction()
-			.addHbarTransfer(accountId, new Hbar(-bond.amountHbar))
-			.addHbarTransfer(escrow.accountId, new Hbar(bond.amountHbar))
-			.freezeWith(s.client)
-			.sign(key)
-	).execute(s.client);
-	await tx.getReceipt(s.client);
-	return txIdForLinks(tx.transactionId.toString());
+	const want = escrow.evmAddress.toLowerCase();
+	const deadline = Date.now() + 15_000;
+	let lastError = "not found";
+
+	while (Date.now() < deadline) {
+		const res = await fetch(
+			`${MIRROR}/api/v1/contracts/results/${encodeURIComponent(txHash)}`,
+		).catch(() => null);
+		if (res?.ok) {
+			const body = (await res.json()) as {
+				from?: string;
+				to?: string;
+				amount?: number;
+				result?: string;
+			};
+			if (body.result && body.result !== "SUCCESS")
+				throw new Error(`stake transaction failed on-chain: ${body.result}`);
+			if ((body.to ?? "").toLowerCase() !== want)
+				throw new Error("that transaction did not pay the escrow");
+			// mirror reports tinybar; MetaMask spoke wei — never mix them
+			const amountHbar = (body.amount ?? 0) / TINYBAR;
+			if (amountHbar + 1e-9 < minHbar)
+				throw new Error(`stake too small: ${amountHbar} ℏ, need ${minHbar} ℏ`);
+			if (!body.from) throw new Error("stake transaction has no sender");
+			return { from: await canonicalEvmAddress(body.from), amountHbar };
+		}
+		lastError = `mirror node ${res?.status ?? "unreachable"}`;
+		await new Promise((r) => setTimeout(r, 1_500));
+	}
+	throw new Error(`stake not visible yet (${lastError}) — try again`);
 };
 
-/** treasury -> operator. Submitted by the worker on the referee's verdict —
- * the autonomous agentic payment the track asks for. */
-export const submitBonus = async (row: LedgerRow): Promise<string> => {
-	const s = state();
-	if (!row.operator.nullifier) throw new Error("row has no nullifier");
-	const { accountId } = await ensureOperatorAccount(row.operator.nullifier);
-	row.operator.hederaAccountId = accountId;
-	const tx = await new TransferTransaction()
-		.addHbarTransfer(HEDERA.operatorId, new Hbar(-BONUS_HBAR))
-		.addHbarTransfer(accountId, new Hbar(BONUS_HBAR))
-		.execute(s.client);
-	await tx.getReceipt(s.client);
-	return txIdForLinks(tx.transactionId.toString());
-};
+// --- settlement (escrow/treasury -> the operator's own wallet) -------------
 
-export const settleBond = async (
+/**
+ * PASS: one atomic multi-party transfer returning the stake AND paying the
+ * bonus, so a single Hashscan link tells the whole story.
+ * FAIL after claiming success: the stake moves to the treasury instead.
+ * Targets the operator's EVM address directly — no account-id lookup needed
+ * (HIP-583); `setMaxTransactionFee` is raised because the default 2 ℏ is too
+ * low when the transfer also has to auto-create the destination.
+ */
+export const settleToOperator = async (
 	bond: BondState,
 	outcome: "released" | "slashed",
+	opts: { bonus?: boolean } = {},
 ): Promise<string> => {
 	const s = state();
 	const escrow = await ensureEscrow();
-	const dest =
-		outcome === "released"
-			? (await ensureOperatorAccount(bond.nullifier)).accountId
-			: HEDERA.operatorId;
-	const tx = await (
-		await new TransferTransaction()
-			.addHbarTransfer(escrow.accountId, new Hbar(-bond.amountHbar))
-			.addHbarTransfer(dest, new Hbar(bond.amountHbar))
-			.freezeWith(s.client)
-			.sign(escrow.key)
+	const tx = new TransferTransaction().setMaxTransactionFee(new Hbar(5));
+
+	if (outcome === "slashed") {
+		tx.addHbarTransfer(escrow.accountId, new Hbar(-bond.amountHbar));
+		tx.addHbarTransfer(HEDERA.operatorId, new Hbar(bond.amountHbar));
+	} else {
+		if (!bond.evmAddress) throw new Error("bond has no operator address");
+		// honest discard gets the stake back but no bonus — only graded work pays
+		const bonus = opts.bonus === false ? 0 : BONUS_HBAR;
+		const to = AccountId.fromEvmAddress(0, 0, bond.evmAddress);
+		tx.addHbarTransfer(escrow.accountId, new Hbar(-bond.amountHbar));
+		if (bonus > 0) tx.addHbarTransfer(HEDERA.operatorId, new Hbar(-bonus));
+		tx.addHbarTransfer(to, new Hbar(bond.amountHbar + bonus));
+	}
+
+	const submitted = await (
+		await tx.freezeWith(s.client).sign(escrow.key)
 	).execute(s.client);
-	await tx.getReceipt(s.client);
-	return txIdForLinks(tx.transactionId.toString());
+	await submitted.getReceipt(s.client);
+	return txIdForLinks(submitted.transactionId.toString());
 };
 
 /** One digest per graded attempt. HARD protocol cap: 1024 bytes/message —
@@ -216,12 +257,12 @@ export const submitDigest = async (row: LedgerRow): Promise<number> => {
 	const s = state();
 	const topicId = await ensureTopic();
 	const digest = {
-		v: 1,
+		v: 2,
 		a: row.id,
 		rig: row.rig,
 		task: row.taskId,
 		n: row.operator.nullifier?.slice(0, 16) ?? null,
-		acct: row.operator.hederaAccountId,
+		w: row.operator.evmAddress ?? null,
 		claimed: row.claimed,
 		s: row.grade?.score ?? null,
 		p: row.grade?.pass ?? null,
@@ -262,13 +303,14 @@ export const rehydrateFromMirror = async (): Promise<void> => {
 		for (const m of body.messages) {
 			try {
 				const d = JSON.parse(Buffer.from(m.message, "base64").toString("utf8"));
-				if (d?.v !== 1) continue;
+				if (d?.v !== 1 && d?.v !== 2) continue;
 				attempts += 1;
 				if (d.p === true) {
 					passed += 1;
 					if (d.tx) paid += BONUS_HBAR;
 				}
-				if (typeof d.n === "string") operators.add(d.n);
+				const who = d.w ?? d.n;
+				if (typeof who === "string") operators.add(who);
 			} catch {
 				// foreign message on the topic — ignore
 			}

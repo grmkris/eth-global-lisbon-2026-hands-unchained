@@ -24,7 +24,8 @@ export interface LedgerRow {
 	operator: {
 		clientId: string;
 		nullifier: string | null;
-		hederaAccountId: string | null;
+		/** the operator's own wallet — where the payout lands */
+		evmAddress: string | null;
 	};
 	/** what the OPERATOR said at finish; "abandoned" if the lease evaporated */
 	claimed: "success" | "discarded" | "abandoned" | null;
@@ -67,19 +68,19 @@ export interface LedgerRow {
 	closedAt: number | null;
 }
 
-/** One bond per verified human per rig session — locked at first
- * attempt_start, released when they walk away clean, slashed on a false
- * success claim. */
+/** A stake the operator posted from their OWN wallet, covering one graded
+ * attempt. Settles on the referee's verdict — returned with a bonus, or
+ * slashed — after which they must stake again to attempt again. */
 export interface BondState {
 	nullifier: string;
-	rig: string;
+	/** the wallet that actually paid; the payout goes back here */
+	evmAddress: string;
+	/** the operator's own EVM transaction — proof they staked, not us */
+	stakeTxHash: string;
 	status: "locked" | "released" | "slashed";
-	lockTxId: string | null;
 	settleTxId: string | null;
 	amountHbar: number;
 	lockedAt: number;
-	/** last time we saw this operator active on the rig (claim/attempt) */
-	lastActiveAt: number;
 }
 
 /** Rehydrated-from-HCS aggregates survive redeploys even though rows do not. */
@@ -96,8 +97,12 @@ interface MarketState {
 	openByRig: Map<string, string>;
 	/** clientId -> nullifier, learned at gated claim time */
 	clientNullifier: Map<string, { nullifier: string; at: number }>;
-	/** `${nullifier}|${rig}` -> bond */
+	/** nullifier -> the ONE open stake (one stake covers one graded attempt) */
 	bonds: Map<string, BondState>;
+	/** stake tx hashes already consumed — a hash must not fund two bonds */
+	usedStakes: Set<string>;
+	/** nullifier -> lifetime HBAR earned (bonuses only, not refunds) */
+	earnings: Map<string, number>;
 	rehydrated: RehydratedStats;
 	seq: number;
 }
@@ -108,6 +113,8 @@ g.__marketState ??= {
 	openByRig: new Map(),
 	clientNullifier: new Map(),
 	bonds: new Map(),
+	usedStakes: new Set(),
+	earnings: new Map(),
 	rehydrated: { attempts: 0, passed: 0, paidHbar: 0, operators: new Set() },
 	seq: 0,
 };
@@ -124,6 +131,7 @@ export const openRow = (input: {
 	rig: string;
 	taskId: string | null;
 	clientId: string;
+	evmAddress?: string | null;
 }): LedgerRow => {
 	// a re-fired attempt_start while a row is open (task-panel auto-continue)
 	// reuses the open row rather than orphaning it
@@ -142,7 +150,7 @@ export const openRow = (input: {
 		operator: {
 			clientId: input.clientId,
 			nullifier: nullifierFor(input.clientId),
-			hederaAccountId: null,
+			evmAddress: input.evmAddress ?? null,
 		},
 		claimed: null,
 		telemetry: {
@@ -192,24 +200,33 @@ export const listRows = (): ReadonlyArray<LedgerRow> =>
 
 export const getRow = (id: string): LedgerRow | undefined => state.rows.get(id);
 
-const bondKey = (nullifier: string, rig: string): string =>
-	`${nullifier}|${rig}`;
-
-export const getBond = (nullifier: string, rig: string): BondState | null =>
-	state.bonds.get(bondKey(nullifier, rig)) ?? null;
+/** The operator's current open stake, if any. One stake covers one graded
+ * attempt; settlement clears it and they must stake again. */
+export const getBond = (nullifier: string): BondState | null => {
+	const bond = state.bonds.get(nullifier);
+	return bond && bond.status === "locked" ? bond : null;
+};
 
 export const putBond = (bond: BondState): void => {
-	state.bonds.set(bondKey(bond.nullifier, bond.rig), bond);
+	state.bonds.set(bond.nullifier, bond);
+	state.usedStakes.add(bond.stakeTxHash.toLowerCase());
 };
+
+/** A stake transaction may fund exactly one bond — otherwise one payment
+ * could be replayed into unlimited attempts. */
+export const stakeAlreadyUsed = (txHash: string): boolean =>
+	state.usedStakes.has(txHash.toLowerCase());
 
 export const listBonds = (): ReadonlyArray<BondState> => [
 	...state.bonds.values(),
 ];
 
-export const touchBond = (nullifier: string, rig: string): void => {
-	const bond = state.bonds.get(bondKey(nullifier, rig));
-	if (bond) bond.lastActiveAt = Date.now();
+export const addEarnings = (nullifier: string, hbar: number): void => {
+	state.earnings.set(nullifier, (state.earnings.get(nullifier) ?? 0) + hbar);
 };
+
+export const earningsFor = (nullifier: string): number =>
+	state.earnings.get(nullifier) ?? 0;
 
 export const rehydratedStats = (): RehydratedStats => state.rehydrated;
 
@@ -223,7 +240,7 @@ export const marketStats = () => {
 	);
 	const operators = new Set(
 		rows
-			.map((r) => r.operator.nullifier)
+			.map((r) => r.operator.evmAddress ?? r.operator.nullifier)
 			.filter((n): n is string => n !== null),
 	);
 	for (const op of state.rehydrated.operators) operators.add(op);

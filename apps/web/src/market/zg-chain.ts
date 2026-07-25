@@ -74,10 +74,9 @@ export const recordEpisode = async (row: LedgerRow): Promise<string | null> => {
 	);
 	const episodeHash = ethers.id(`${row.id}|${row.rig}|${row.taskId ?? ""}`);
 	const operator = ethers.id(row.operator.nullifier ?? "unknown");
-	const storageRoot =
-		row.provenance?.zgRoot && row.provenance.zgRoot.startsWith("0x")
-			? row.provenance.zgRoot
-			: ethers.ZeroHash;
+	const storageRoot = row.provenance?.zgRoot?.startsWith("0x")
+		? row.provenance.zgRoot
+		: ethers.ZeroHash;
 	const tx = await registry.record(
 		episodeHash,
 		operator,

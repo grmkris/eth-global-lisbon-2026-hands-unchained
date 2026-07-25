@@ -2,24 +2,24 @@
  * The market gate + observer, sitting in server.ts between hub auth and hub
  * routing. Three rules:
  *
- * 1. GATE `/claim`: taking a rig requires a verified-human session (402
- *    otherwise — the deny path IS a feature). Nothing else is gated: estop,
- *    teleop_stop, release and input stay open — bystander safety and
- *    hand-back must never require a login.
- * 2. OBSERVE `/command`: attempt_start opens a ledger row (+ locks the
- *    bond), attempt_finish closes it with the operator's claim. This is the
- *    only place the hub sees verb + identity together.
+ * 1. GATE `/claim`: taking a rig requires a verified human (402
+ *    "verification required") AND a posted stake (402 "bond required").
+ *    Two honest deny paths. Nothing else is gated: estop, teleop_stop,
+ *    release and input stay open — bystander safety and hand-back must
+ *    never require a login, let alone a wallet.
+ * 2. OBSERVE `/command`: attempt_start opens a ledger row against the
+ *    operator's stake, attempt_finish closes it with their claim. This is
+ *    the only place the hub sees verb + identity together.
  * 3. Never consume the request — hub/routes.ts reads the body after us, so
  *    everything here works on request.clone().
  */
-
 import { json } from "#/hub/routes";
 import { getRig, leaseHolder } from "#/hub/store";
 import { marketEnabled } from "#/market/config";
 import { startSampler } from "#/market/sampler";
 import { readSession } from "#/market/session";
-import { closeRow, noteClient, openRow, touchBond } from "#/market/store";
-import { ensureBondLocked, ensureWorker } from "#/market/worker";
+import { closeRow, getBond, noteClient, openRow } from "#/market/store";
+import { ensureWorker } from "#/market/worker";
 
 type Body = {
 	clientId?: string;
@@ -48,10 +48,9 @@ export const marketIntercept = async (
 
 	if (action === "claim") {
 		if (session === null) return json({ error: "verification required" }, 402);
-		if (body.clientId) {
-			noteClient(body.clientId, session.nullifier);
-			touchBond(session.nullifier, rigName);
-		}
+		if (getBond(session.nullifier) === null)
+			return json({ error: "bond required" }, 402);
+		if (body.clientId) noteClient(body.clientId, session.nullifier);
 		return "pass";
 	}
 
@@ -64,14 +63,20 @@ export const marketIntercept = async (
 		return "pass"; // the hub is about to reject it; nothing to record
 
 	if (verb === "attempt_start") {
-		// defense in depth: attempts also require the verified session, not
+		// defense in depth: an attempt needs the session AND the stake, not
 		// just the (gated) claim that preceded it
 		if (session === null) return json({ error: "verification required" }, 402);
+		const bond = getBond(session.nullifier);
+		if (bond === null) return json({ error: "bond required" }, 402);
 		noteClient(body.clientId, session.nullifier);
-		ensureBondLocked(body.clientId, rigName);
 		const taskId =
 			typeof body.args?.taskId === "string" ? body.args.taskId : null;
-		const row = openRow({ rig: rigName, taskId, clientId: body.clientId });
+		const row = openRow({
+			rig: rigName,
+			taskId,
+			clientId: body.clientId,
+			evmAddress: bond.evmAddress,
+		});
 		startSampler(row);
 	} else {
 		const claimed = body.args?.success === true ? "success" : "discarded";

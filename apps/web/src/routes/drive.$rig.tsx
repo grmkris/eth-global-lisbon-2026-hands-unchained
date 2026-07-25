@@ -16,6 +16,7 @@ import { KeyJogPad } from "#/components/key-jog-pad";
 import { LeaderInputDebugPanel } from "#/components/leader-input-debug";
 import { OwnerPanel } from "#/components/owner-panel";
 import { PageHeader } from "#/components/page-header";
+import { StakeGate } from "#/components/stake-gate";
 import {
 	ArmStateBadge,
 	SimBadge,
@@ -25,7 +26,7 @@ import { TaskPanel } from "#/components/task-panel";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
-import { VerifyGate } from "#/components/verify-gate";
+import { WalletChip } from "#/components/wallet-chip";
 import { apiErrorMessage } from "#/lib/errors";
 import {
 	claimRig,
@@ -69,9 +70,15 @@ function DrivePage() {
 
 	const holder = rig.data?.holder ?? null;
 	const iAmDriving = holder === clientId;
-	// market on + this browser unverified -> the hub will 402 every claim
-	const needsVerify =
-		market.data?.marketMode === true && market.data.verified === false;
+	// market on + not verified, or verified but no stake posted -> the hub
+	// will 402 every claim ("verification required" / "bond required")
+	const marketOn = market.data?.marketMode === true;
+	const needsVerify = marketOn && market.data?.verified === false;
+	const needsStake =
+		marketOn &&
+		market.data?.verified === true &&
+		market.data.stake?.bond == null;
+	const gated = needsVerify || needsStake;
 
 	// leader agents registered on the hub (controller.py on operator machines).
 	// A leader never holds the lease — it is a bound input device of a browser
@@ -149,13 +156,19 @@ function DrivePage() {
 					? "someone else took the rig first"
 					: apiErrorMessage(e) === "verification required"
 						? "verify your World ID above to take control"
-						: apiErrorMessage(e),
+						: apiErrorMessage(e) === "bond required"
+							? "stake above to take control"
+							: apiErrorMessage(e),
 			),
 	});
 	/** Ask before stealing a live holder's rig — friends-tier, same as before. */
 	const pickSource = (choice: DriveChoice) => {
-		if (needsVerify) {
-			toast.error("verify your World ID above to take control");
+		if (gated) {
+			toast.error(
+				needsVerify
+					? "verify your World ID above to take control"
+					: "stake above to take control",
+			);
 			return;
 		}
 		if (
@@ -202,17 +215,19 @@ function DrivePage() {
 			? "the rig is offline"
 			: needsVerify
 				? "verify your World ID to drive"
-				: armState === "disconnected"
-					? "the arm is not connected"
-					: rig.data.backend === "real" &&
-							(rig.data.camMapping?.workspace === null ||
-								rig.data.camMapping?.wrist === null)
-						? "cameras not confirmed — the rig owner must assign workspace/wrist"
-						: !inTeleop || sink === null
-							? "pick how you'll drive first"
-							: !iAmDriving
-								? "someone else is driving this rig"
-								: null;
+				: needsStake
+					? "stake to drive"
+					: armState === "disconnected"
+						? "the arm is not connected"
+						: rig.data.backend === "real" &&
+								(rig.data.camMapping?.workspace === null ||
+									rig.data.camMapping?.wrist === null)
+							? "cameras not confirmed — the rig owner must assign workspace/wrist"
+							: !inTeleop || sink === null
+								? "pick how you'll drive first"
+								: !iAmDriving
+									? "someone else is driving this rig"
+									: null;
 
 	const myAttempt =
 		rig.data?.attempt?.active === true &&
@@ -334,9 +349,9 @@ function DrivePage() {
 				)}
 			</div>
 
-			{needsVerify && market.data && (
+			{gated && market.data && (
 				<div className="mt-4">
-					<VerifyGate session={market.data} />
+					<StakeGate session={market.data} />
 				</div>
 			)}
 
@@ -345,6 +360,8 @@ function DrivePage() {
 			    the same time — tasks in between pushed them a screen apart. */}
 			<Card className="mt-4">
 				<CardContent className="flex flex-col gap-3">
+					{/* the operator's money, visible while they work */}
+					{market.data && <WalletChip session={market.data} />}
 					<div className="flex flex-wrap items-center gap-4 text-sm">
 						<StatusBadge tone={iAmDriving ? "success" : "neutral"}>
 							{iAmDriving
