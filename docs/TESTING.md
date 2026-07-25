@@ -176,20 +176,20 @@ HEDERA_SLOT_MARKET_ADDRESS=0x7f37B89DE964DFf7EE6EF6d2E3d58dAF42Ac6863
 `set -a; source .env.market; set +a` in the HUB tab only — the rig and the
 leader are separate processes and need none of it.
 
-### Two toggles that exist for testing
+### One toggle that exists for testing
 
 | Var | Effect |
 |-----|--------|
-| `MARKET_DEV_AUTOVERIFY=1` | a **Skip (dev)** button beside "Verify with World ID". Mints a session with no World proof — but still demands a connected wallet and still binds to it, so every gate downstream behaves as it will in production. Never set this on a deployed hub. |
 | `SLOT_AUTOSETTLE=0` | the hub stops settling finished slots. The operator's **Claim** button becomes the only way the money moves — which is the point: `settle` is permissionless, so the stake is not hostage to our uptime. |
 
-`MARKET_DEV_AUTOVERIFY` used to mint its session on a bare `GET /session`. That
-predates the wallet binding, and a GET carries no address — so it produced a
-session that was verified and UNBOUND, which passes the drive gate and then
-fails at the unlock with "verify again to bind your wallet". The bypass now
-lives on `POST /verify`, which does carry an address.
+There is **no verification bypass**, deliberately. `MARKET_DEV_AUTOVERIFY` used
+to mint a verified session with no proof; it is gone. It saved one click per
+browser per day (the session cookie lives 24 h) because World's staging
+simulator is a web page, not a phone — which is not worth a code path whose job
+is to make "verified human" a lie, one env var away, in a product whose first
+gate is exactly that.
 
-### World ID without a phone
+### World ID, without a phone
 
 We run in `staging` and always will — this app is never going to real World
 users. Staging credentials come from **`https://simulator.orb.engineer`** (use
@@ -216,7 +216,7 @@ explicitly — rename or remove the stale entry.
 | # | Step | Expect |
 |---|------|--------|
 | 1 | Drive page on a rig nobody booked | the gate, not the jog pad: 1 connect wallet · 2 prove you're human · 3 book |
-| 2 | Connect → verify (simulator or **Skip (dev)**) | step 2 reads "verified · bound to your wallet" |
+| 2 | Connect → verify with the simulator | step 2 reads "verified · bound to your wallet" |
 | 3 | **Hard-refresh the page** | step 1 still shows your address, checked, **with no wallet popup** — it is re-read from the session, not from localStorage |
 | 4 | Connect a DIFFERENT MetaMask account | an explicit warning that you proved World ID on the other one; the arm only opens for the wallet that booked |
 | 5 | Book · 0.05 OG | one MetaMask signature. The clock does NOT start |

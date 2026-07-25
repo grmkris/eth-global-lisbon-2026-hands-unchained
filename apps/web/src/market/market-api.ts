@@ -29,7 +29,6 @@ export interface MarketSessionInfo {
 	nullifier?: string;
 	/** the wallet this human's World proof was signed against */
 	boundAddress?: string | null;
-	devAutoverify?: boolean;
 	world?: {
 		appId: string;
 		action: string;

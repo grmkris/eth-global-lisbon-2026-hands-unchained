@@ -22,10 +22,18 @@ const bootSecret = (): string => {
 };
 export const MARKET_SECRET = bootSecret();
 
-/** Local dev only: every session request auto-mints a verified session so the
- * full ledger→grade→pay loop is testable before World credentials exist.
- * NEVER set on Railway — production sessions require a real World ID proof. */
-export const DEV_AUTOVERIFY = process.env.MARKET_DEV_AUTOVERIFY === "1";
+/**
+ * There is deliberately NO verification bypass here.
+ *
+ * `MARKET_DEV_AUTOVERIFY` used to mint a verified session with no proof, for
+ * local bring-up before World credentials existed. They exist now, and the
+ * thing it saved was one click per browser per day (the session cookie lives
+ * 24h) — because World's staging simulator is a WEB PAGE, not a phone. That is
+ * not worth carrying a code path whose entire job is to make "verified human"
+ * a lie, one env var away, in a product whose first gate is exactly that.
+ *
+ * Test against staging, like the deployment does: docs/TESTING.md §6.
+ */
 
 /** zg (0G Direct SDK) | zg-router (OpenAI-compatible) | local (heuristics).
  * Whatever is picked, errors always fall back to local — grading can degrade

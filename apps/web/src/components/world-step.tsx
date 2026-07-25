@@ -88,34 +88,11 @@ export function WorldStep({
 			</span>
 		);
 
-	/**
-	 * Local bring-up only (MARKET_DEV_AUTOVERIFY=1), and it still binds the
-	 * wallet — so the unlock, the ledger and the payout all behave exactly as
-	 * they will with a real proof. Never reachable on a deployed hub, because
-	 * the hub reports `devAutoverify: false` there.
-	 */
-	const devSkip = async () => {
-		try {
-			await verifyWorldProof({ address });
-			toast.success("dev session — World ID skipped");
-			void queryClient.invalidateQueries();
-		} catch (e) {
-			toast.error(e instanceof Error ? e.message : "dev verify failed");
-		}
-	};
-
 	if (!world)
 		return (
-			<div className="flex flex-col gap-2">
-				<span className="text-sm text-muted-foreground">
-					World verification isn't configured on this hub.
-				</span>
-				{session.devAutoverify === true && (
-					<Button size="sm" variant="outline" onClick={() => void devSkip()}>
-						Skip World ID (dev)
-					</Button>
-				)}
-			</div>
+			<span className="text-sm text-muted-foreground">
+				World verification isn't configured on this hub.
+			</span>
 		);
 
 	return (
@@ -123,17 +100,6 @@ export function WorldStep({
 			<Button size="sm" onClick={() => setOpen(true)}>
 				Verify with World ID
 			</Button>
-			{session.devAutoverify === true && (
-				<Button
-					size="sm"
-					variant="ghost"
-					className="ml-2 text-muted-foreground"
-					onClick={() => void devSkip()}
-					title="MARKET_DEV_AUTOVERIFY=1 — binds this wallet without a World proof"
-				>
-					Skip (dev)
-				</Button>
-			)}
 			{open && rpContext !== null && preset !== null && (
 				<Suspense fallback={null}>
 					<IDKitRequestWidget
