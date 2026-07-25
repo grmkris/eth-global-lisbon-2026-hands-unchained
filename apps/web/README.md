@@ -25,6 +25,7 @@ rig's owner key — printed by the agent at boot (`.data/owner.json`).
 - `HF_TOKEN` — (hub) HF API token fallback when no `~/.cache/huggingface/token`
 - `FOLLOWER_PORT` / `LEADER_PORT` / `ROBOT_ID` — override `src/api/rig.ts` defaults
 - `HUB_LATENCY_MS` / `HUB_DROP_RATE` — hub-side impairment injection
+- `LAB_FRAME_MS` — (agent) camera push cadence in ms (default 80 = 12.5 fps)
 - `LAB_DRIVER_PYTHON` — driver interpreter override (mjpython for the viewer)
 - `PORT` — hub listen port (Railway sets it; default 3000)
 

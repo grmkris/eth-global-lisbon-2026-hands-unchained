@@ -14,7 +14,10 @@ import { isVerb, VERBS, type Verb } from "#/hub/verbs";
 import { setHolder } from "#/rig/holder";
 
 const LINK_MS = 50; // 20 Hz control
-const FRAME_MS = 125; // 8 fps preview — the recording stays full-rate locally
+/** Preview cadence — the recording stays full-rate locally. 80 ms = 12.5 fps;
+ * two 640×480 JPEG streams ≈ 1 MB/s up, which a home line carries fine.
+ * LAB_FRAME_MS trades upload for smoothness (125 = the old 8 fps). */
+const FRAME_MS = Number(process.env.LAB_FRAME_MS || 80);
 
 /** Call the rig's own API in-process — reuses all existing validation. */
 const localApi = async (
@@ -334,7 +337,9 @@ export const startRigLink = (opts: {
 		tick();
 	};
 
-	console.error(`[rig-link] ${rigName} -> ${base} (link ${LINK_MS}ms)`);
+	console.error(
+		`[rig-link] ${rigName} -> ${base} (link ${LINK_MS}ms, frames ${FRAME_MS}ms)`,
+	);
 	loop(link, LINK_MS);
 	loop(pushFrames, FRAME_MS);
 	loop(refreshTasks, 2_000); // sidecar reads — slow cadence is plenty

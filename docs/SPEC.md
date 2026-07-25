@@ -58,8 +58,9 @@ middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
 
 ### Hub ↔ rig ↔ operator (the platform wire)
 - **Rig dials OUT** (`src/rig/link.ts`): self-scheduling 50 ms link tick
-  (telemetry up, control down on the response) + 125 ms frame push. No inbound
-  ports, no reconnect logic — re-registration after a hub restart is implicit.
+  (telemetry up, control down on the response) + 80 ms frame push
+  (`LAB_FRAME_MS`, 12.5 fps preview). No inbound ports, no reconnect logic —
+  re-registration after a hub restart is implicit.
 - **Hub is a pipe, not a repeater** (`src/hub/routes.ts`, `store.ts`): input is
   latest-wins, consume-once, dropped after 500 ms — the deadman. Injectable
   impairment (`HUB_LATENCY_MS`, `HUB_DROP_RATE`) so loopback dev matches WAN.
