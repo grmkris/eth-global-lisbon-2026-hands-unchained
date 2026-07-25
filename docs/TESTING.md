@@ -108,3 +108,22 @@ Known gaps / by design:
 - Real-mode record HUD shows no camera streams (the recorder owns the devices).
 - Report card needs the dataset in the local cache (`~/.cache/huggingface/lerobot`).
 - Contract changes need a dev-server restart (the API handler survives HMR on purpose).
+
+## 5 — Tasks + attempts (the crowdsourcing loop, sim-verifiable)
+
+Setup: loopback hub + `bun run rig:sim`; the rig terminal prints the OWNER
+KEY at boot (also in `apps/web/.data/owner.json`).
+
+| # | Step | Expect |
+|---|------|--------|
+| 1 | Drive page → "Rig owner — manage tasks" → paste key → create a task | task card appears (lobby too); wrong key shows `✗ wrong owner key` via lastCommandResult |
+| 2 | Take control → Start attempt | REC pill within ~3 s (spin-up grace covers dataset create), countdown from the task's episodeSeconds |
+| 3 | Drive during the attempt (jog pad) | input flows into the recording (record source = your teleop source) |
+| 4 | ✓ Success | episode saved — `info.json total_episodes` +1, task title is the per-frame lerobot label; `.data/attempts.json` row {operator, outcome: success} |
+| 5 | New attempt → ✗ Discard | episode count UNCHANGED; outcome `discarded` |
+| 6 | Let one run out | lerobot timeout semantics auto-save; outcome `timeout` |
+| 7 | Close the browser mid-attempt | after 30 s holder-loss: partial discarded, outcome `abandoned`, teleop NOT auto-restarted for a failed driver |
+| 8 | Restart the hub mid-attempt | recording uninterrupted; tasks re-advertised (rev-echo); your page reclaims the lease and the attempt continues |
+
+Curl equivalents live in the git history of this checklist (B-gate, commit
+"tasks + attempts").

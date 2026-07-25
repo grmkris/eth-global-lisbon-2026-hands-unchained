@@ -84,7 +84,7 @@ is deliberately ignored). No config — the agent finds it.
 
 ## 5. Run the agent
 
-From `apps/web` (one line):
+From `apps/web` (one line — headless, no UI, no open ports):
 
 ```sh
 HUB_URL=https://hub-production-3903.up.railway.app \

@@ -1,8 +1,9 @@
 # Proof of Hands — agent context
 
-Crowdsourced SO-101 teleoperation platform (ETHGlobal Lisbon 2026). One bun
-monorepo: `apps/web` (TS: hub/agent/console roles via `LAB_MODE`) +
-`apps/driver` (Python, pinned `lerobot==0.6.0`).
+Crowdsourced SO-101 teleoperation platform (ETHGlobal Lisbon 2026). One bun monorepo: `apps/web` (TS: hub|console roles via `LAB_MODE`, plus the
+portless headless-rig entry `src/agent.ts`) + `apps/driver` (Python, pinned
+`lerobot==0.6.0`). Tasks/attempts: see docs/SPEC.md — tasks are RIG-side,
+the hub is a stateless pipe, owner key printed at rig boot.
 
 ## How to work here
 - Be concise. Read `docs/SPEC.md` before architectural changes — it is kept

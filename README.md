@@ -41,15 +41,33 @@ cd apps/driver && uv sync && cd ../..     # python driver (macOS, python 3.12)
 
 # loopback rehearsal of production (two tabs):
 bun run hub                                # hub → :3001
-bun run rig:sim                            # sim rig → :3000, autoconnects
+bun run rig:sim                            # headless sim rig (no port), autoconnects
 # open http://localhost:3001 → Take control → Teleop (keys) → WASD/QE
 ```
 
 Register a rig with the deployed hub:
 
 ```sh
+cd apps/web
 HUB_URL=<hub url> RIG_NAME=my-arm LAB_AUTOCONNECT=real \
 FOLLOWER_PORT=$(ls /dev/tty.usbmodem* | head -1) bun run agent
+# headless: no UI, no listening port — the rig only dials out.
+# The terminal prints your RIG OWNER KEY — you need it to define tasks.
+```
+
+## Tasks — the point of all this
+
+The rig owner defines a task on the drive page ("push the cube into the
+corner"); operators who take the rig attempt it. **Each successful attempt
+is one labeled lerobot episode** (the task title is the per-frame label) in
+the task's dataset — crowdsourced training data with per-episode operator
+provenance (`.data/attempts.json` on the rig).
+
+```
+owner: task_upsert (owner key) ──▶ task card in lobby + drive
+operator: Take control → drive → Start attempt → do the task
+        → ✓ Success (episode saved)  /  ✗ Discard (buffer dropped)
+dataset: grows episode by episode, labeled, on the rig owner's machine
 ```
 
 Drive a rig with your own leader arm:

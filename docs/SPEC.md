@@ -36,15 +36,18 @@ apps/
             backends/{real,sim}.py · sources/{keys,phone,scripted,remote}.py
             controller.py (operator-side leader-over-wire bridge)
 ```
-Role from `LAB_MODE` at boot (`src/api/config.ts`):
-- **hub** — lobby/drive UI + relay. Serves `/api/mode`, `/api/hub/*`, and an
-  allowlist (`/api/health`, `/api/docs`, `/api/openapi.json`); every other
-  `/api/*` 404s (no arm, no cameras, no cache there). Deployed on Railway:
-  1 replica, sleep off — both load-bearing (in-memory registry).
+Two web roles from `LAB_MODE` (`src/api/config.ts`) plus a portless daemon:
+- **hub** — lobby/drive UI + relay + READ-ONLY datasets/trainings straight
+  off the HF Hub API (local scans fail soft — zero hub persistence). Serves
+  `/api/mode`, `/api/hub/*` and an allowlist (health/docs/openapi +
+  datasets/runs/hf prefixes); hardware `/api/*` 404s. Railway: 1 replica,
+  sleep off — both load-bearing (in-memory registry).
 - **console** (default) — the local lab tool; setting `HUB_URL` also registers
   it as a rig.
-- **agent** — headless rig: local API + rig link, serves no UI.
-  `LAB_AUTOCONNECT=sim|real` brings the backend up at boot.
+- **agent** (`src/agent.ts`, plain bun — NOT a web role) — the entire
+  on-machine rig footprint: python driver + outbound link, in-process API,
+  NO LISTENING PORT. `LAB_AUTOCONNECT=sim|real` brings the backend up at
+  boot. `bun run agent` / `rig:sim` / `rig:real`.
 
 Server entry `src/server.ts`: explicit `PORT` env (Railway) / 3000 default;
 serves `dist/client/assets` itself in prod (TanStack Start ships no static
@@ -74,6 +77,29 @@ middleware); `/api/*` → Effect HttpApi handler; rest → SSR.
   clamped + non-finite dropped on the rig BEFORE lerobot. Cross-device works
   by construction (each end normalizes through its own calibration); known
   wart: wrist_roll zero is calibration-pose-relative across devices.
+
+### Tasks + attempts (the crowdsourcing loop)
+Tasks live RIG-SIDE (`.data/tasks.json`, `tasks-registry.ts`) and are
+advertised over the link via rev-echo (full array only when the hub's echoed
+rev mismatches — a hub redeploy self-heals in ~100ms; the hub stays a
+stateless pipe). The owner key is auto-generated at first boot, printed to
+the rig terminal, relayed OPAQUELY through the hub and validated only rig-
+side (timing-safe). Verb table rows carry `args` allowlists + `owner` /
+`stampsHolder` tiers; commands get a 15s TTL + queue cap (a stale
+teleop_start firing on link resume was a hazard class).
+
+An **attempt** = one operator try = ONE recorded episode: `attempt_start
+{taskId}` starts a 1-episode record session with the task's parameters (the
+lerobot per-frame task string = task title — the label rides natively in the
+dataset; the operator identity = lease holder, stamped by the hub, not
+spoofable). Success → `keep` (episode saved); Discard → the new `discard`
+control (buffer cleared, session ends, nothing saved — saved episodes are
+never touched). A watcher handles the rest: spin-up grace (dataset create
+looks like session-end for ~2s), 30s holder-loss → abandon + discard,
+timeout → lerobot's auto-save semantics, teleop auto-restored with the
+operator's prior source (except after driver failure). Outcomes append to
+`.data/attempts.json` {task, operator, outcome, timestamps}; episode ground
+truth stays in the dataset itself.
 
 ### Safety model (remote driving)
 15°/tick clamp on synthetic sources (only a rig-local leader runs uncapped) ·
