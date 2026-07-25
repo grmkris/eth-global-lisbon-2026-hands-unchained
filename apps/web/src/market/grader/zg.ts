@@ -42,7 +42,7 @@ const init = async (): Promise<ZgState> => {
 	try {
 		const ledger = await broker.ledger.getLedger();
 		console.error(
-			`[market] 0g ledger ok (${JSON.stringify(ledger.totalBalance ?? "?")})`,
+			`[market] 0g ledger ok (balance ${String(ledger.totalBalance ?? "?")})`,
 		);
 	} catch (getLedgerErr) {
 		// getLedger also throws on transient RPC flakes; addLedger on an
@@ -124,6 +124,12 @@ export const gradeZg = async (row: LedgerRow): Promise<Grade> => {
 		);
 	}
 
+	// Pull the TEE's own signature over this response. The SDK verifies it
+	// internally and throws it away; we keep it because it is the artifact a
+	// Hedera contract can re-verify with ecrecover (see contracts/
+	// TeeAttestation.sol) — the actual bridge between the two chains.
+	const attestation = await fetchAttestation(endpoint, chatID, model);
+
 	const verdict = parseVerdict(content);
 	return {
 		...verdict,
@@ -135,7 +141,52 @@ export const gradeZg = async (row: LedgerRow): Promise<Grade> => {
 			teeVerified,
 			requestHash: sha256(requestBody),
 			responseHash: sha256(responseText),
+			/** raw bytes the TEE signed over — the contract re-hashes these */
+			responseBody: responseText,
+			attestation,
 			ts: Date.now(),
 		},
 	};
+};
+
+export interface TeeAttestation {
+	/** "<reqSha256>:<respSha256>:<type>:<identity>:<tlsFingerprint>" */
+	text: string;
+	signature: string;
+	signingAddress: string;
+	providerType: string;
+	providerIdentity: string;
+}
+
+const fetchAttestation = async (
+	endpoint: string,
+	chatID: string,
+	model: string,
+): Promise<TeeAttestation | null> => {
+	if (!chatID) return null;
+	try {
+		// getServiceMetadata already hands back a ".../v1/proxy" base
+		const res = await fetch(
+			`${endpoint.replace(/\/$/, "")}/signature/${encodeURIComponent(chatID)}?model=${encodeURIComponent(model)}`,
+		);
+		if (!res.ok) return null;
+		const body = (await res.json()) as {
+			text?: string;
+			signature?: string;
+			signing_address?: string;
+			provider_type?: string;
+			provider_identity?: string;
+		};
+		if (!body.text || !body.signature) return null;
+		return {
+			text: body.text,
+			signature: body.signature,
+			signingAddress: body.signing_address ?? "",
+			providerType: body.provider_type ?? "",
+			providerIdentity: body.provider_identity ?? "",
+		};
+	} catch (e) {
+		console.error("[market] could not fetch TEE attestation:", e);
+		return null;
+	}
 };

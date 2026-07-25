@@ -10,7 +10,7 @@
  * verdict lands — not on a timer, so the whole cycle is visible in one take.
  */
 import { getRig, leaseHolder } from "#/hub/store";
-import { BONUS_HBAR, HEDERA, marketEnabled } from "#/market/config";
+import { BONUS_HBAR, HEDERA, marketEnabled, TEE_BRIDGE } from "#/market/config";
 import { grade } from "#/market/grader/index";
 import { stopSampler } from "#/market/sampler";
 import {
@@ -149,7 +149,12 @@ const advance = async (row: LedgerRow): Promise<void> => {
 
 	if (row.status === "paid" || row.status === "rejected") {
 		if (row.provenance !== null) return; // terminal work already done
-		row.provenance = { hcsSeq: null, zgRoot: null, registryTx: null };
+		row.provenance = {
+			hcsSeq: null,
+			zgRoot: null,
+			registryTx: null,
+			teeTxHash: null,
+		};
 		if (HEDERA.configured && HEDERA.topicId !== "") {
 			const h = await import("#/market/hedera");
 			try {
@@ -158,6 +163,20 @@ const advance = async (row: LedgerRow): Promise<void> => {
 				console.error(`[market] HCS digest failed for ${row.id}:`, e);
 				row.provenance = null; // retry next tick
 				return;
+			}
+		}
+		// The cross-chain link: hand 0G's TEE signature to a HEDERA contract
+		// and let it ecrecover the thing itself. Best-effort — a failure here
+		// means the attestation isn't on Hedera, not that the grade is void.
+		if (TEE_BRIDGE.configured) {
+			try {
+				const bridge = await import("#/market/tee-bridge");
+				row.provenance.teeTxHash = await bridge.recordGradeOnHedera(row);
+			} catch (e) {
+				console.error(
+					`[market] on-chain TEE attestation failed for ${row.id}:`,
+					e,
+				);
 			}
 		}
 		// best-effort 0G provenance — never blocks the row

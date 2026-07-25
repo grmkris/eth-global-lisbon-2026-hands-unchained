@@ -62,6 +62,8 @@ export interface LedgerRow {
 		hcsSeq: number | null;
 		zgRoot: string | null;
 		registryTx: string | null;
+		/** Hedera tx where a contract ecrecovered 0G's TEE signature */
+		teeTxHash: string | null;
 	} | null;
 	status: RowStatus;
 	openedAt: number;

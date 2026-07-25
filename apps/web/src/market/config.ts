@@ -58,8 +58,20 @@ export const HEDERA = {
  * server needs to state in /api/market/config. */
 export const HEDERA_EVM = {
 	chainId: 296,
+	rpc: process.env.HEDERA_EVM_RPC ?? "https://testnet.hashio.io/api",
 	mirror: "https://testnet.mirrornode.hedera.com",
 	faucet: "https://portal.hedera.com/faucet",
+};
+
+/** The cross-chain proof link: a Hedera contract that ecrecovers 0G's TEE
+ * signature (see market/tee-bridge.ts). Unset = the market runs exactly as
+ * before, just without the on-chain attestation step. */
+export const TEE_BRIDGE = {
+	address: process.env.TEE_ATTESTATION_ADDRESS ?? "",
+	key: process.env.HEDERA_EVM_KEY ?? process.env.HEDERA_OPERATOR_KEY ?? "",
+	get configured(): boolean {
+		return this.address !== "" && this.key !== "";
+	},
 };
 
 export const ZG = {

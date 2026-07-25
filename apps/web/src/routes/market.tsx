@@ -144,6 +144,7 @@ function MarketPage() {
 							<TableHead>claimed</TableHead>
 							<TableHead>grade</TableHead>
 							<TableHead className="text-right">payout</TableHead>
+							<TableHead>proof</TableHead>
 							<TableHead>status</TableHead>
 							<TableHead>evidence</TableHead>
 						</TableRow>
@@ -203,6 +204,23 @@ function MarketPage() {
 										"0 ℏ"
 									) : (
 										"—"
+									)}
+								</TableCell>
+								{/* the cross-chain link: 0G's TEE signature, re-verified
+								    by a contract on Hedera */}
+								<TableCell className="text-xs">
+									{row.provenance?.teeTxHash ? (
+										<a
+											className="underline"
+											href={`https://hashscan.io/testnet/transaction/${row.provenance.teeTxHash}`}
+											target="_blank"
+											rel="noreferrer"
+											title="Hedera contract ecrecovered 0G's TEE signature over this grade"
+										>
+											0G TEE ✓ on Hedera
+										</a>
+									) : (
+										<span className="text-muted-foreground">—</span>
 									)}
 								</TableCell>
 								<TableCell>

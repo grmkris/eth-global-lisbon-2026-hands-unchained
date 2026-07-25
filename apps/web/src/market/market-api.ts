@@ -70,6 +70,7 @@ export interface MarketLedgerRow {
 		hcsSeq: number | null;
 		zgRoot: string | null;
 		registryTx: string | null;
+		teeTxHash: string | null;
 	} | null;
 	status: string;
 	openedAt: number;
