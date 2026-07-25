@@ -129,8 +129,9 @@ export function LobbyPage() {
 													? "Unlock your slot"
 													: slots.data?.configured
 														? `Book ${Math.round(
-																(slots.data.params?.slotSeconds ?? 1800) / 60,
-															)} min · ${slots.data.params?.minStakeOg ?? 0.05} OG`
+																(slots.data.chains[0]?.params?.slotSeconds ??
+																	1800) / 60,
+															)} min`
 														: rig.holder
 															? "Watch"
 															: "Drive this rig"}

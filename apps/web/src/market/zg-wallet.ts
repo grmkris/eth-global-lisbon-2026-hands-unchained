@@ -11,7 +11,14 @@
  * the slot, recording every verdict and settling are all relayed by the hub
  * with its own key, so the wallet appears once and then gets out of the way.
  */
-import { createWalletClient, custom, parseEther, publicActions } from "viem";
+import {
+	type Chain,
+	createWalletClient,
+	custom,
+	parseEther,
+	publicActions,
+} from "viem";
+import { hederaTestnet } from "viem/chains";
 import { slotMarketAbi } from "#/market/abi/slot-market";
 import {
 	pinHashOf,
@@ -37,11 +44,18 @@ export const walletAvailable = (): boolean =>
 	typeof globalThis !== "undefined" &&
 	(globalThis as { ethereum?: unknown }).ethereum !== undefined;
 
-const client = () =>
-	createWalletClient({
-		chain: zgGalileo,
-		transport: custom(provider()),
-	}).extend(publicActions);
+/**
+ * viem's `hederaTestnet` is correct (296) and usable as shipped; its 0G
+ * definitions are not, which is why zgGalileo is hand-written in
+ * market/chain.ts. Two chains, one honest map.
+ */
+export const viemChain = (key: string): Chain =>
+	key === "hedera" ? hederaTestnet : zgGalileo;
+
+const client = (chain: Chain) =>
+	createWalletClient({ chain, transport: custom(provider()) }).extend(
+		publicActions,
+	);
 
 /**
  * Connect and make sure we are on Galileo (16602).
@@ -53,21 +67,25 @@ const client = () =>
  * do about their wallet from here, so say exactly what is wrong instead of
  * surfacing "stake failed".
  */
-export const connect = async (): Promise<`0x${string}`> => {
-	const wc = client();
+export const connect = async (chainKey = "0g"): Promise<`0x${string}`> => {
+	const chain = viemChain(chainKey);
+	const wc = client(chain);
 	const [account] = await wc.requestAddresses();
 	if (!account) throw new Error("no account returned by the wallet");
 	try {
-		await wc.switchChain({ id: zgGalileo.id });
+		await wc.switchChain({ id: chain.id });
 	} catch {
 		try {
-			await wc.addChain({ chain: zgGalileo });
-			await wc.switchChain({ id: zgGalileo.id });
+			await wc.addChain({ chain });
+			await wc.switchChain({ id: chain.id });
 		} catch (e) {
 			const current = (await provider().request({
 				method: "eth_chainId",
 			})) as string;
-			if (Number.parseInt(current, 16) === ZG_STALE_CHAIN_ID)
+			if (
+				chain.id === zgGalileo.id &&
+				Number.parseInt(current, 16) === ZG_STALE_CHAIN_ID
+			)
 				throw new Error(
 					`Your wallet is on the old 0G Galileo network (${ZG_STALE_CHAIN_ID}). ` +
 						`This app uses ${zgGalileo.id} — remove or rename the old entry in ` +
@@ -101,12 +119,14 @@ export const bookSlot = async (input: {
 	pin: string;
 	stakeOg: number;
 	contract: `0x${string}`;
+	chainKey: string;
 }): Promise<{ hash: `0x${string}`; account: `0x${string}` }> => {
-	const wc = client();
-	const account = await connect();
+	const chain = viemChain(input.chainKey);
+	const wc = client(chain);
+	const account = await connect(input.chainKey);
 	const hash = await wc.writeContract({
 		account,
-		chain: zgGalileo,
+		chain,
 		address: input.contract,
 		abi: slotMarketAbi,
 		functionName: "bookSlot",
@@ -122,12 +142,14 @@ export const bookSlot = async (input: {
 export const startSlotSelf = async (
 	contract: `0x${string}`,
 	slotId: number,
+	chainKey = "0g",
 ): Promise<`0x${string}`> => {
-	const wc = client();
-	const account = await connect();
+	const chain = viemChain(chainKey);
+	const wc = client(chain);
+	const account = await connect(chainKey);
 	return wc.writeContract({
 		account,
-		chain: zgGalileo,
+		chain,
 		address: contract,
 		abi: slotMarketAbi,
 		functionName: "startSlot",

@@ -175,6 +175,8 @@ export const postStake = (txHash: string) =>
 // --- slots ------------------------------------------------------------------
 
 export interface SlotSummary {
+	/** which chain holds this slot's money */
+	chain: string;
 	slotId: number;
 	operator: string;
 	stakeOg: number;
@@ -226,14 +228,15 @@ export interface RigSlotInfo {
 	episodes?: ReadonlyArray<SlotEpisode>;
 }
 
-export interface SlotsConfig {
-	configured: boolean;
+export interface SlotChainInfo {
+	key: string;
 	chainId: number;
+	label: string;
+	token: string;
 	contract: `0x${string}`;
-	namespace: string;
-	required: boolean;
 	faucet: string;
-	minPinLength: number;
+	/** the contract reads 0G's registry itself, rather than a pinned constant */
+	liveSigner: boolean;
 	params: {
 		slotSeconds: number;
 		gradeGraceSeconds: number;
@@ -245,6 +248,15 @@ export interface SlotsConfig {
 		settler: string;
 		zgSigner: string;
 	} | null;
+}
+
+export interface SlotsConfig {
+	configured: boolean;
+	namespace: string;
+	required: boolean;
+	minPinLength: number;
+	/** every chain the operator may put money on; same rules, different token */
+	chains: ReadonlyArray<SlotChainInfo>;
 	rigs: ReadonlyArray<RigSlotInfo>;
 }
 

@@ -77,7 +77,7 @@ export const useSlot = (
 		hasToken,
 		needsBooking,
 		needsUnlock,
-		maxStrikes: config?.params?.maxStrikes ?? 3,
+		maxStrikes: config?.chains[0]?.params?.maxStrikes ?? 3,
 		blockedReason,
 	};
 };

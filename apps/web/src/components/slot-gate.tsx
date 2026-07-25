@@ -154,10 +154,17 @@ export function SlotGate({
 	// Held here, not inside a step: the address is what the World proof is
 	// signed against AND what books the slot, so both steps need it.
 	const [address, setAddress] = useState<`0x${string}` | null>(null);
+	// Which chain holds the money. Rules are identical either side — same
+	// contract, same escrow, same three strikes — so this is a currency choice,
+	// not a product choice.
+	const [chainKey, setChainKey] = useState(() => slots?.chains[0]?.key ?? "0g");
+	const chosen =
+		slots?.chains.find((c) => c.key === chainKey) ?? slots?.chains[0] ?? null;
 	const verified = session.verified;
-	const stakeOg = slots?.params?.minStakeOg ?? 0.05;
-	const rewardOg = slots?.params?.rewardPerEpisodeOg ?? 0.002;
-	const minutes = Math.round((slots?.params?.slotSeconds ?? 1800) / 60);
+	const stakeOg = chosen?.params?.minStakeOg ?? 0;
+	const rewardOg = chosen?.params?.rewardPerEpisodeOg ?? 0;
+	const token = chosen?.token ?? "OG";
+	const minutes = Math.round((chosen?.params?.slotSeconds ?? 1800) / 60);
 
 	const pending = info?.pending ?? null;
 	const live = info?.live ?? null;
@@ -183,6 +190,10 @@ export function SlotGate({
 			toast.error(`your key needs at least ${slots.minPinLength} characters`);
 			return;
 		}
+		if (chosen === null) {
+			toast.error("no chain is configured on this hub");
+			return;
+		}
 		setBusy(true);
 		try {
 			const { hash } = await bookSlot({
@@ -190,11 +201,12 @@ export function SlotGate({
 				namespace: slots.namespace,
 				pin: key.trim(),
 				stakeOg,
-				contract: slots.contract,
+				contract: chosen.contract,
+				chainKey: chosen.key,
 			});
 			toast.info("booking sent — waiting for the network…");
 			await noteBooked(rig, hash);
-			toast.success(`booked ${minutes} min on ${rig}`, {
+			toast.success(`booked ${minutes} min on ${rig} (${chosen.label})`, {
 				description: "now unlock with your key to start the clock",
 			});
 			void queryClient.invalidateQueries({ queryKey: ["market"] });
@@ -214,9 +226,9 @@ export function SlotGate({
 				</div>
 				<p className="text-muted-foreground text-sm">
 					This is a real robot arm. Prove you're a unique adult human (18+),
-					then book it for {minutes} minutes with {stakeOg} OG of your own.
+					then book it for {minutes} minutes with {stakeOg} {token} of your own.
 					Every episode you record is graded on its own by a referee running in
-					a TEE on 0G; each pass pays you {rewardOg} OG. Claim success you
+					a TEE on 0G; each pass pays you {rewardOg} {token}. Claim success you
 					didn't earn three times and the whole stake is slashed.
 				</p>
 
@@ -274,6 +286,30 @@ export function SlotGate({
 						<SlotUnlock rig={rig} slotId={pending.slotId} mine={true} />
 					) : (
 						<div className="flex flex-col gap-3">
+							{slots !== null && slots.chains.length > 1 && (
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-muted-foreground">
+										Where your stake sits — same rules either way
+									</Label>
+									<div className="flex flex-wrap gap-2">
+										{slots.chains.map((c) => (
+											<Button
+												key={c.key}
+												size="sm"
+												variant={c.key === chainKey ? "default" : "outline"}
+												onClick={() => setChainKey(c.key)}
+											>
+												{c.label} · {c.params?.minStakeOg ?? "?"} {c.token}
+											</Button>
+										))}
+									</div>
+									<p className="text-muted-foreground text-xs">
+										{chosen?.liveSigner
+											? "This contract reads the referee's identity live from 0G's own registry — no pinned constant to trust."
+											: "0G's registry isn't readable from here, so the referee's address is pinned at deploy — one constant, auditable in a single call."}
+									</p>
+								</div>
+							)}
 							<div className="flex flex-col gap-1.5">
 								<Label htmlFor="new-key" className="text-muted-foreground">
 									Your slot key — you'll type this to take control
@@ -306,16 +342,18 @@ export function SlotGate({
 							</div>
 							<Button size="sm" onClick={() => void doBook()} disabled={busy}>
 								<Wallet />
-								{busy ? "confirming…" : `Book ${minutes} min · ${stakeOg} OG`}
+								{busy
+									? "confirming…"
+									: `Book ${minutes} min · ${stakeOg} ${token}`}
 							</Button>
 							<a
 								className="flex items-center gap-1 text-muted-foreground text-xs underline"
-								href={slots.faucet}
+								href={chosen?.faucet ?? "https://faucet.0g.ai"}
 								target="_blank"
 								rel="noreferrer"
 							>
 								<Coins className="size-3" />
-								need testnet OG? (free faucet)
+								need testnet {token}? (free faucet)
 								<ExternalLink className="size-3" />
 							</a>
 						</div>
