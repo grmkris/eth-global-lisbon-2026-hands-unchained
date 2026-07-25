@@ -439,7 +439,13 @@ function DrivePage() {
 							armed={padArmed}
 							disabledReason={padReason}
 							onArm={() => {
-								if (data?.armState === "connected")
+								// Not while a leader owns this rig: arming keys teleop here
+								// stole the source from a bound leader, and the driver then
+								// refused teleop_start_remote ("teleop already active"), so
+								// the leader streamed into a keys source and the arm went
+								// dead. The hub's drive command now recovers from that
+								// anyway (teleop_stop first), but don't cause it.
+								if (data?.armState === "connected" && !drivingLeader)
 									command.mutate("teleop_start");
 							}}
 						/>

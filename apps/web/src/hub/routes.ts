@@ -270,13 +270,25 @@ export const handleHubRequest = async (
 			leader.boundTo = body.clientId;
 			leader.rig = rig.name;
 			leader.pending = { action: "drive", rig: rig.name, queuedAt: Date.now() };
-			// the hub starts the remote source itself — the agent no longer sends
-			// verbs, and the holder stamp stays the browser
-			rig.pending.push({
-				verb: "teleop_start_remote",
-				holder: body.clientId,
-				queuedAt: Date.now(),
-			});
+			// The hub starts the remote source itself — the agent sends no verbs, and
+			// the holder stamp stays the browser.
+			//
+			// teleop_stop FIRST, unconditionally: the driver refuses to start a
+			// second teleop loop ("teleop already active"), so if anything else was
+			// driving — most easily the jog pad, which arms keys teleop on a click —
+			// teleop_start_remote was rejected and the leader then streamed joints
+			// into a source that cannot take them (BrowserKeys has no set_joints).
+			// The arm went dead while the leader still reported ~25 packets/s. These
+			// two drain in order on one link tick, so Drive is now self-healing
+			// instead of requiring the operator to know to press Stop teleop first.
+			rig.pending.push(
+				{ verb: "teleop_stop", holder: body.clientId, queuedAt: Date.now() },
+				{
+					verb: "teleop_start_remote",
+					holder: body.clientId,
+					queuedAt: Date.now(),
+				},
+			);
 			return json({ ok: true, queued: "drive" });
 		}
 		if (body.action === "stop") {
