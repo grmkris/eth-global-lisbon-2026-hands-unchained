@@ -50,7 +50,15 @@ export const ZG = {
 	rpc: process.env.ZG_RPC ?? "https://evmrpc-testnet.0g.ai",
 	provider: process.env.ZG_PROVIDER ?? "",
 	routerKey: process.env.ZG_ROUTER_KEY ?? "",
+	/** testnet router is NOT router-api.0g.ai (that's mainnet) */
+	routerUrl:
+		process.env.ZG_ROUTER_URL ??
+		"https://router-api-testnet.integratenetwork.work/v1",
+	routerModel: process.env.ZG_ROUTER_MODEL ?? "",
 	registryAddress: process.env.ZG_REGISTRY_ADDRESS ?? "",
+	storageIndexer:
+		process.env.ZG_STORAGE_INDEXER ??
+		"https://indexer-storage-testnet-turbo.0g.ai",
 };
 
 export const WORLD = {
