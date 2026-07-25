@@ -62,8 +62,10 @@ writeFileSync(target, body);
 
 // Hand it to biome rather than trying to emit biome-shaped JSON by hand:
 // `bun run check` covers every file in apps/web, and a generated file that
-// fails the repo's own formatter is a broken build nobody caused.
-const fmt = Bun.spawnSync(["bunx", "biome", "format", "--write", target], {
+// fails the repo's own checks is a broken build nobody caused. `check --write`
+// and not `format --write`: they are different commands, and CI runs the
+// former.
+const fmt = Bun.spawnSync(["bunx", "biome", "check", "--write", target], {
 	cwd: `${root}/apps/web`,
 	stderr: "pipe",
 });
