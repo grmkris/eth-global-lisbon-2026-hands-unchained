@@ -48,7 +48,12 @@ jobs:
           # forge-std is a git submodule; without this it checks out empty and
           # every `import {Test} from "forge-std/Test.sol"` fails to resolve
           submodules: recursive
+      # Pinned, not floating: `forge fmt` output differs between versions, so
+      # an unpinned toolchain turns a formatting check into a coin flip that
+      # fails on someone else's machine. Keep in step with AGENTS.md.
       - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: "1.5.1"
       - name: forge fmt
         run: forge fmt --check
         working-directory: contracts

@@ -91,21 +91,33 @@ others) must close, one per sponsor:
 
 | Hole | Fix |
 |---|---|
-| Operator identity is a random per-tab `clientId` — sybils get execution rights on physical hardware | **World ID** gates lease acquisition. Unverified → **HTTP 402**, arm stays locked. |
-| The worker grades their own paid work | **0G Compute** is the referee: a TEE-attested model judges the telemetry, and its verdict — not the operator — decides payment. |
-| A $0.50 work unit every 20 s fits no invoice or bank rail | **Hedera**: HBAR bond + per-episode bonus, sub-cent fees, HCS audit trail. |
+| Operator identity is a random per-tab `clientId` — sybils get execution rights on physical hardware | **World ID** gates the slot. Unverified → **HTTP 402**, arm stays locked. |
+| The worker grades their own paid work | **0G Compute** is the referee: a TEE-attested model judges the recorded episode, and its verdict — not the operator — decides payment. |
+| Anyone could take the arm out from under you mid-episode | **`SlotMarket` on 0G**: booking IS staking. Thirty exclusive minutes, a key only you know, and a FIFO queue — all on chain. |
 
 ```
-verify (World ID, 18+ & live)   →  session
-  ↓ stake 0.5 ℏ                    THEIR wallet → escrow   (MetaMask, they sign it)
+verify (World ID, 18+ & live)    →  session
+  ↓ book 30 min · 0.05 OG          THEIR wallet → SlotMarket   (MetaMask, one signature, ever)
+  ↓ type your key                  hub relays startSlot — THE CLOCK STARTS HERE, not at booking
 lease granted · drive · attempt · claim ✓/✗
-  ↓ hub-observed telemetry (motion, gripper, episode-saved — unforgeable)
+  ↓ the recorded episode itself (observation.state @30fps — the work product)
 0G Compute referee  →  {score, pass, teeVerified}
-  ↓ pass                           stake back + 0.5 ℏ bonus, ONE tx, to their wallet
-  ↓ fail after claiming success    stake SLASHED to treasury
-anchor: HCS digest · 0G Storage root · EpisodeRegistry event
-     · 0G's TEE signature re-verified BY A HEDERA CONTRACT
+  ↓ pass                           +0.05 OG credited from the reward pool
+  ↓ fail after claiming success    ⚠ strike — three and the whole stake is slashed
+slot ends  →  control revoked · settle() pays stake + credits, permissionless
+anchor: 0G Storage root · EpisodeRegistry event · the verdict itself on SlotMarket
 ```
+
+**The contract checks 0G's enclave signature itself.** `recordEpisode` rebuilds
+the EIP-191 text the TEE signed and `ecrecover`s it against the signer address
+0G's own registry publishes — so the hub can choose *which* verdict to submit
+and can never *forge* one. A grade with no attestation (0G unreachable, hub fell
+back to local heuristics) can still pay you but can never cost you a strike:
+without the enclave, the market may be lenient, never punitive.
+
+Nobody profits from a slash. A voided stake goes back into the **reward pool**,
+not to a treasury — the settler is the one component you are asked to trust, and
+it must not also earn from voiding people.
 
 The operator holds their own keys — they stake from MetaMask and are paid
 back to the same address; the hub never derives or holds an operator key.
@@ -134,9 +146,10 @@ Live testnet artifacts:
 
 | What | Where |
 |---|---|
-| HCS provenance topic | [`0.0.9746374`](https://hashscan.io/testnet/topic/0.0.9746374) |
-| **TeeAttestation** (Hedera testnet) — verifies 0G's TEE signature | [`0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3`](https://hashscan.io/testnet/contract/0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3) |
+| **SlotMarket** (0G Galileo, 16602) — booking, staking, verdicts, slashing | [`0x84d3d78c844739B2DA8C8815Bd701ec3fAf89bf2`](https://chainscan-galileo.0g.ai/address/0x84d3d78c844739B2DA8C8815Bd701ec3fAf89bf2) |
 | EpisodeRegistry (0G Galileo, 16602) | [`0x80669DE19A96F0004adbC3C81c528Ef1abB9a494`](https://chainscan-galileo.0g.ai/address/0x80669DE19A96F0004adbC3C81c528Ef1abB9a494) |
+| HCS provenance topic (Hedera — dormant) | [`0.0.9746374`](https://hashscan.io/testnet/topic/0.0.9746374) |
+| TeeAttestation (Hedera testnet — dormant) | [`0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3`](https://hashscan.io/testnet/contract/0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3) |
 | Stake escrow (holds operator stakes) | [`0.0.9746375`](https://hashscan.io/testnet/account/0.0.9746375) |
 | Example autonomous payout | [`0.0.9700388-1785002413-836244743`](https://hashscan.io/testnet/transaction/0.0.9700388-1785002413-836244743) |
 | Example on-chain TEE verification | [`0xfeb0ea1d…acdbea`](https://hashscan.io/testnet/transaction/0xfeb0ea1d21629cf4b41336968ee7969b30a9d9c3c3fda577c8377e7659acdbea) |

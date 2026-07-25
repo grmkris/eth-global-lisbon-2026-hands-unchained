@@ -10,7 +10,13 @@ the hub is a stateless pipe, owner key printed at rig boot.
 - Be concise. Read `docs/SPEC.md` before architectural changes — it is kept
   truthful (shipped vs not-built are labeled).
 - Checks: `bun run check` (biome) · `bun run typecheck` · `bun run build` ·
-  `bun run driver:ast`. All from repo root.
+  `bun run driver:ast` · `bun run contracts:test`. All from repo root.
+- Contracts are a Foundry project in `contracts/` (0G requires `evm_version =
+  "cancun"`; `via_ir` because recordEpisode takes ten args and builds a string).
+  **Use forge 1.5.1-stable** — `forge fmt` output differs between versions and
+  CI pins it. If `which forge` points at `~/.aztec/...` you have a 1.4.x fork
+  ahead of `~/.foundry/bin` on PATH, and `forge fmt --check` will pass locally
+  and fail in CI.
 - Commit + push to `origin main` after meaningful changes; pushes deploy.
 
 ## Deploy topology

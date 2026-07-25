@@ -74,9 +74,7 @@ contract DeploySlotMarket is Script {
         require(deployer.balance > fund, "deployer has no OG - hit faucet.0g.ai first");
 
         vm.startBroadcast(pk);
-        SlotMarket market = new SlotMarket{
-            value: fund
-        }(
+        SlotMarket market = new SlotMarket{value: fund}(
             svc.teeSignerAddress,
             pType,
             pIdentity,

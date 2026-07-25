@@ -44,9 +44,7 @@ contract SlotMarketTest is Test {
         teeSigner = vm.addr(TEE_PK);
         vm.deal(owner, 2 ether); // the constructor seeds the reward pool
         vm.prank(owner);
-        market = new SlotMarket{
-            value: 1 ether
-        }(
+        market = new SlotMarket{value: 1 ether}(
             teeSigner,
             P_TYPE,
             P_IDENT,
@@ -177,19 +175,19 @@ contract SlotMarketTest is Test {
     {
         uint8 strikes;
         (
-                rigId,
-                operator,
-                stake,
-                pinHash,
-                bookedAt,
-                startedAt,
-                endAt,
-                accrued,
-                passes,
-                episodes,
-                strikes,
-                status
-            ) = market.slots(id);
+            rigId,
+            operator,
+            stake,
+            pinHash,
+            bookedAt,
+            startedAt,
+            endAt,
+            accrued,
+            passes,
+            episodes,
+            strikes,
+            status
+        ) = market.slots(id);
         strikes;
     }
 
