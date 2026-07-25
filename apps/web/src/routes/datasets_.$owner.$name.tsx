@@ -71,14 +71,20 @@ function DatasetReportPage() {
 				}
 			/>
 
-			{!r.local && (
+			{r.episodes.length === 0 && (
 				<p className="mt-4 text-sm text-warn">
-					Not in the local cache — episode meta unavailable. Pull it locally
-					(record/replay/train uses it) to see the report card.
+					No episode meta — the dataset is not pushed to the Hub yet (or its
+					meta is unreachable). Push it from the recording rig to see the
+					report card.
+				</p>
+			)}
+			{!r.local && r.episodes.length > 0 && (
+				<p className="mt-4 text-xs text-muted-foreground">
+					read from the HF Hub (not cached on this machine)
 				</p>
 			)}
 
-			{r.local && (
+			{r.episodes.length > 0 && (
 				<>
 					<div className="mt-4 max-w-3xl">
 						<Table>

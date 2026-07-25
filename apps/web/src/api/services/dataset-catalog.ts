@@ -1,6 +1,11 @@
 import * as os from "node:os";
 import { Context, Effect, FileSystem, Layer } from "effect";
-import { asyncBufferFromFile, parquetReadObjects } from "hyparquet";
+import {
+	type AsyncBuffer,
+	asyncBufferFromFile,
+	asyncBufferFromUrl,
+	parquetReadObjects,
+} from "hyparquet";
 import { DatasetEpisodes, DatasetInfo, EpisodeInfo } from "#/api/contract";
 import { HfHub } from "./hf-hub";
 
@@ -98,14 +103,73 @@ export class DatasetCatalog extends Context.Service<
 				});
 
 			// v3 layout: meta/episodes/chunk-*/file-*.parquet with episode_index/length/tasks
-			const episodes = (repoId: string) =>
-				Effect.gen(function* () {
-					const root = `${LEROBOT_CACHE}/${repoId}`;
-					const meta = yield* fs.readFileString(`${root}/meta/info.json`).pipe(
-						Effect.map((raw) => JSON.parse(raw) as Record<string, unknown>),
-						Effect.orElseSucceed(() => null),
+			type EpisodeRow = { index: number; frames: number; task: string };
+
+			const rowsFrom = (open: () => Promise<AsyncBuffer>) =>
+				Effect.tryPromise(async () => {
+					const parsed = await parquetReadObjects({
+						file: await open(),
+						columns: ["episode_index", "length", "tasks"],
+					});
+					return (parsed as Array<Record<string, unknown>>).map(
+						(row): EpisodeRow => ({
+							index: Number(row.episode_index),
+							frames: Number(row.length),
+							task: Array.isArray(row.tasks)
+								? String(row.tasks[0] ?? "")
+								: String(row.tasks ?? ""),
+						}),
 					);
-					if (meta === null) {
+				}).pipe(Effect.orElseSucceed(() => [] as Array<EpisodeRow>));
+
+			const buildReport = (
+				repoId: string,
+				local: boolean,
+				fps: number | null,
+				rows: Array<EpisodeRow>,
+			) => {
+				rows.sort((a, b) => a.index - b.index);
+				const sorted = rows.map((r) => r.frames).sort((a, b) => a - b);
+				const median =
+					sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : null;
+				const flag = (frames: number): string | null => {
+					if (median === null || rows.length < 5) return null;
+					if (frames < 0.6 * median) return "short";
+					if (frames > 1.8 * median) return "long";
+					return null;
+				};
+				return new DatasetEpisodes({
+					repoId,
+					local,
+					fps,
+					medianFrames: median,
+					episodes: rows.map(
+						(r) =>
+							new EpisodeInfo({
+								index: r.index,
+								frames: r.frames,
+								seconds: fps ? Math.round((r.frames / fps) * 10) / 10 : 0,
+								task: r.task,
+								flag: flag(r.frames),
+							}),
+					),
+				});
+			};
+
+			// Same report straight off the HF Hub — the deployed hub has no lerobot
+			// cache, and a dataset recorded on any rig lands on the Hub anyway.
+			const remoteEpisodes = (repoId: string) =>
+				Effect.gen(function* () {
+					const resolve = (p: string) =>
+						`https://huggingface.co/datasets/${repoId}/resolve/main/${p}`;
+					const info = yield* Effect.tryPromise(async () => {
+						const res = await fetch(resolve("meta/info.json"), {
+							headers: hub.authHeaders,
+						});
+						if (!res.ok) throw new Error(`HF ${res.status}`);
+						return (await res.json()) as Record<string, unknown>;
+					}).pipe(Effect.orElseSucceed(() => null));
+					if (info === null)
 						return new DatasetEpisodes({
 							repoId,
 							local: false,
@@ -113,7 +177,33 @@ export class DatasetCatalog extends Context.Service<
 							medianFrames: null,
 							episodes: [],
 						});
+					const fps = (info.fps as number) ?? null;
+
+					const tree = yield* hub.datasetTree(repoId, "meta/episodes");
+					const rows: Array<EpisodeRow> = [];
+					for (const entry of tree
+						.filter((e) => e.type === "file" && e.path.endsWith(".parquet"))
+						.sort((a, b) => a.path.localeCompare(b.path))) {
+						rows.push(
+							...(yield* rowsFrom(() =>
+								asyncBufferFromUrl({
+									url: resolve(entry.path),
+									requestInit: { headers: hub.authHeaders },
+								}),
+							)),
+						);
 					}
+					return buildReport(repoId, false, fps, rows);
+				});
+
+			const episodes = (repoId: string) =>
+				Effect.gen(function* () {
+					const root = `${LEROBOT_CACHE}/${repoId}`;
+					const meta = yield* fs.readFileString(`${root}/meta/info.json`).pipe(
+						Effect.map((raw) => JSON.parse(raw) as Record<string, unknown>),
+						Effect.orElseSucceed(() => null),
+					);
+					if (meta === null) return yield* remoteEpisodes(repoId);
 					const fps = (meta.fps as number) ?? null;
 
 					const chunks = yield* fs
@@ -130,54 +220,11 @@ export class DatasetCatalog extends Context.Service<
 						}
 					}
 
-					const rows: Array<{ index: number; frames: number; task: string }> =
-						[];
+					const rows: Array<EpisodeRow> = [];
 					for (const file of files) {
-						const parsed = yield* Effect.tryPromise(async () => {
-							const buf = await asyncBufferFromFile(file);
-							return parquetReadObjects({
-								file: buf,
-								columns: ["episode_index", "length", "tasks"],
-							});
-						}).pipe(Effect.orElseSucceed(() => []));
-						for (const row of parsed as Array<Record<string, unknown>>) {
-							rows.push({
-								index: Number(row.episode_index),
-								frames: Number(row.length),
-								task: Array.isArray(row.tasks)
-									? String(row.tasks[0] ?? "")
-									: String(row.tasks ?? ""),
-							});
-						}
+						rows.push(...(yield* rowsFrom(() => asyncBufferFromFile(file))));
 					}
-					rows.sort((a, b) => a.index - b.index);
-
-					const sorted = rows.map((r) => r.frames).sort((a, b) => a - b);
-					const median =
-						sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : null;
-					const flag = (frames: number): string | null => {
-						if (median === null || rows.length < 5) return null;
-						if (frames < 0.6 * median) return "short";
-						if (frames > 1.8 * median) return "long";
-						return null;
-					};
-
-					return new DatasetEpisodes({
-						repoId,
-						local: true,
-						fps,
-						medianFrames: median,
-						episodes: rows.map(
-							(r) =>
-								new EpisodeInfo({
-									index: r.index,
-									frames: r.frames,
-									seconds: fps ? Math.round((r.frames / fps) * 10) / 10 : 0,
-									task: r.task,
-									flag: flag(r.frames),
-								}),
-						),
-					});
+					return buildReport(repoId, true, fps, rows);
 				});
 
 			return {

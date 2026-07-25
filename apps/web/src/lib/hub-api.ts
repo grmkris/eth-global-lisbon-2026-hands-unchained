@@ -1,5 +1,10 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { AttemptState, RecordStatus, TaskInfo } from "#/api/contract";
+import type {
+	AttemptState,
+	RecordStatus,
+	RunInfo,
+	TaskInfo,
+} from "#/api/contract";
 import { HUB_TOKEN_COOKIE } from "#/lib/constants";
 
 export interface RigSummary {
@@ -11,9 +16,12 @@ export interface RigSummary {
 	cams: ReadonlyArray<string>;
 	joints: Record<string, number>;
 	lastError: string | null;
+	camMapping: { workspace: number | null; wrist: number | null } | null;
+	camBrightness: Record<string, number>;
 	record: RecordStatus | null;
 	attempt: AttemptState | null;
 	tasks: ReadonlyArray<TaskInfo>;
+	runs: ReadonlyArray<RunInfo>;
 	lastCommandResult: {
 		verb: string;
 		ok: boolean;

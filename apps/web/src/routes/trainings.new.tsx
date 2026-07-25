@@ -16,7 +16,12 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { Spinner } from "#/components/ui/spinner";
-import { createRun, datasetsQuery } from "#/lib/queries";
+import {
+	ownerKeyStore,
+	rigsQuery,
+	sendRigCommand,
+} from "#/lib/hub-api";
+import { datasetsQuery } from "#/lib/queries";
 
 type NewTrainingSearch = { dataset?: string; episodes?: string };
 
@@ -36,8 +41,14 @@ const toInt = (value: string, fallback: number) => {
 function NewTrainingPage() {
 	const { dataset, episodes: episodesPrefill } = Route.useSearch();
 	const datasets = useQuery(datasetsQuery);
+	const rigs = useQuery(rigsQuery);
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+
+	// runs live in a RIG's sidecar — the owner picks which rig stores it
+	const onlineRigs = (rigs.data ?? []).filter((r) => r.online);
+	const [rigName, setRigName] = useState("");
+	const effectiveRig = rigName || onlineRigs[0]?.name || "";
 
 	const [name, setName] = useState("");
 	const [datasetRepoId, setDatasetRepoId] = useState(dataset ?? "");
@@ -49,22 +60,30 @@ function NewTrainingPage() {
 	const [hypothesis, setHypothesis] = useState("");
 
 	const create = useMutation({
-		mutationFn: () =>
-			createRun({
-				name,
-				datasetRepoId,
-				episodes: episodes.trim() === "" ? null : episodes.trim(),
-				pretrainedPath:
-					pretrainedPath.trim() === "" ? null : pretrainedPath.trim(),
-				steps,
-				batchSize,
-				saveFreq,
-				hypothesis: hypothesis.trim() === "" ? null : hypothesis.trim(),
-			}),
-		onSuccess: (run) => {
-			queryClient.invalidateQueries({ queryKey: ["runs"] });
-			toast.success(`run ${run.name} registered`);
-			navigate({ to: "/trainings/$runId", params: { runId: run.id } });
+		mutationFn: () => {
+			// client-generated id: deep-link to the detail page immediately,
+			// the rig's advertisement fills it in within ~2s
+			const id = Math.random().toString(36).slice(2, 10);
+			return sendRigCommand(effectiveRig, "run_create", {
+				ownerKey: ownerKeyStore.get(effectiveRig),
+				args: {
+					id,
+					name,
+					datasetRepoId,
+					episodes: episodes.trim() === "" ? null : episodes.trim(),
+					pretrainedPath:
+						pretrainedPath.trim() === "" ? null : pretrainedPath.trim(),
+					steps,
+					batchSize,
+					saveFreq,
+					hypothesis: hypothesis.trim() === "" ? null : hypothesis.trim(),
+				},
+			}).then(() => id);
+		},
+		onSuccess: (id) => {
+			queryClient.invalidateQueries({ queryKey: ["hub", "rigs"] });
+			toast.success(`run ${name} registered on ${effectiveRig}`);
+			navigate({ to: "/trainings/$runId", params: { runId: id } });
 		},
 	});
 
@@ -77,6 +96,24 @@ function NewTrainingPage() {
 			/>
 
 			<FieldGroup>
+				<Field>
+					<FieldLabel htmlFor="nt-rig">Rig (stores the run registry)</FieldLabel>
+					<Select value={effectiveRig} onValueChange={setRigName}>
+						<SelectTrigger id="nt-rig" className="w-full">
+							<SelectValue placeholder="select a rig…" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectGroup>
+								{onlineRigs.map((r) => (
+									<SelectItem key={r.name} value={r.name}>
+										{r.name}
+									</SelectItem>
+								))}
+							</SelectGroup>
+						</SelectContent>
+					</Select>
+				</Field>
+
 				<Field>
 					<FieldLabel htmlFor="nt-dataset">Dataset</FieldLabel>
 					<Select value={datasetRepoId} onValueChange={setDatasetRepoId}>
@@ -182,7 +219,7 @@ function NewTrainingPage() {
 
 			<Button
 				className="mt-6"
-				disabled={!name || !datasetRepoId || create.isPending}
+				disabled={!name || !datasetRepoId || !effectiveRig || create.isPending}
 				onClick={() => create.mutate()}
 			>
 				{create.isPending && <Spinner />}

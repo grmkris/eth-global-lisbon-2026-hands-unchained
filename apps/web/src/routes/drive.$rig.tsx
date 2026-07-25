@@ -4,9 +4,11 @@ import { Hand, OctagonX, Play, Square, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CamFeed, CamOffAir } from "#/components/cam-feed";
+import { CameraSetup } from "#/components/camera-setup";
 import { ErrorNote } from "#/components/error-note";
 import { KeyJogPad } from "#/components/key-jog-pad";
 import { OwnerPanel } from "#/components/owner-panel";
+import { RecordPanel } from "#/components/record-panel";
 import { PageHeader } from "#/components/page-header";
 import {
 	ArmStateBadge,
@@ -21,6 +23,7 @@ import { apiErrorMessage } from "#/lib/errors";
 import {
 	claimRig,
 	clientId,
+	ownerKeyStore,
 	releaseRig,
 	rigQuery,
 	sendRigCommand,
@@ -68,6 +71,14 @@ function DrivePage() {
 	const myAttempt =
 		rig.data?.attempt?.active === true &&
 		rig.data.attempt.operator === clientId;
+
+	// owner verbs carry the stored key; rejection surfaces via lastCommandResult
+	const ownerCommand = (verb: string, args?: Record<string, unknown>) =>
+		commandWith.mutate({
+			verb,
+			args,
+			ownerKey: ownerKeyStore.get(rigName),
+		});
 
 	// Hand control back when the tab closes so the rig is not stuck held.
 	useEffect(() => {
@@ -314,7 +325,17 @@ function DrivePage() {
 			</Card>
 
 			{data && (
-				<div className="mt-4">
+				<div className="mt-4 flex flex-col gap-4">
+					<CameraSetup
+						rig={data}
+						busy={commandWith.isPending}
+						onCommand={ownerCommand}
+					/>
+					<RecordPanel
+						rig={data}
+						busy={commandWith.isPending}
+						onCommand={ownerCommand}
+					/>
 					<OwnerPanel
 						rig={data}
 						busy={commandWith.isPending}

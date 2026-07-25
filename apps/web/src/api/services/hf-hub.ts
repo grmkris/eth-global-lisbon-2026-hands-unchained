@@ -10,6 +10,11 @@ export interface HubRepo {
 	readonly lastModified: string | null;
 }
 
+export interface TreeEntry {
+	readonly type: string;
+	readonly path: string;
+}
+
 export interface HfHubShape {
 	readonly listDatasets: () => Effect.Effect<ReadonlyArray<HubRepo>>;
 	readonly listModels: () => Effect.Effect<ReadonlyArray<HubRepo>>;
@@ -17,6 +22,13 @@ export interface HfHubShape {
 	readonly checkpointSteps: (
 		repoId: string,
 	) => Effect.Effect<ReadonlyArray<string>>;
+	/** Recursive file listing under a path of a dataset repo ([] if unreachable). */
+	readonly datasetTree: (
+		repoId: string,
+		path: string,
+	) => Effect.Effect<ReadonlyArray<TreeEntry>>;
+	/** Auth header for direct `resolve/main/` fetches (empty when anonymous). */
+	readonly authHeaders: Record<string, string>;
 }
 
 export class HfHub extends Context.Service<HfHub, HfHubShape>()("app/HfHub") {
@@ -26,11 +38,13 @@ export class HfHub extends Context.Service<HfHub, HfHubShape>()("app/HfHub") {
 			const client = yield* HttpClient.HttpClient;
 			const fs = yield* FileSystem.FileSystem;
 
+			// hf CLI token when the machine has one (a rig); HF_TOKEN env for
+			// machines without the CLI cache (the deployed hub).
 			const token = yield* fs
 				.readFileString(`${os.homedir()}/.cache/huggingface/token`)
 				.pipe(
 					Effect.map((s) => s.trim()),
-					Effect.orElseSucceed(() => null),
+					Effect.orElseSucceed(() => process.env.HF_TOKEN?.trim() || null),
 				);
 
 			const getJson = (url: string) =>
@@ -72,6 +86,21 @@ export class HfHub extends Context.Service<HfHub, HfHubShape>()("app/HfHub") {
 						),
 						Effect.orElseSucceed(() => []),
 					),
+				datasetTree: (repoId: string, path: string) =>
+					getJson(
+						`${HF_API}/datasets/${repoId}/tree/main/${path}?recursive=true`,
+					).pipe(
+						Effect.map((body) =>
+							(body as unknown as Array<TreeEntry>).map((e) => ({
+								type: e.type,
+								path: e.path,
+							})),
+						),
+						Effect.orElseSucceed(() => []),
+					),
+				authHeaders: (token
+					? { authorization: `Bearer ${token}` }
+					: {}) as Record<string, string>,
 			};
 		}),
 	);

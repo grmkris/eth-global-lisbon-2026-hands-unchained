@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	queryOptions,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Copy } from "lucide-react";
 import { useState } from "react";
@@ -16,52 +21,110 @@ import {
 import { Progress } from "#/components/ui/progress";
 import { Spinner } from "#/components/ui/spinner";
 import { Textarea } from "#/components/ui/textarea";
+import { colabCell } from "#/lib/colab-cell";
 import { apiErrorMessage } from "#/lib/errors";
-import { checkpointsQuery, patchRun, runQuery } from "#/lib/queries";
+import { ownerKeyStore, rigsQuery, sendRigCommand } from "#/lib/hub-api";
+import { runQuery } from "#/lib/queries";
 
 export const Route = createFileRoute("/trainings/$runId")({
 	component: RunPage,
 });
 
+// Checkpoints straight from the HF API (public repos, CORS-enabled) — works
+// for rig-advertised runs the hub registry has never heard of.
+const hfCheckpointsQuery = (hubModelId: string) =>
+	queryOptions({
+		queryKey: ["hf", "checkpoints", hubModelId],
+		queryFn: async (): Promise<ReadonlyArray<string>> => {
+			const res = await fetch(
+				`https://huggingface.co/api/models/${hubModelId}/tree/main/checkpoints`,
+			);
+			if (!res.ok) return [];
+			const body = (await res.json()) as Array<{ type: string; path: string }>;
+			return body
+				.filter((e) => e.type === "directory")
+				.map((e) => e.path.split("/").at(-1) ?? e.path)
+				.sort();
+		},
+		refetchInterval: 60_000,
+		enabled: hubModelId !== "",
+	});
+
 function RunPage() {
 	const { runId } = Route.useParams();
-	const run = useQuery(runQuery(runId));
-	const checkpoints = useQuery(checkpointsQuery(runId));
+	const rigs = useQuery(rigsQuery);
 	const queryClient = useQueryClient();
 	const [finding, setFinding] = useState<string | null>(null);
 
-	const saveFinding = useMutation({
-		mutationFn: (value: string) =>
-			patchRun(runId, { status: null, hypothesis: null, finding: value }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["runs"] });
-			toast.success("finding saved");
+	// The run lives in a rig's sidecar and reaches us via its advertisement;
+	// the owning rig is also the target for run_update verbs. Hub-imported
+	// models (no rig) come from the hub's own /api/runs.
+	const owning = (rigs.data ?? [])
+		.map((rig) => ({
+			rigName: rig.name,
+			run: rig.runs.find((r) => r.id === runId),
+		}))
+		.find((x) => x.run !== undefined);
+	const hubRun = useQuery({
+		...runQuery(runId),
+		enabled: owning === undefined,
+		retry: false,
+	});
+	const r = owning?.run ?? hubRun.data;
+
+	const checkpoints = useQuery(hfCheckpointsQuery(r?.hubModelId ?? ""));
+
+	const update = useMutation({
+		mutationFn: (patch: {
+			status: string | null;
+			finding: string | null;
+		}) => {
+			if (!owning) throw new Error("owning rig is offline");
+			return sendRigCommand(owning.rigName, "run_update", {
+				ownerKey: ownerKeyStore.get(owning.rigName),
+				args: { id: runId, hypothesis: null, ...patch },
+			});
+		},
+		onSuccess: (_d, patch) => {
+			queryClient.invalidateQueries({ queryKey: ["hub", "rigs"] });
+			toast.success(
+				patch.status === "launched"
+					? "marked launched — checkpoint polling active"
+					: "finding saved",
+			);
 		},
 		onError: (e) => toast.error(apiErrorMessage(e)),
 	});
 
-	const markLaunched = useMutation({
-		mutationFn: () =>
-			patchRun(runId, { status: "launched", hypothesis: null, finding: null }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["runs"] });
-			toast.success("marked launched — checkpoint polling active");
-		},
-		onError: (e) => toast.error(apiErrorMessage(e)),
-	});
-
-	if (run.isPending) return <p className="text-muted-foreground">loading…</p>;
-	if (run.isError) return <ErrorNote error={run.error} />;
-	const r = run.data;
+	if (!r) {
+		if (rigs.isPending || hubRun.isPending)
+			return <p className="text-muted-foreground">loading…</p>;
+		if (hubRun.isError && rigs.isError)
+			return <ErrorNote error={hubRun.error} />;
+		// freshly created: the rig advertisement lands within ~2s (rigsQuery polls)
+		return (
+			<p className="flex items-center gap-2 text-muted-foreground">
+				<Spinner /> waiting for the rig to advertise this run…
+			</p>
+		);
+	}
 
 	const targetSteps = r.config?.steps ?? null;
-	const ckptSteps = checkpoints.data?.steps ?? [];
+	const ckptSteps = checkpoints.data ?? [];
 	const lastCkpt = ckptSteps.at(-1)
 		? Number.parseInt(ckptSteps.at(-1) as string, 10)
 		: 0;
 	const progress = targetSteps
 		? Math.min(100, Math.round((lastCkpt / targetSteps) * 100))
 		: null;
+
+	// advertisements omit the cell (link payload); regenerate it client-side
+	const cell =
+		r.colabCell ??
+		(r.config
+			? colabCell({ name: r.name, hubModelId: r.hubModelId, config: r.config })
+			: null);
+	const canEdit = owning !== undefined;
 
 	return (
 		<div className="max-w-3xl">
@@ -80,6 +143,7 @@ function RunPage() {
 						>
 							hub
 						</a>
+						{canEdit ? ` · rig ${owning.rigName}` : ""}
 					</>
 				}
 			/>
@@ -148,7 +212,7 @@ function RunPage() {
 					</Card>
 				)}
 
-				{r.status !== "imported" && (
+				{r.status !== "imported" && canEdit && (
 					<Card>
 						<CardHeader>
 							<CardTitle>Finding (after eval)</CardTitle>
@@ -163,17 +227,20 @@ function RunPage() {
 							<Button
 								className="mt-3"
 								size="sm"
-								disabled={finding === null || saveFinding.isPending}
-								onClick={() => finding !== null && saveFinding.mutate(finding)}
+								disabled={finding === null || update.isPending}
+								onClick={() =>
+									finding !== null &&
+									update.mutate({ status: null, finding })
+								}
 							>
-								{saveFinding.isPending && <Spinner />}
+								{update.isPending && <Spinner />}
 								save
 							</Button>
 						</CardContent>
 					</Card>
 				)}
 
-				{r.colabCell && (
+				{cell && (
 					<Card>
 						<CardHeader>
 							<CardTitle>Colab cell (version-matched)</CardTitle>
@@ -183,20 +250,22 @@ function RunPage() {
 										variant="outline"
 										size="sm"
 										onClick={() => {
-											navigator.clipboard.writeText(r.colabCell as string);
+											navigator.clipboard.writeText(cell);
 											toast.success("Colab cell copied");
 										}}
 									>
 										<Copy />
 										copy
 									</Button>
-									{r.status === "draft" && (
+									{r.status === "draft" && canEdit && (
 										<Button
 											size="sm"
-											disabled={markLaunched.isPending}
-											onClick={() => markLaunched.mutate()}
+											disabled={update.isPending}
+											onClick={() =>
+												update.mutate({ status: "launched", finding: null })
+											}
 										>
-											{markLaunched.isPending && <Spinner />}
+											{update.isPending && <Spinner />}
 											mark launched
 										</Button>
 									)}
@@ -205,7 +274,7 @@ function RunPage() {
 						</CardHeader>
 						<CardContent>
 							<pre className="overflow-x-auto rounded bg-muted p-3 font-mono text-xs">
-								{r.colabCell}
+								{cell}
 							</pre>
 						</CardContent>
 					</Card>

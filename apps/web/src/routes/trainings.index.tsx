@@ -22,7 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/ui/table";
-import { modeQuery } from "#/lib/hub-api";
+import { rigsQuery } from "#/lib/hub-api";
 import { runsQuery } from "#/lib/queries";
 
 export const Route = createFileRoute("/trainings/")({
@@ -39,35 +39,43 @@ const statusTone: Record<string, StatusTone> = {
 
 function TrainingsPage() {
 	const runs = useQuery(runsQuery);
-	const mode = useQuery(modeQuery);
-	// creating runs writes the rig-local sidecar — console only
-	const canCreate = mode.data?.mode !== "hub";
+	const rigs = useQuery(rigsQuery);
+
+	// One list from two sources: runs advertised by live rigs (their sidecar is
+	// the source of truth) ∪ hub-visible runs (imported kris0/* models). A run
+	// pushed to the Hub eventually appears in both — dedupe by hubModelId.
+	const advertised = (rigs.data ?? []).flatMap((rig) => rig.runs);
+	const seen = new Set(advertised.map((r) => r.hubModelId));
+	const merged = [
+		...advertised,
+		...(runs.data ?? []).filter((r) => !seen.has(r.hubModelId)),
+	].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+
+	const pending = runs.isPending && rigs.isPending;
 
 	return (
 		<div>
 			<PageHeader
 				title="Trainings"
-				description="Sidecar registry merged with kris0/* Hub models"
+				description="Rig-registered runs merged with kris0/* Hub models"
 				actions={
-					canCreate ? (
-						<Button asChild>
-							<Link to="/trainings/new">New training</Link>
-						</Button>
-					) : undefined
+					<Button asChild>
+						<Link to="/trainings/new">New training</Link>
+					</Button>
 				}
 			/>
 
-			{runs.isPending ? (
+			{pending ? (
 				<div className="mt-6 flex flex-col gap-3">
 					{[0, 1, 2].map((i) => (
 						<Skeleton key={i} className="h-8 w-full" />
 					))}
 				</div>
-			) : runs.isError ? (
+			) : runs.isError && rigs.isError ? (
 				<div className="mt-6">
 					<ErrorNote error={runs.error} />
 				</div>
-			) : runs.data.length === 0 ? (
+			) : merged.length === 0 ? (
 				<Empty className="mt-6 border">
 					<EmptyHeader>
 						<EmptyMedia variant="icon">
@@ -78,13 +86,11 @@ function TrainingsPage() {
 							Runs registered here track Hub checkpoints automatically.
 						</EmptyDescription>
 					</EmptyHeader>
-					{canCreate && (
-						<EmptyContent>
-							<Button asChild>
-								<Link to="/trainings/new">New training</Link>
-							</Button>
-						</EmptyContent>
-					)}
+					<EmptyContent>
+						<Button asChild>
+							<Link to="/trainings/new">New training</Link>
+						</Button>
+					</EmptyContent>
 				</Empty>
 			) : (
 				<Table className="mt-2">
@@ -99,7 +105,7 @@ function TrainingsPage() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{runs.data.map((r) => (
+						{merged.map((r) => (
 							<TableRow key={r.id}>
 								<TableCell className="font-mono">
 									<Link
