@@ -47,6 +47,13 @@ interface Current {
  * mistake spin-up for session-end. */
 const SPINUP_GRACE_MS = 8_000;
 
+/** How long to keep trying to hand the arm back. See `restoreTeleop`: the
+ * recorder's THREAD outlives its own terminal record_state, and the window is
+ * whatever `after_record()` plus re-opening the cameras costs. 20 x 500ms is
+ * far more than that has ever needed, and a failure here is loud. */
+const RESTORE_TRIES = 20;
+const RESTORE_GAP_MS = 500;
+
 export interface AttemptsShape {
 	readonly state: () => Effect.Effect<AttemptState>;
 	readonly log: () => Effect.Effect<ReadonlyArray<AttemptLogRow>>;
@@ -122,6 +129,47 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 					),
 				);
 
+			/**
+			 * Hand the arm back, and keep trying until the recorder actually lets go.
+			 *
+			 * One shot did not work, and it cost an operator their arm mid-demo.
+			 * `recorder.py` emits its terminal `record_state` from inside
+			 * run_session's `finally`, but the driver's worker THREAD outlives that
+			 * call — it still has to run `set_record_source(None)`,
+			 * `backend.after_record()` and the camera-preview restore (which sleeps
+			 * and re-opens devices). `teleop_start` is refused with "recording is
+			 * active" for that whole window (driver.py passes `thread.is_alive()`),
+			 * and the old `Effect.ignore` swallowed it. The result was no teleop
+			 * source at all: a bound leader kept streaming ~25 packets/s, every
+			 * packet died on "no remote-joints teleop source active", and nothing
+			 * anywhere said why. Being a race, it hit some attempts and not others.
+			 *
+			 * Runs detached — closeAttempt is called both from the 1Hz watcher and
+			 * from `finish()`, whose HTTP response the UI is waiting on.
+			 */
+			let restoring = false;
+			const restoreTeleop = (source: string) =>
+				Effect.gen(function* () {
+					if (restoring) return; // back-to-back attempts must not stack fibers
+					restoring = true;
+					for (let i = 0; i < RESTORE_TRIES; i++) {
+						const ok = yield* robot.command("teleop_start", { source }).pipe(
+							Effect.as(true),
+							Effect.orElseSucceed(() => false),
+						);
+						if (ok) {
+							restoring = false;
+							return;
+						}
+						yield* Effect.sleep(`${RESTORE_GAP_MS} millis`);
+					}
+					restoring = false;
+					// An idle arm must never be silent — same rule as driver lastError.
+					console.error(
+						`[attempts] could not restore teleop (source ${source}) after ${RESTORE_TRIES} tries — the arm is idle, re-arm from the drive page`,
+					);
+				});
+
 			const closeAttempt = (outcome: string) =>
 				Effect.gen(function* () {
 					const cur = current;
@@ -146,9 +194,7 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 					// except after a driver failure: a failing rig must not resume
 					// motion unattended.
 					if (outcome !== "failed") {
-						yield* robot
-							.command("teleop_start", { source: cur.priorSource })
-							.pipe(Effect.ignore);
+						yield* Effect.forkDetach(restoreTeleop(cur.priorSource));
 					}
 				});
 

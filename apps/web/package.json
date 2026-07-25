@@ -18,8 +18,8 @@
     "hub:prod": "bun dist/server/server.js",
     "agent": "bun src/agent.ts",
     "teleop": "LEADER_PORT=${LEADER_PORT:-/dev/tty.usbmodem5AE60538411} ../driver/.venv/bin/python -u ../driver/controller.py",
-    "rig:sim": "HUB_URL=${HUB_URL:-http://localhost:3001} RIG_NAME=${RIG_NAME:-kris-sim} LAB_AUTOCONNECT=sim bun src/agent.ts",
-    "rig:sim:cloud": "RIG_NAME=${RIG_NAME:-kris-sim} LAB_AUTOCONNECT=sim bun src/agent.ts",
+    "rig:sim": "HUB_URL=${HUB_URL:-http://localhost:3001} RIG_NAME=${RIG_NAME:-kris-sim} OWNER_KEY=${OWNER_KEY:-demo} LAB_AUTOCONNECT=sim bun src/agent.ts",
+    "rig:sim:cloud": "RIG_NAME=${RIG_NAME:-kris-sim} OWNER_KEY=${OWNER_KEY:-demo} LAB_AUTOCONNECT=sim bun src/agent.ts",
     "rig:real": "HUB_URL=${HUB_URL:-http://localhost:3001} RIG_NAME=${RIG_NAME:-kris-arm} LAB_AUTOCONNECT=real FOLLOWER_PORT=${FOLLOWER_PORT:-/dev/tty.usbmodem5AE60832001} LEADER_PORT=${LEADER_PORT:-/dev/tty.usbmodem5AE60538411} bun src/agent.ts",
     "rig:real:cloud": "RIG_NAME=${RIG_NAME:-kris-arm} LAB_AUTOCONNECT=real FOLLOWER_PORT=${FOLLOWER_PORT:-/dev/tty.usbmodem5AE60832001} bun src/agent.ts"
   },

@@ -5,6 +5,15 @@
  * link layer is its network boundary — the in-process API is unreachable
  * from outside). Lost key = delete .data/owner.json and restart.
  *
+ * `OWNER_KEY` in the env overrides the sidecar, so a demo rig can be started
+ * with a key you already have in the browser instead of copying a fresh hex
+ * string out of the terminal every restart. It is deliberately NOT written to
+ * disk: an env key is for the life of that process only, and must not
+ * silently become the persisted key of a rig started later without it.
+ * The sim launch scripts set a fixed one; the real-arm scripts do not, because
+ * on a hub with no HUB_TOKEN this key is the only thing standing between a
+ * passer-by and someone's physical arm.
+ *
  * Plain module (not an Effect service) so both the Effect services and the
  * non-Effect rig link can use it.
  */
@@ -15,6 +24,8 @@ const DATA_DIR = `${process.cwd()}/.data`;
 const OWNER_FILE = `${DATA_DIR}/owner.json`;
 
 const load = (): string => {
+	const fromEnv = process.env.OWNER_KEY?.trim();
+	if (fromEnv) return fromEnv;
 	try {
 		return (JSON.parse(fs.readFileSync(OWNER_FILE, "utf8")) as { key: string })
 			.key;

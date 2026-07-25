@@ -40,7 +40,7 @@ function PublishTask({
 }) {
 	const collected = task.episodesDone ?? 0;
 	// telemetry is rig-wide; only claim it for the task whose repo it names
-	const mine = push && push.repoId?.endsWith(`/${task.repoName}`) ? push : null;
+	const mine = push?.repoId?.endsWith(`/${task.repoName}`) ? push : null;
 	const uploading = push?.phase === "uploading";
 
 	if (mine?.phase === "done" && mine.url)
