@@ -207,6 +207,13 @@ export interface Leader {
 	name: string;
 	/** rig name while streaming, null while idle — reported by the agent */
 	driving: string | null;
+	/** A leader is NOT a lease holder: it is a bound INPUT DEVICE of one
+	 * browser session. `boundTo` is that browser's clientId, `rig` the rig it
+	 * drives for. Set/cleared by the command endpoints only — a heartbeat must
+	 * never wipe them. The browser keeps the lease throughout, so attempts and
+	 * take-over semantics are unchanged by a leader joining. */
+	boundTo: string | null;
+	rig: string | null;
 	pending: LeaderCommand | null;
 	lastSeen: number;
 }
@@ -227,6 +234,8 @@ export const upsertLeader = (name: string, driving: string | null): Leader => {
 	const leader: Leader = {
 		name,
 		driving,
+		boundTo: null,
+		rig: null,
 		pending: null,
 		lastSeen: Date.now(),
 	};
@@ -241,6 +250,27 @@ export const listLeaders = (): ReadonlyArray<Leader> => [...leaders.values()];
 
 export const leaderOnline = (leader: Leader): boolean =>
 	Date.now() - leader.lastSeen < RIG_TTL_MS;
+
+/**
+ * THE leader input rule, in one place: a leader may write input to a rig iff
+ * it is bound to whoever currently holds that rig's lease. The HTTP input
+ * path, the WS input plane and the heartbeat's `bound` flag all use this.
+ *
+ * Note what is NOT here: no lease renewal. The browser's own claim interval
+ * keeps the lease alive; if the browser dies the lease expires in <=20s and
+ * the leader's input starts failing — that is the intended kill switch.
+ */
+export const leaderMayDrive = (leader: Leader, rig: Rig): boolean =>
+	leader.rig === rig.name &&
+	leader.boundTo !== null &&
+	leader.boundTo === leaseHolder(rig);
+
+/** Same rule, resolved from the leader alone (its bound rig may be gone). */
+export const leaderBound = (leader: Leader): boolean => {
+	if (leader.rig === null || leader.boundTo === null) return false;
+	const rig = rigs.get(leader.rig);
+	return rig !== undefined && leaderMayDrive(leader, rig);
+};
 
 /** Consume-once with the same staleness rule as rig commands. */
 export const takeLeaderCommand = (leader: Leader): LeaderCommand | null => {

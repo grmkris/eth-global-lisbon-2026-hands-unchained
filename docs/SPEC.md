@@ -79,15 +79,23 @@ middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
   → `sources/remote.py`): symmetric to the rig agent — `bun run teleop`
   auto-detects the leader's port, connects it, and registers on the hub's
   `leaders` registry (dial-out heartbeat `/api/hub/leaders/link`, in-memory,
-  redeploy self-heals). The BROWSER picks the rig: "Drive with <name>'s
-  leader" on the drive page queues a consume-once `{drive, rig}` command
-  (15s TTL); the agent force-claims the rig, sends `teleop_start_remote`,
-  and streams the leader's lerobot-space dict (degrees + gripper 0..100)
-  at 30 Hz over one kept-alive HTTPS connection (~16 packets/s WAN). Web
-  stop / take-over returns it to idle (no exit). Values clamped + non-finite
-  dropped on the rig BEFORE lerobot. Cross-device works by construction
-  (each end normalizes through its own calibration); known wart: wrist_roll
-  zero is calibration-pose-relative across devices.
+  redeploy self-heals). A leader is **a bound input device of a browser
+  session, never a lease holder**: "Drive with <name>'s leader" requires the
+  clicking browser to already hold the rig, and binds the leader to that
+  clientId (`boundTo`/`rig` in the leader registry). The hub then queues
+  `{drive, rig}` for the agent (consume-once, 15s TTL) and `teleop_start_remote`
+  for the rig itself — the agent claims nothing and sends no verbs. Input from
+  `leader-<name>` is accepted iff `boundTo === leaseHolder(rig)`, and never
+  renews the lease; the browser's own 5 s claim interval keeps it alive, so a
+  dead browser expires it in ≤20 s and the leader's input starts 403ing. Why it
+  matters: the operator stays the lease holder throughout, so **task attempts
+  and a leader coexist** (record source `remote`), and take-over is just the
+  lease changing — the agent sees a 403 or `bound: false` on its next heartbeat
+  and idles. Streams the leader's lerobot-space dict (degrees + gripper 0..100)
+  at 30 Hz; values clamped + non-finite dropped on the rig BEFORE lerobot.
+  Cross-device works by construction (each end normalizes through its own
+  calibration); known wart: wrist_roll zero is calibration-pose-relative
+  across devices.
 
 ### Tasks + attempts (the crowdsourcing loop)
 Tasks live RIG-SIDE (`.data/tasks.json`, `tasks-registry.ts`) and are

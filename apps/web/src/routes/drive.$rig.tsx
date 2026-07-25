@@ -79,11 +79,11 @@ function DrivePage() {
 	const holder = rig.data?.holder ?? null;
 	const iAmDriving = holder === clientId;
 
-	// leader agents registered on the hub (controller.py on operator machines)
+	// leader agents registered on the hub (controller.py on operator machines).
+	// A leader never holds the lease — it is a bound input device of a browser
+	// session, so the holder stays whoever clicked Drive.
 	const onlineLeaders = (leaders.data ?? []).filter((l) => l.online);
 	const drivingLeader = onlineLeaders.find((l) => l.driving === rigName);
-	// the lease holder may BE a leader agent — name it instead of "someone"
-	const holderLeader = onlineLeaders.find((l) => `leader-${l.name}` === holder);
 
 	const leaderCommand = useMutation({
 		mutationFn: (input: { name: string; action: "drive" | "stop" }) =>
@@ -268,12 +268,14 @@ function DrivePage() {
 					<div className="flex flex-wrap items-center gap-4 text-sm">
 						<StatusBadge tone={iAmDriving ? "success" : "neutral"}>
 							{iAmDriving
-								? "you are driving"
-								: holderLeader
-									? `${holderLeader.name}'s leader is driving`
-									: holder
-										? "someone else is driving"
-										: "nobody driving"}
+								? drivingLeader
+									? `you are driving — via ${drivingLeader.name}'s leader`
+									: "you are driving"
+								: holder
+									? drivingLeader
+										? `someone else is driving — via ${drivingLeader.name}'s leader`
+										: "someone else is driving"
+									: "nobody driving"}
 						</StatusBadge>
 						{drivingLeader && (
 							<Button
@@ -375,6 +377,9 @@ function DrivePage() {
 						</Alert>
 					)}
 
+					{/* The pad stays live while your leader drives: keyboard axes and
+					    leader joints are latest-wins on the same mailbox, so whichever
+					    packet lands last wins. Undesigned, not a bug. */}
 					{iAmDriving ? (
 						<KeyJogPad onAxes={onAxes} />
 					) : (

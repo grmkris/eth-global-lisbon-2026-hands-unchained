@@ -121,6 +121,8 @@ export interface LeaderSummary {
 	name: string;
 	online: boolean;
 	driving: string | null;
+	/** clientId of the browser session this leader is bound to (null = idle) */
+	boundTo: string | null;
 }
 
 export const leadersQuery = queryOptions({

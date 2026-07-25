@@ -18,6 +18,8 @@ import {
 	impairment,
 	isOnline,
 	type Leader,
+	leaderBound,
+	leaderMayDrive,
 	leaderOnline,
 	leaseHolder,
 	listLeaders,
@@ -74,6 +76,8 @@ const leaderSummary = (leader: Leader) => ({
 	name: leader.name,
 	online: leaderOnline(leader),
 	driving: leader.driving,
+	/** which browser session this leader is an input device for (null = idle) */
+	boundTo: leader.boundTo,
 });
 
 /** Multipart stream assembled from whatever frames the rig last pushed. */
@@ -204,7 +208,13 @@ export const handleHubRequest = async (
 		if (!body.name) return json({ error: "name required" }, 400);
 		const leader = upsertLeader(body.name, body.driving ?? null);
 		await impair();
-		return json({ command: takeLeaderCommand(leader) });
+		// `bound` is the leader's revocation signal: the WS input plane gets no
+		// per-packet status, so this is how a browser take-over (or Stop) reaches
+		// a streaming agent — within one heartbeat (~0.5s).
+		return json({
+			command: takeLeaderCommand(leader),
+			bound: leaderBound(leader),
+		});
 	}
 
 	if (path === "/leaders" && request.method === "GET") {
@@ -219,16 +229,44 @@ export const handleHubRequest = async (
 		const body = (await request.json().catch(() => ({}))) as {
 			action?: string;
 			rig?: string;
+			clientId?: string;
 		};
 		if (body.action === "drive") {
 			const rig = body.rig ? getRig(body.rig) : undefined;
 			if (!rig) return json({ error: "unknown rig" }, 404);
 			if (!isOnline(rig)) return json({ error: "rig offline" }, 409);
+			if (!body.clientId) return json({ error: "clientId required" }, 400);
+			// The COMMANDING BROWSER keeps the lease; the leader only becomes its
+			// input device. So you must already hold the rig to lend it your arm —
+			// and the attempt you started stays yours while the leader drives.
+			if (leaseHolder(rig) !== body.clientId)
+				return json({ error: "take control first" }, 403);
+			if (rig.pending.length >= MAX_PENDING)
+				return json({ error: "command queue full" }, 429);
+			leader.boundTo = body.clientId;
+			leader.rig = rig.name;
 			leader.pending = { action: "drive", rig: rig.name, queuedAt: Date.now() };
+			// the hub starts the remote source itself — the agent no longer sends
+			// verbs, and the holder stamp stays the browser
+			rig.pending.push({
+				verb: "teleop_start_remote",
+				holder: body.clientId,
+				queuedAt: Date.now(),
+			});
 			return json({ ok: true, queued: "drive" });
 		}
 		if (body.action === "stop") {
+			const rig = leader.rig ? getRig(leader.rig) : undefined;
+			leader.boundTo = null;
+			leader.rig = null;
 			leader.pending = { action: "stop", queuedAt: Date.now() };
+			// teleop_stop is a safety verb — anyone may end a remote session
+			if (rig && rig.pending.length < MAX_PENDING)
+				rig.pending.push({
+					verb: "teleop_stop",
+					holder: leaseHolder(rig),
+					queuedAt: Date.now(),
+				});
 			return json({ ok: true, queued: "stop" });
 		}
 		return json({ error: "action must be drive|stop" }, 400);
@@ -274,9 +312,21 @@ export const handleHubRequest = async (
 				return json({ ok: true, holder: leaseHolder(rig) });
 			}
 			if (action === "/input") {
-				if (leaseHolder(rig) !== clientId)
+				// `leader-<name>` is a bound input device, not a lease holder: it
+				// writes iff its browser still holds the rig. No lease renewal on
+				// that path — the browser's claim interval is the heartbeat, so a
+				// dead browser expires the lease and this starts 403ing.
+				const leader = clientId.startsWith("leader-")
+					? getLeader(clientId.slice("leader-".length))
+					: undefined;
+				if (leader) {
+					if (!leaderMayDrive(leader, rig))
+						return json({ error: "not bound to the controller" }, 403);
+				} else if (leaseHolder(rig) !== clientId) {
 					return json({ error: "not the controller" }, 403);
-				claimLease(rig, clientId); // renew
+				} else {
+					claimLease(rig, clientId); // renew
+				}
 				await impair();
 				// dropped input is never resent — same as a lost UDP packet
 				if (!shouldDrop())

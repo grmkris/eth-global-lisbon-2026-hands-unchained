@@ -72,10 +72,14 @@ def build_ee_pipeline(
 
 
 def make_input_source(name: str, motor_names: list[str], seed_obs: dict[str, float]):
-    """Registry for sources that take external input (browser RPC, phone).
+    """Registry for sources that take external input (browser RPC, phone,
+    a remote leader arm over the hub).
 
     Works for both live teleop and record sessions — every source is a
-    lerobot Teleoperator, so record_loop accepts it unchanged.
+    lerobot Teleoperator, so record_loop accepts it unchanged. `remote` matters
+    for RECORDING: an operator whose task attempt is driven by a bound leader
+    agent keeps that source through the record session (driver.py routes the
+    teleop_input RPC to the record source via set_joints).
     """
     if name == "keys":
         from sources.keys import BrowserKeys
@@ -85,4 +89,8 @@ def make_input_source(name: str, motor_names: list[str], seed_obs: dict[str, flo
         from sources.phone import PhoneSource
 
         return PhoneSource(motor_names=motor_names, seed_obs=seed_obs)
+    if name == "remote":
+        from sources.remote import RemoteJoints
+
+        return RemoteJoints(motor_names=motor_names, seed_obs=seed_obs)
     raise ValueError(f"unknown input source: {name}")

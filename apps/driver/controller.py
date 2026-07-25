@@ -4,10 +4,11 @@
 Runs on the OPERATOR's machine (nothing else needed — no console, no driver).
 Zero-config: hub defaults to the deployed instance, the leader's serial port
 is auto-detected, the agent registers under this machine's hostname. Then
-everything happens in the browser — open a rig's drive page and click
-"Drive with <name>'s leader"; the hub relays the command here, this process
-claims the rig and streams the leader's lerobot-space action dict (degrees +
-gripper 0..100) at ~30 Hz to the rig's remote-joints teleop source.
+everything happens in the browser — take control of a rig, then click "Drive
+with <name>'s leader": the hub BINDS this leader to your browser session (you
+keep the lease, so your task attempt keeps running) and this process streams
+the leader's lerobot-space action dict (degrees + gripper 0..100) at ~30 Hz to
+the rig's remote-joints teleop source. It claims nothing and sends no verbs.
 
 Cross-device is safe by construction: each arm normalizes through its OWN
 calibration; the follower's servo EEPROM limits are the hard stop. Losing the
@@ -17,7 +18,7 @@ network mid-drive is safe: the rig holds pose after 0.5 s without packets.
     .venv/bin/python controller.py
 
 First run on a new arm enters lerobot's interactive calibration wizard.
-Ctrl-C stops teleop (if driving), releases the rig, and exits.
+Ctrl-C returns to idle (if driving) and exits — the browser keeps the rig.
 """
 
 import argparse
@@ -45,17 +46,6 @@ def _headers() -> dict:
     if TOKEN:
         h["authorization"] = f"Bearer {TOKEN}"
     return h
-
-
-def api(hub: str, path: str, payload: dict, timeout: float = 3.0) -> dict:
-    req = urllib.request.Request(
-        f"{hub}{path}",
-        data=json.dumps(payload).encode(),
-        headers=_headers(),
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return json.loads(res.read() or b"{}")
 
 
 def api_get(hub: str, path: str, timeout: float = 3.0) -> dict:
@@ -139,9 +129,14 @@ def resolve_port(explicit: str | None) -> str:
 
 
 def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> None:
-    """One driving session: claim -> teleop_start_remote -> stream. Returns to
-    idle on stop command, lost lease, or Ctrl-C. Never raises for rig-side
-    problems — prints and returns."""
+    """One driving session: a pure INPUT STREAM.
+
+    This agent claims nothing and sends no verbs. The browser holds the rig's
+    lease and the hub binds this leader to that session (and starts the remote
+    teleop source) when the operator clicks Drive — so their attempt keeps
+    running while the leader drives, and take-over is just the lease changing.
+    Returns to idle on stop, on losing the binding, or on Ctrl-C.
+    """
     rig = f"/api/hub/rigs/{urllib.parse.quote(rig_name)}"
     client = {"clientId": f"leader-{name}"}
     # short timeout: a stalled POST must not outlive the rig's 0.5s deadman
@@ -156,41 +151,18 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> Non
         print(f"rig {rig_name} is offline — ignoring")
         return
 
-    claimed = False
-    try:
-        # deliberate handoff: the operator clicked the button in the browser
-        api(hub, f"{rig}/claim", {**client, "force": True})
-        claimed = True
-        api(hub, f"{rig}/command", {**client, "verb": "teleop_start_remote"})
-    except urllib.error.HTTPError as err:
-        detail = ""
-        try:
-            detail = err.read().decode()
-        except Exception:  # noqa: BLE001
-            pass
-        print(f"could not start driving {rig_name} (HTTP {err.code}) {detail}")
-        if claimed:
-            try:
-                api(hub, f"{rig}/release", client)
-            except Exception:  # noqa: BLE001
-                pass
-        return
-
     print(f"driving {rig_name} — move the leader. Stop from the web UI or Ctrl-C.")
     sent = dropped = packets = 0
     window = time.time()
-    stopped_remotely = False
-    lease_lost = False
     while running["on"]:
         tick = time.time()
         action = leader.get_action()  # {"<joint>.pos": deg, "gripper.pos": 0..100}
         try:
             status, _ = link.post(f"{rig}/input", {**client, "joints": action})
             if status == 403:
-                # someone force-took the rig in the browser — it's theirs now
-                print(f"lost {rig_name} (someone took over) — back to idle")
-                lease_lost = True
-                break
+                # the browser released the rig or someone else took it
+                print(f"lost {rig_name} (control changed) — back to idle")
+                return
             sent += 1
         except (TimeoutError, OSError):
             dropped += 1  # latest-wins on the hub; the next packet corrects
@@ -204,8 +176,10 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> Non
                 cmd = res.get("command")
                 if cmd and cmd.get("action") == "stop":
                     print("stopped from the web UI — back to idle")
-                    stopped_remotely = True
-                    break
+                    return
+                if res.get("bound") is False:
+                    print(f"lost {rig_name} (control changed) — back to idle")
+                    return
             except (TimeoutError, OSError):
                 pass
         if time.time() - window >= 5.0:
@@ -214,19 +188,6 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> Non
             sent = dropped = 0
             window = time.time()
         time.sleep(max(0.0, 1.0 / hz - (time.time() - tick)))
-
-    if not lease_lost:
-        # stop the session and hand the rig back (best effort)
-        for path, payload in (
-            (f"{rig}/command", {**client, "verb": "teleop_stop"}),
-            (f"{rig}/release", client),
-        ):
-            try:
-                api(hub, path, payload)
-            except Exception:  # noqa: BLE001
-                pass
-        if not stopped_remotely and not running["on"]:
-            print(f"released {rig_name}")
 
 
 def main() -> None:
@@ -286,8 +247,8 @@ def main() -> None:
             "hints: close LeLab/other terminals using the arm; replug and re-run"
         )
 
-    print(f"leader '{args.name}' registered — pick a rig on {hub} and click")
-    print("\"Drive with your leader\". Ctrl-C to quit.")
+    print(f"leader '{args.name}' registered — open a rig on {hub}, take")
+    print("control, then click \"Drive with your leader\". Ctrl-C to quit.")
 
     running = {"on": True}
 
