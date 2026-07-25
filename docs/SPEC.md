@@ -71,7 +71,9 @@ middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
   `{t:"input", rig, joints}`; the hub authorizes it with the SAME
   `leaderMayDrive` rule as the HTTP path, applies the same impairment, and
   forwards to the rig's socket — no 66 ms POST quantization, no 0–50 ms wait
-  for the rig's next link tick. Missing socket at either end (vite dev has no
+  for the rig's next link tick. Measured against the deployed hub at a 30 Hz
+  target: **24 packets/s over the socket vs 10/s over HTTP keep-alive**, which
+  was RTT-bound. Missing socket at either end (vite dev has no
   `Bun.serve` upgrade, a proxy eats it, an older hub) ⇒ input falls back to the
   mailbox on the /link response. A socket-pushed packet never enters the
   mailbox, so double delivery is impossible.

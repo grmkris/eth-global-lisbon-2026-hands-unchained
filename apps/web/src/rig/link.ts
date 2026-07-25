@@ -336,6 +336,7 @@ export const startRigLink = (opts: {
 	// (vite dev has no Bun.serve, a proxy eats the upgrade, an old hub) input
 	// simply rides the mailbox again — slower, identical semantics.
 	let inputSocketWarned = false;
+	let inputSocketBackoff = 2_000; // 2s -> 30s: a hub that can't upgrade at all
 	const openInputSocket = (): void => {
 		const wsUrl = `${base.replace(/^http/, "ws")}/api/hub/ws?role=rig&name=${encodeURIComponent(rigName)}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
 		let ws: WebSocket;
@@ -349,10 +350,12 @@ export const startRigLink = (opts: {
 		const retry = () => {
 			if (reconnected) return; // error + close both fire; reconnect once
 			reconnected = true;
-			setTimeout(openInputSocket, 2_000);
+			setTimeout(openInputSocket, inputSocketBackoff);
+			inputSocketBackoff = Math.min(inputSocketBackoff * 2, 30_000);
 		};
 		ws.onopen = () => {
 			inputSocketWarned = false;
+			inputSocketBackoff = 2_000;
 			console.error("[rig-link] input socket up (event-driven input)");
 		};
 		ws.onmessage = (ev) => {

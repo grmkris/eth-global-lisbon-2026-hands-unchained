@@ -93,7 +93,7 @@ HUB_URL=https://web-production-b5106.up.railway.app RIG_NAME=kris-sim \
 |---|------|--------|
 | 1 | Hub lobby in any browser | rig online, streaming, `link` ≈ your RTT |
 | 2 | Drive with the keyboard from another network (phone off wifi) | ~100–200 ms feel; deadman holds on silence |
-| 3 | Leader-over-wire: `bun run teleop` (leader plugged in, port auto-detected) → drive page → **Take control** → **Drive with \<name\>'s leader** | sim mirrors the physical leader; badge reads "you are driving — via \<name\>'s leader"; the log reads `~30 packets/s up via socket` (was ~15 via http — the WS input plane) |
+| 3 | Leader-over-wire: `bun run teleop` (leader plugged in, port auto-detected) → drive page → **Take control** → **Drive with \<name\>'s leader** | sim mirrors the physical leader; badge reads "you are driving — via \<name\>'s leader"; the log reads `packets/s up via socket` at roughly the `--hz` target (measured against the deployed hub: 24/s over the socket vs 10/s over HTTP keep-alive at the same 30 Hz target) |
 | 4 | While the leader drives: **Take over** from a second tab | leader agent prints `lost <rig> (control changed)` and idles within ~0.5 s (403 or `bound:false`); the new tab drives immediately; it can lend the same leader by clicking Drive |
 | 4b | While the leader drives: **Start attempt** on a task, then ✓ Success | the attempt runs with YOU as operator while the leader drives (record source `remote`), episode saved — the leader never took your lease |
 | 5 | As a non-holder: **E-STOP** | works without the lease — safety verbs bypass it |
