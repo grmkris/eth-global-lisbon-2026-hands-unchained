@@ -4,7 +4,12 @@
  * NOT hub state — the rig advertises them (rev-echo) and re-advertises after
  * any hub restart.
  */
-import type { AttemptState, RecordStatus, TaskInfo } from "#/api/contract";
+import type {
+	AttemptState,
+	RecordStatus,
+	RunInfo,
+	TaskInfo,
+} from "#/api/contract";
 
 export interface RigFrame {
 	data: Uint8Array;
@@ -38,6 +43,9 @@ export interface Rig {
 	cams: ReadonlyArray<string>;
 	/** surfaced to the operator: a dead teleop loop must not be silent */
 	lastError: string | null;
+	/** confirmed camera mapping + live brightness (owner camera-setup panel) */
+	camMapping: { workspace: number | null; wrist: number | null } | null;
+	camBrightness: Record<string, number>;
 	/** live record-session status, straight from the rig's telemetry */
 	record: RecordStatus | null;
 	/** live attempt (task try) status */
@@ -49,6 +57,9 @@ export interface Rig {
 	/** advertised by the rig on rev mismatch; survives every telemetry tick */
 	tasks: ReadonlyArray<TaskInfo>;
 	tasksRev: string | null;
+	/** the rig's training-run sidecar (colabCell stripped), same rev-echo */
+	runs: ReadonlyArray<RunInfo>;
+	runsRev: string | null;
 	/** latest-wins: a dropped input packet is corrected by the next one.
 	 * axes = browser EE jog; joints = a remote leader arm's joint targets. */
 	input: {
@@ -105,6 +116,8 @@ export const upsertRig = (
 		| "lastSeen"
 		| "tasks"
 		| "tasksRev"
+		| "runs"
+		| "runsRev"
 	>,
 ): Rig => {
 	const existing = rigs.get(name);
@@ -124,6 +137,8 @@ export const upsertRig = (
 		lease: null,
 		tasks: [],
 		tasksRev: null,
+		runs: [],
+		runsRev: null,
 	};
 	rigs.set(name, rig);
 	return rig;

@@ -8,6 +8,7 @@
  * is debuggable with curl. One request carries telemetry up and control down.
  */
 import { apiHandler } from "#/api/live";
+import { isOwnerKey } from "#/api/owner-key";
 import { mjpegBase } from "#/api/services/driver-manager";
 import { isVerb, VERBS, type Verb } from "#/hub/verbs";
 import { setHolder } from "#/rig/holder";
@@ -95,8 +96,16 @@ export const startRigLink = (opts: {
 		error: string | null;
 		at: number;
 	} | null = null;
-	// rev-echo: hub tells us what tasks rev it has; on mismatch we send all.
-	// Tasks are read on a slow cadence (sidecar file) and cached for the tick.
+	// tiny stable content hash (djb2) — only used for change detection
+	const rev = (value: unknown): string => {
+		const s = JSON.stringify(value);
+		let h = 5381;
+		for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+		return (h >>> 0).toString(16);
+	};
+
+	// rev-echo pairs: hub tells us what rev it has; on mismatch we send all.
+	// Sidecar files are read on a slow cadence and cached for the tick.
 	let hubTasksRev: string | null | undefined;
 	const tasksCache: { tasks: unknown[]; rev: string | null } = {
 		tasks: [],
@@ -106,12 +115,34 @@ export const startRigLink = (opts: {
 		const tasks = (await localApi("/api/tasks")) as unknown[] | null;
 		if (tasks === null) return;
 		tasksCache.tasks = tasks;
-		// tiny stable content hash (djb2) — only used for change detection
-		const s = JSON.stringify(tasks);
-		let h = 5381;
-		for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-		tasksCache.rev = (h >>> 0).toString(16);
+		tasksCache.rev = rev(tasks);
 	};
+
+	let hubRunsRev: string | null | undefined;
+	const runsCache: { runs: unknown[]; rev: string | null } = {
+		runs: [],
+		rev: null,
+	};
+	const refreshRuns = async () => {
+		const runs = (await localApi("/api/runs")) as Array<{
+			id: string;
+			colabCell?: unknown;
+		}> | null;
+		if (runs === null) return;
+		// advertise sidecar rows only (imported hub- rows the hub already has),
+		// and strip colabCell — it's a pure function the hub regenerates.
+		const advertised = runs
+			.filter((r) => !r.id.startsWith("hub-"))
+			.map((r) => ({ ...r, colabCell: null }));
+		runsCache.runs = advertised;
+		runsCache.rev = rev(advertised);
+	};
+
+	// camera mapping + brightness for the hub's camera-setup panel — captured
+	// from the same cameras/status call the frame loop already makes.
+	let camMapping: { workspace: number | null; wrist: number | null } | null =
+		null;
+	let camBrightness: Record<string, number> = {};
 
 	const runCommand = async (cmd: {
 		verb: string;
@@ -125,6 +156,19 @@ export const startRigLink = (opts: {
 			return;
 		}
 		const spec = VERBS[verb as Verb];
+		// The link layer IS the portless rig's network boundary: EVERY owner
+		// verb is key-checked here, before any endpoint runs. (The tasks
+		// endpoints double-check in-payload; the rest rely on this gate.)
+		if (spec.owner === true && !isOwnerKey(cmd.ownerKey ?? "")) {
+			lastCommandResult = {
+				verb,
+				ok: false,
+				error: "wrong owner key",
+				at: Date.now(),
+			};
+			console.error(`[rig-link] ${verb} rejected: wrong owner key`);
+			return;
+		}
 		const body = {
 			...spec.body,
 			...(spec.args
@@ -134,7 +178,10 @@ export const startRigLink = (opts: {
 							.map((k) => [k, (cmd.args as Record<string, unknown>)[k]]),
 					)
 				: {}),
-			...(spec.owner ? { ownerKey: cmd.ownerKey ?? "" } : {}),
+			// only the tasks endpoints take the key in-payload
+			...(spec.owner && spec.path.startsWith("/api/tasks/")
+				? { ownerKey: cmd.ownerKey }
+				: {}),
 			// the hub stamps the lease holder — operator identity is not spoofable
 			...(spec.stampsHolder ? { operator: cmd.holder ?? "unknown" } : {}),
 		};
@@ -172,8 +219,9 @@ export const startRigLink = (opts: {
 
 		try {
 			// rev-echo: send the full array only when the hub's echo differs
-			// (fresh hub, task edit, redeploy) — steady state costs one string
+			// (fresh hub, edit, redeploy) — steady state costs one string each
 			const advertiseTasks = hubTasksRev !== tasksCache.rev;
+			const advertiseRuns = hubRunsRev !== runsCache.rev;
 			const res = await fetch(`${base}/api/hub/link`, {
 				method: "POST",
 				headers: { "content-type": "application/json", ...auth },
@@ -184,6 +232,8 @@ export const startRigLink = (opts: {
 					source: robot?.source ?? null,
 					joints: robot?.joints ?? {},
 					cams: previewing,
+					camMapping,
+					camBrightness,
 					lastError: robot?.lastError ?? null,
 					record,
 					attempt,
@@ -191,6 +241,8 @@ export const startRigLink = (opts: {
 					linkMs,
 					tasksRev: tasksCache.rev,
 					...(advertiseTasks ? { tasks: tasksCache.tasks } : {}),
+					runsRev: runsCache.rev,
+					...(advertiseRuns ? { runs: runsCache.runs } : {}),
 				}),
 			});
 			linkMs = Date.now() - started;
@@ -208,10 +260,12 @@ export const startRigLink = (opts: {
 				}>;
 				holder: string | null;
 				tasksRev?: string | null;
+				runsRev?: string | null;
 			};
 			linkWarned = false;
 			setHolder(body.holder ?? null);
 			hubTasksRev = body.tasksRev ?? null;
+			hubRunsRev = body.runsRev ?? null;
 
 			if (body.input) {
 				await localApi("/api/robot/teleop/input", {
@@ -260,8 +314,12 @@ export const startRigLink = (opts: {
 	const pushFrames = async () => {
 		const cameras = (await localApi("/api/cameras/status")) as {
 			previewing?: string[];
+			mapping?: { workspace: number | null; wrist: number | null };
+			brightness?: Record<string, number>;
 		} | null;
 		previewing = cameras?.previewing ?? [];
+		camMapping = cameras?.mapping ?? null;
+		camBrightness = cameras?.brightness ?? {};
 		const mjpeg = mjpegBase(); // null until the driver reports its port
 		if (!mjpeg || previewing.length === 0) return;
 		await Promise.all(previewing.map((cam) => pushOne(mjpeg, cam)));
@@ -279,5 +337,6 @@ export const startRigLink = (opts: {
 	console.error(`[rig-link] ${rigName} -> ${base} (link ${LINK_MS}ms)`);
 	loop(link, LINK_MS);
 	loop(pushFrames, FRAME_MS);
-	loop(refreshTasks, 2_000); // sidecar read — slow cadence is plenty
+	loop(refreshTasks, 2_000); // sidecar reads — slow cadence is plenty
+	loop(refreshRuns, 2_000);
 };

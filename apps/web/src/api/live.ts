@@ -7,7 +7,7 @@ import {
 	HttpRouter,
 } from "effect/unstable/http";
 import { HttpApiBuilder, HttpApiScalar } from "effect/unstable/httpapi";
-import { Checkpoints, HealthStatus, LabApi } from "./contract";
+import { Checkpoints, DriverError, HealthStatus, LabApi } from "./contract";
 import { RIG } from "./rig";
 import { Attempts } from "./services/attempts";
 import { Cameras } from "./services/cameras";
@@ -53,6 +53,15 @@ const TrainingsLive = HttpApiBuilder.group(LabApi, "Trainings", (handlers) =>
 				Effect.orDie,
 			),
 		)
+		.handle("updateByPayload", ({ payload }) =>
+			Effect.flatMap(RunsRegistry, (r) =>
+				r.update(payload.id, {
+					status: payload.status,
+					hypothesis: payload.hypothesis,
+					finding: payload.finding,
+				}),
+			).pipe(Effect.orDie),
+		)
 		.handle("checkpoints", ({ params }) =>
 			Effect.flatMap(RunsRegistry, (r) => r.checkpoints(params.id)).pipe(
 				Effect.map((c) => new Checkpoints(c)),
@@ -73,6 +82,11 @@ const CamerasLive = HttpApiBuilder.group(LabApi, "Cameras", (handlers) =>
 		)
 		.handle("previewStop", () =>
 			Effect.flatMap(Cameras, (c) => c.previewStop()).pipe(Effect.orDie),
+		)
+		.handle("probePreview", () =>
+			Effect.flatMap(Cameras, (c) => c.probeAndPreview()).pipe(
+				Effect.mapError((e) => new DriverError({ message: e.message })),
+			),
 		)
 		.handle("status", () => Effect.flatMap(Cameras, (c) => c.status()))
 		.handle("confirm", ({ payload }) =>

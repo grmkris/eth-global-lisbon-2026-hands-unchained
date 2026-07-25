@@ -11,10 +11,10 @@
 import * as crypto from "node:crypto";
 import { Context, Effect, FileSystem, Layer } from "effect";
 import { ForbiddenError, TaskInfo } from "#/api/contract";
+import { isOwnerKey } from "#/api/owner-key";
 
 const DATA_DIR = `${process.cwd()}/.data`;
 const TASKS_FILE = `${DATA_DIR}/tasks.json`;
-const OWNER_FILE = `${DATA_DIR}/owner.json`;
 
 // Advertised over a 20Hz link — keep the payload bounded.
 const MAX_TASKS = 16;
@@ -44,35 +44,12 @@ export class TasksRegistry extends Context.Service<
 		Effect.gen(function* () {
 			const fs = yield* FileSystem.FileSystem;
 
-			// Owner key: generated once, printed every boot so the owner can
-			// always recover it from the rig terminal.
-			const ownerKey = yield* fs.readFileString(OWNER_FILE).pipe(
-				Effect.map((raw) => (JSON.parse(raw) as { key: string }).key),
-				Effect.catch(() =>
-					Effect.gen(function* () {
-						const key = crypto.randomBytes(16).toString("hex");
-						yield* fs
-							.makeDirectory(DATA_DIR, { recursive: true })
-							.pipe(
-								Effect.andThen(
-									fs.writeFileString(OWNER_FILE, JSON.stringify({ key })),
-								),
-								Effect.orDie,
-							);
-						return key;
-					}),
-				),
-			);
-			console.error(`[tasks] rig owner key: ${ownerKey}`);
-
-			const checkKey = (candidate: string) => {
-				const a = Buffer.from(candidate);
-				const b = Buffer.from(ownerKey);
-				const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
-				return ok
+			// Key generation/printing lives in api/owner-key.ts (shared with the
+			// rig link, which gates ALL owner verbs before dispatch).
+			const checkKey = (candidate: string) =>
+				isOwnerKey(candidate)
 					? Effect.void
 					: Effect.fail(new ForbiddenError({ message: "wrong owner key" }));
-			};
 
 			const load = fs.readFileString(TASKS_FILE).pipe(
 				Effect.map((raw) =>

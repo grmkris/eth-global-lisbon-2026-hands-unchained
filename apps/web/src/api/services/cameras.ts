@@ -11,6 +11,11 @@ export interface CamerasShape {
 		indexes: ReadonlyArray<number>,
 	) => Effect.Effect<{ started: ReadonlyArray<string> }, Error>;
 	readonly previewStop: () => Effect.Effect<{ stopped: boolean }, Error>;
+	/** One-shot for the hub verb pipe: probe, then preview everything found. */
+	readonly probeAndPreview: () => Effect.Effect<
+		{ started: ReadonlyArray<string> },
+		Error
+	>;
 	readonly status: () => Effect.Effect<CameraStatus>;
 	readonly confirm: (mapping: CameraMapping) => Effect.Effect<CameraMapping>;
 }
@@ -39,24 +44,40 @@ export class Cameras extends Context.Service<Cameras, CamerasShape>()(
 				),
 			);
 
+			const probe = () =>
+				driver
+					.rpc<ReadonlyArray<{ index: number; width: number; height: number }>>(
+						"list_cameras",
+					)
+					.pipe(Effect.map((cams) => cams.map((c) => new ProbedCamera(c))));
+			const previewStart = (indexes: ReadonlyArray<number>) =>
+				driver.rpc<{ started: ReadonlyArray<string> }>("preview_start", {
+					cameras: indexes.map((index) => ({
+						name: `cam${index}`,
+						index,
+						width: 640,
+						height: 480,
+						fps: 30,
+					})),
+				});
+
 			return {
-				probe: () =>
-					driver
-						.rpc<
-							ReadonlyArray<{ index: number; width: number; height: number }>
-						>("list_cameras")
-						.pipe(Effect.map((cams) => cams.map((c) => new ProbedCamera(c)))),
-				previewStart: (indexes) =>
-					driver.rpc<{ started: ReadonlyArray<string> }>("preview_start", {
-						cameras: indexes.map((index) => ({
-							name: `cam${index}`,
-							index,
-							width: 640,
-							height: 480,
-							fps: 30,
-						})),
-					}),
+				probe,
+				previewStart,
 				previewStop: () => driver.rpc<{ stopped: boolean }>("preview_stop"),
+				probeAndPreview: () =>
+					Effect.gen(function* () {
+						// probing tears down device handles — refuse mid-recording
+						const rec = yield* driver.record();
+						if (rec.active)
+							return yield* Effect.fail(
+								new Error("recording active — probe would steal the cameras"),
+							);
+						const cams = yield* probe();
+						if (cams.length === 0)
+							return yield* Effect.fail(new Error("no cameras found"));
+						return yield* previewStart(cams.map((c) => c.index));
+					}),
 				status: () =>
 					Effect.gen(function* () {
 						// live streams come straight from the driver's status event — no TS-side

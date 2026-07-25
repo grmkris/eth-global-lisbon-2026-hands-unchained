@@ -92,6 +92,9 @@ export class RunInfo extends Schema.Class<RunInfo>("RunInfo")(
 
 export class RunCreate extends Schema.Class<RunCreate>("RunCreate")(
 	Schema.Struct({
+		/** Caller-supplied id (hub UI deep-links before the advert lands);
+		 * empty/absent -> server generates one. */
+		id: Schema.optional(Schema.String),
 		name: Schema.String,
 		datasetRepoId: Schema.String,
 		episodes: Schema.NullOr(Schema.String),
@@ -116,6 +119,23 @@ export class Checkpoints extends Schema.Class<Checkpoints>("Checkpoints")(
 		hubModelId: Schema.String,
 		steps: Schema.Array(Schema.String),
 	}),
+) {}
+
+/** Driver/hardware failure surfaced with its actionable message (port busy hints etc). */
+export class DriverError extends Schema.TaggedErrorClass<DriverError>()(
+	"DriverError",
+	{
+		message: Schema.String,
+	},
+) {}
+
+/** Setup problem the user can fix (not a hardware fault) — lists the failed gates. */
+export class PreflightError extends Schema.TaggedErrorClass<PreflightError>()(
+	"PreflightError",
+	{
+		message: Schema.String,
+		gates: Schema.Array(Schema.String),
+	},
 ) {}
 
 export class ProbedCamera extends Schema.Class<ProbedCamera>("ProbedCamera")(
@@ -153,29 +173,19 @@ const CamerasGroup = HttpApiGroup.make("Cameras").add(
 	HttpApiEndpoint.post("previewStop", "/cameras/preview/stop", {
 		success: Schema.Struct({ stopped: Schema.Boolean }),
 	}),
+	// One-shot for the hub verb pipe: probe all cameras, preview everything
+	// found. Results need no response channel — preview streams appear in the
+	// rig's `cams` telemetry (names encode indexes: cam0, cam1, ...).
+	HttpApiEndpoint.post("probePreview", "/cameras/probe-preview", {
+		success: Schema.Struct({ started: Schema.Array(Schema.String) }),
+		error: DriverError,
+	}),
 	HttpApiEndpoint.get("status", "/cameras/status", { success: CameraStatus }),
 	HttpApiEndpoint.post("confirm", "/cameras/confirm", {
 		payload: CameraMapping,
 		success: CameraMapping,
 	}),
 );
-
-/** Driver/hardware failure surfaced with its actionable message (port busy hints etc). */
-export class DriverError extends Schema.TaggedErrorClass<DriverError>()(
-	"DriverError",
-	{
-		message: Schema.String,
-	},
-) {}
-
-/** Setup problem the user can fix (not a hardware fault) — lists the failed gates. */
-export class PreflightError extends Schema.TaggedErrorClass<PreflightError>()(
-	"PreflightError",
-	{
-		message: Schema.String,
-		gates: Schema.Array(Schema.String),
-	},
-) {}
 
 export class RobotState extends Schema.Class<RobotState>("RobotState")(
 	Schema.Struct({
@@ -251,6 +261,16 @@ const TrainingsGroup = HttpApiGroup.make("Trainings").add(
 	HttpApiEndpoint.patch("update", "/runs/:id", {
 		params: runId,
 		payload: RunPatch,
+		success: RunInfo,
+	}),
+	// POST variant for the hub verb pipe (verbs dispatch to static POST paths)
+	HttpApiEndpoint.post("updateByPayload", "/runs/update", {
+		payload: Schema.Struct({
+			id: Schema.String,
+			status: Schema.NullOr(Schema.String),
+			hypothesis: Schema.NullOr(Schema.String),
+			finding: Schema.NullOr(Schema.String),
+		}),
 		success: RunInfo,
 	}),
 	HttpApiEndpoint.get("checkpoints", "/runs/:id/checkpoints", {

@@ -3,7 +3,12 @@
  * /api/cams/*). Deliberately a narrow verb set rather than a general tunnel:
  * a guest must not be able to reach /api/record/start on someone's machine.
  */
-import type { AttemptState, RecordStatus, TaskInfo } from "#/api/contract";
+import type {
+	AttemptState,
+	RecordStatus,
+	RunInfo,
+	TaskInfo,
+} from "#/api/contract";
 import {
 	claimLease,
 	drainCommands,
@@ -50,6 +55,9 @@ const rigSummary = (rig: Rig) => ({
 	record: rig.record,
 	attempt: rig.attempt,
 	tasks: rig.tasks,
+	runs: rig.runs,
+	camMapping: rig.camMapping,
+	camBrightness: rig.camBrightness,
 	lastCommandResult: rig.lastCommandResult,
 	holder: leaseHolder(rig),
 	linkMs: rig.linkMs,
@@ -112,9 +120,13 @@ export const handleHubRequest = async (
 			record?: RecordStatus | null;
 			attempt?: AttemptState | null;
 			lastCommandResult?: Rig["lastCommandResult"];
-			/** rev-echo: full `tasks` rides along only when our echo mismatched */
+			camMapping?: Rig["camMapping"];
+			camBrightness?: Record<string, number>;
+			/** rev-echo: full arrays ride along only when our echo mismatched */
 			tasksRev?: string | null;
 			tasks?: ReadonlyArray<TaskInfo>;
+			runsRev?: string | null;
+			runs?: ReadonlyArray<RunInfo>;
 		};
 		if (!body.name) return json({ error: "name required" }, 400);
 		const rig = upsertRig(body.name, {
@@ -124,6 +136,8 @@ export const handleHubRequest = async (
 			joints: body.joints ?? {},
 			cams: body.cams ?? [],
 			lastError: body.lastError ?? null,
+			camMapping: body.camMapping ?? null,
+			camBrightness: body.camBrightness ?? {},
 			record: body.record ?? null,
 			attempt: body.attempt ?? null,
 			lastCommandResult: body.lastCommandResult ?? null,
@@ -132,6 +146,10 @@ export const handleHubRequest = async (
 		if (body.tasks !== undefined) {
 			rig.tasks = body.tasks;
 			rig.tasksRev = body.tasksRev ?? null;
+		}
+		if (body.runs !== undefined) {
+			rig.runs = body.runs;
+			rig.runsRev = body.runsRev ?? null;
 		}
 		await impair();
 		const commands = drainCommands(rig);
@@ -147,6 +165,7 @@ export const handleHubRequest = async (
 			holder: leaseHolder(rig),
 			// what the hub currently has — the rig re-advertises on mismatch
 			tasksRev: rig.tasksRev,
+			runsRev: rig.runsRev,
 		});
 	}
 

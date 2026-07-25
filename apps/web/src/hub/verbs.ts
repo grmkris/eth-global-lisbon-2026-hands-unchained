@@ -56,6 +56,50 @@ const table = {
 		stampsHolder: true,
 	},
 	attempt_finish: { path: "/api/attempts/finish", args: ["success"] },
+	// camera setup (owner — opens/closes device handles)
+	camera_probe: { path: "/api/cameras/probe-preview", owner: true },
+	camera_preview_stop: { path: "/api/cameras/preview/stop", owner: true },
+	camera_confirm: {
+		path: "/api/cameras/confirm",
+		owner: true,
+		args: ["workspace", "wrist"],
+	},
+	// free-form recording (owner — the guest recording path is attempts)
+	record_start: {
+		path: "/api/record/start",
+		owner: true,
+		body: { resume: false },
+		args: ["repoName", "task", "numEpisodes", "episodeS", "resetS", "source"],
+	},
+	record_control: {
+		path: "/api/record/control",
+		owner: true,
+		args: ["action"],
+	},
+	// training-run registry (rig-side sidecar, same pattern as tasks)
+	run_create: {
+		path: "/api/runs",
+		owner: true,
+		args: [
+			"id",
+			"name",
+			"datasetRepoId",
+			"episodes",
+			"pretrainedPath",
+			"steps",
+			"batchSize",
+			"saveFreq",
+			"hypothesis",
+		],
+	},
+	run_update: {
+		path: "/api/runs/update",
+		owner: true,
+		args: ["id", "status", "hypothesis", "finding"],
+	},
+	// hand-repositioning a real arm is a real owner workflow
+	torque_on: { path: "/api/robot/torque", owner: true, body: { on: true } },
+	torque_off: { path: "/api/robot/torque", owner: true, body: { on: false } },
 } as const satisfies Record<string, VerbSpec>;
 
 export type Verb = keyof typeof table;
