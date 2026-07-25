@@ -13,6 +13,8 @@ export interface LeaderInputDebug {
 	transport: "http" | "websocket";
 	joints: Record<string, number>;
 	at: number;
+	/** Packet age computed by the hub, avoiding browser/hub wall-clock skew. */
+	ageMs: number;
 	packets: number;
 	dropped: boolean;
 }

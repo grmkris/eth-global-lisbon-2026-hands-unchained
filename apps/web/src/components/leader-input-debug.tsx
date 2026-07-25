@@ -9,15 +9,24 @@ interface Props {
 
 /** Live proof of what the hub is accepting from a rig's bound remote leader. */
 export function LeaderInputDebugPanel({ leader, input }: Props) {
-	const [now, setNow] = useState(0);
+	const [ageMs, setAgeMs] = useState<number | null>(input?.ageMs ?? null);
+	const hubAgeMs = input?.ageMs;
+	const packetCount = input?.packets;
 
 	useEffect(() => {
-		setNow(Date.now());
-		const timer = setInterval(() => setNow(Date.now()), 250);
+		if (hubAgeMs === undefined || packetCount === undefined) {
+			setAgeMs(null);
+			return;
+		}
+		const observedAt = performance.now();
+		setAgeMs(hubAgeMs);
+		const timer = setInterval(
+			() => setAgeMs(Math.round(hubAgeMs + performance.now() - observedAt)),
+			250,
+		);
 		return () => clearInterval(timer);
-	}, []);
+	}, [hubAgeMs, packetCount]);
 
-	const ageMs = input && now > 0 ? Math.max(0, now - input.at) : null;
 	const receiving = ageMs !== null && ageMs < 1_000;
 	const source = leader ?? input?.leader ?? null;
 

@@ -79,7 +79,13 @@ const rigSummary = (rig: Rig) => ({
 		[...rig.frames].map(([cam, frame]) => [cam, Date.now() - frame.at]),
 	),
 	lastCommandResult: rig.lastCommandResult,
-	leaderInputDebug: rig.leaderInputDebug,
+	leaderInputDebug:
+		rig.leaderInputDebug === null
+			? null
+			: {
+					...rig.leaderInputDebug,
+					ageMs: Math.max(0, Date.now() - rig.leaderInputDebug.at),
+				},
 	holder: leaseHolder(rig),
 	linkMs: rig.linkMs,
 	lastSeen: rig.lastSeen,
