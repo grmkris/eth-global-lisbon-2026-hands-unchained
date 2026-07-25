@@ -51,3 +51,6 @@ auto-deploy. Live at https://web-production-b5106.up.railway.app.
   purpose).
 - shadcn components are vendored under `src/components/ui/` (add via the
   shadcn MCP/CLI from the repo root).
+- The WS input plane (`/api/hub/ws`, `src/hub/ws.ts`) needs `Bun.serve`, which
+  vite dev does not provide — under `bun run hub` input falls back to the HTTP
+  mailbox (by design). Exercise it with `bun run build && bun run hub:prod`.

@@ -26,8 +26,10 @@ deployed web app (the hub) + headless rig agents:
    sidecar JSON (`apps/web/.data/`) for what the Hub can't hold. The hub's
    rig registry is deliberately in-memory — a redeploy costs one re-register.
 5. **Boring transports.** 20 Hz HTTP polling + MJPEG re-serve, curl-debuggable,
-   identical in dev and prod. No WebSocket/WebRTC until a measured need; the
-   single planned upgrade lever is a WS relay if teleop feel demands it.
+   identical in dev and prod. The one measured exception: **the input plane
+   runs on a WebSocket when one is available, everything else stays polled
+   HTTP** — and input still works without it (the HTTP mailbox path is load-
+   bearing, not legacy). No WebRTC, ever (Railway has no inbound UDP).
 
 ## Architecture — one web app (the hub) + portless agents
 ```
@@ -64,6 +66,15 @@ middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
 - **Hub is a pipe, not a repeater** (`src/hub/routes.ts`, `store.ts`): input is
   latest-wins, consume-once, dropped after 500 ms — the deadman. Injectable
   impairment (`HUB_LATENCY_MS`, `HUB_DROP_RATE`) so loopback dev matches WAN.
+- **Input plane** (`src/hub/ws.ts`, `/api/hub/ws?role=rig|leader&name=`): the
+  one socket in the system, carrying input frames only. A leader agent pushes
+  `{t:"input", rig, joints}`; the hub authorizes it with the SAME
+  `leaderMayDrive` rule as the HTTP path, applies the same impairment, and
+  forwards to the rig's socket — no 66 ms POST quantization, no 0–50 ms wait
+  for the rig's next link tick. Missing socket at either end (vite dev has no
+  `Bun.serve` upgrade, a proxy eats it, an older hub) ⇒ input falls back to the
+  mailbox on the /link response. A socket-pushed packet never enters the
+  mailbox, so double delivery is impossible.
 - **Verb table** (`src/hub/verbs.ts`): the complete surface an operator can
   trigger — connect/teleop/stop/estop. One table; the hub allowlist and the
   rig dispatch both derive from it. NOT a general tunnel: a guest can never
@@ -119,6 +130,17 @@ timeout → lerobot's auto-save semantics, teleop auto-restored with the
 operator's prior source (except after driver failure). Outcomes append to
 `.data/attempts.json` {task, operator, outcome, timestamps}; episode ground
 truth stays in the dataset itself.
+
+**The 20-episode loop.** `TaskInfo.episodesDone` is DERIVED rig-side from the
+dataset's lerobot meta (`total_episodes`, the same number the quota check
+reads) and rides the same advertisement — since the rev hashes the task array,
+each saved episode re-advertises within ~2 s on its own. The drive page renders
+it as a progress bar (`13/20`, `Start attempt (14/20)`, `complete ✓` with the
+button disabled) and offers "auto-start the next attempt": after Success it
+chains the next attempt as soon as the recorder's session has closed
+(`!attempt.active && !recording` — video encoding keeps `recording` true for a
+beat, which is exactly the gate), once per finished attempt so a lost race
+never becomes a self-retrying loop.
 
 ### Safety model (remote driving)
 15°/tick clamp on synthetic sources (only a rig-local leader runs uncapped) ·
@@ -198,7 +220,8 @@ subprocess is a plain class, not a scoped `Command` resource.
 - **Operator recording** (the crowdsourced-data product): task assignment +
   record verbs over the hub — deliberately absent until identity exists.
 - Platform hardening: real identity/auth-on, queued-command TTL (stale hub
-  commands currently deliver on rig re-register), WS relay if feel demands.
+  commands currently deliver on rig re-register). (The WS input plane landed —
+  see Principles 5; browser keyboard input still rides HTTP, which it tolerates.)
 
 ## Risks / open questions (current)
 - Hub state is one process — fine at friends-scale; revisit before >~10 rigs.

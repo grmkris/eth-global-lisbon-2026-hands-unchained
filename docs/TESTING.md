@@ -93,7 +93,7 @@ HUB_URL=https://web-production-b5106.up.railway.app RIG_NAME=kris-sim \
 |---|------|--------|
 | 1 | Hub lobby in any browser | rig online, streaming, `link` ≈ your RTT |
 | 2 | Drive with the keyboard from another network (phone off wifi) | ~100–200 ms feel; deadman holds on silence |
-| 3 | Leader-over-wire: `bun run teleop` (leader plugged in, port auto-detected) → drive page → **Take control** → **Drive with \<name\>'s leader** | sim mirrors the physical leader; badge reads "you are driving — via \<name\>'s leader"; ~30 packets/s in the leader-agent log |
+| 3 | Leader-over-wire: `bun run teleop` (leader plugged in, port auto-detected) → drive page → **Take control** → **Drive with \<name\>'s leader** | sim mirrors the physical leader; badge reads "you are driving — via \<name\>'s leader"; the log reads `~30 packets/s up via socket` (was ~15 via http — the WS input plane) |
 | 4 | While the leader drives: **Take over** from a second tab | leader agent prints `lost <rig> (control changed)` and idles within ~0.5 s (403 or `bound:false`); the new tab drives immediately; it can lend the same leader by clicking Drive |
 | 4b | While the leader drives: **Start attempt** on a task, then ✓ Success | the attempt runs with YOU as operator while the leader drives (record source `remote`), episode saved — the leader never took your lease |
 | 5 | As a non-holder: **E-STOP** | works without the lease — safety verbs bypass it |
@@ -111,6 +111,10 @@ cd apps/driver && for f in *.py backends/*.py sources/*.py; do .venv/bin/python 
 ```
 
 Known gaps / by design:
+- `bun run hub` is vite dev — no `Bun.serve`, so the WS input plane cannot
+  upgrade there and input rides the HTTP mailbox (the rig logs "input socket
+  unavailable", leader logs "via http"). To exercise the socket locally:
+  `bun run build && PORT=3001 bun run hub:prod`. Railway runs the built server.
 - Real-mode video during record stays dark (the recorder owns the devices).
 - Report cards for datasets NOT pushed to the Hub only render on the machine
   that recorded them (remote-parquet reads need the dataset on the Hub).
@@ -130,6 +134,16 @@ Setup as in the intro; paste the owner key into the drive page's owner panel.
 | 6 | Let one run out | lerobot timeout semantics auto-save; outcome `timeout` |
 | 7 | Close the browser mid-attempt | after 30 s holder-loss: partial discarded, outcome `abandoned`, teleop NOT auto-restarted for a failed driver |
 | 8 | Restart the hub mid-attempt | recording uninterrupted; tasks re-advertised (rev-echo); your page reclaims the lease and the attempt continues |
+
+### The episode loop (task with `maxEpisodes`)
+
+| # | Step | Expect |
+|---|------|--------|
+| 1 | Create a task with max eps 3 (fresh dataset name) | card shows an empty bar + `0/3`, button reads **Start attempt (1/3)** |
+| 2 | Run one attempt → ✓ Success | back on the idle card at `1/3` within ~4 s (episode save + the 2 s advertisement) |
+| 3 | Start again, tick **auto-start the next attempt**, ✓ Success | the next attempt starts by itself once the recorder's session closes (~5 s: video encode keeps `recording` true) — repeat to 3/3 |
+| 4 | At 3/3 | `complete ✓` badge, Start disabled; a forced `attempt_start` via curl is refused rig-side with "task complete" |
+| 5 | `.data/attempts.json` | one success row per episode, `operator` = your clientId |
 
 Curl equivalents live in the git history of this checklist (B-gate, commit
 "tasks + attempts").

@@ -961,6 +961,7 @@ dependencies = [
     { name = "lerobot", extra = ["dataset", "feetech", "kinematics", "phone"] },
     { name = "mujoco" },
     { name = "opencv-python" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -968,6 +969,7 @@ requires-dist = [
     { name = "lerobot", extras = ["feetech", "dataset", "kinematics", "phone"], specifier = "==0.6.0" },
     { name = "mujoco", specifier = ">=3.2" },
     { name = "opencv-python", specifier = ">=4.9" },
+    { name = "websockets", specifier = ">=12" },
 ]
 
 [[package]]

@@ -26,8 +26,9 @@ the hub is a stateless pipe, owner key printed at rig boot.
 - Everything rides lerobot **0.6.0** — record/train/infer version match is
   sacred; the driver env is `apps/driver/.venv` (`uv sync`).
 - Transport is deliberately boring: 20 Hz HTTP polling + MJPEG. Railway has
-  no inbound UDP — no self-hosted TURN/SFU there, ever. The one planned
-  upgrade lever is a WebSocket relay, only if teleop feel demands it.
+  no inbound UDP — no self-hosted TURN/SFU there, ever. The one exception is
+  the INPUT plane, which rides a WebSocket when available (`src/hub/ws.ts`)
+  and falls back to the HTTP mailbox — keep that fallback working.
 - lerobot degree zero = mid of calibrated range; the sim maps it to MJCF
   offsets in `backends/sim.py`. wrist_roll zero is calibration-pose-relative
   across devices — known wart, undesigned.

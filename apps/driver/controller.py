@@ -97,6 +97,29 @@ class HubLink:
             raise
 
 
+def open_input_socket(hub: str, name: str):
+    """The input plane: one WebSocket carrying ONLY input frames.
+
+    Fire-and-forget, so the loop runs at the full --hz instead of being
+    RTT-bound like one-POST-at-a-time keep-alive was (~15 packets/s). Returns
+    None when unavailable — the caller then keeps using the HTTP input path,
+    which must stay working (old hub, proxy eating the upgrade, vite dev).
+    """
+    try:
+        from websockets.sync.client import connect
+    except ImportError:
+        print("websockets not installed (uv sync in apps/driver) — using HTTP input")
+        return None
+    url = re.sub(r"^http", "ws", hub) + "/api/hub/ws?role=leader&name=" + urllib.parse.quote(name)
+    if TOKEN:
+        url += "&token=" + urllib.parse.quote(TOKEN)
+    try:
+        return connect(url, open_timeout=3, close_timeout=1)
+    except Exception as exc:  # noqa: BLE001 — any failure means: use HTTP
+        print(f"input socket unavailable ({exc}) — using HTTP input")
+        return None
+
+
 def default_name() -> str:
     host = socket.gethostname().split(".")[0].lower()
     return re.sub(r"[^a-z0-9-]", "-", host) or "leader"
@@ -151,43 +174,66 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> Non
         print(f"rig {rig_name} is offline — ignoring")
         return
 
+    ws = open_input_socket(hub, name)
     print(f"driving {rig_name} — move the leader. Stop from the web UI or Ctrl-C.")
     sent = dropped = packets = 0
     window = time.time()
-    while running["on"]:
-        tick = time.time()
-        action = leader.get_action()  # {"<joint>.pos": deg, "gripper.pos": 0..100}
-        try:
-            status, _ = link.post(f"{rig}/input", {**client, "joints": action})
-            if status == 403:
-                # the browser released the rig or someone else took it
-                print(f"lost {rig_name} (control changed) — back to idle")
-                return
-            sent += 1
-        except (TimeoutError, OSError):
-            dropped += 1  # latest-wins on the hub; the next packet corrects
-        packets += 1
-        # heartbeat the leader registry + poll for a web-UI stop (~2x/s)
-        if packets % 15 == 0:
+    try:
+        while running["on"]:
+            tick = time.time()
+            action = leader.get_action()  # {"<joint>.pos": deg, "gripper.pos": 0..100}
+            if ws is not None:
+                # fire-and-forget: revocation arrives on the heartbeat below
+                try:
+                    ws.send(json.dumps({"t": "input", "rig": rig_name, "joints": action}))
+                    sent += 1
+                except Exception:  # noqa: BLE001 — socket died; HTTP for the rest
+                    print("input socket dropped — falling back to HTTP input")
+                    try:
+                        ws.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    ws = None
+            else:
+                try:
+                    status, _ = link.post(f"{rig}/input", {**client, "joints": action})
+                    if status == 403:
+                        # the browser released the rig or someone else took it
+                        print(f"lost {rig_name} (control changed) — back to idle")
+                        return
+                    sent += 1
+                except (TimeoutError, OSError):
+                    dropped += 1  # latest-wins on the hub; next packet corrects
+            packets += 1
+            # heartbeat the leader registry + poll for a web-UI stop (~2x/s).
+            # `bound` is the ONLY revocation signal on the socket path.
+            if packets % 15 == 0:
+                try:
+                    _, res = link.post(
+                        "/api/hub/leaders/link", {"name": name, "driving": rig_name}
+                    )
+                    cmd = res.get("command")
+                    if cmd and cmd.get("action") == "stop":
+                        print("stopped from the web UI — back to idle")
+                        return
+                    if res.get("bound") is False:
+                        print(f"lost {rig_name} (control changed) — back to idle")
+                        return
+                except (TimeoutError, OSError):
+                    pass
+            if time.time() - window >= 5.0:
+                rate = sent / (time.time() - window)
+                via = "socket" if ws is not None else "http"
+                print(f"  {rate:.0f} packets/s up via {via}, {dropped} dropped")
+                sent = dropped = 0
+                window = time.time()
+            time.sleep(max(0.0, 1.0 / hz - (time.time() - tick)))
+    finally:
+        if ws is not None:
             try:
-                _, res = link.post(
-                    "/api/hub/leaders/link", {"name": name, "driving": rig_name}
-                )
-                cmd = res.get("command")
-                if cmd and cmd.get("action") == "stop":
-                    print("stopped from the web UI — back to idle")
-                    return
-                if res.get("bound") is False:
-                    print(f"lost {rig_name} (control changed) — back to idle")
-                    return
-            except (TimeoutError, OSError):
+                ws.close()
+            except Exception:  # noqa: BLE001
                 pass
-        if time.time() - window >= 5.0:
-            rate = sent / (time.time() - window)
-            print(f"  {rate:.0f} packets/s up, {dropped} dropped")
-            sent = dropped = 0
-            window = time.time()
-        time.sleep(max(0.0, 1.0 / hz - (time.time() - tick)))
 
 
 def main() -> None:

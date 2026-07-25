@@ -2,9 +2,11 @@ import {
 	createStartHandler,
 	defaultStreamHandler,
 } from "@tanstack/react-start/server";
+import type { Server } from "bun";
 import { apiHandler } from "#/api/live";
 import { hubAuthorized } from "#/hub/auth";
 import { handleHubRequest, json } from "#/hub/routes";
+import { type WsData, websocketHandlers } from "#/hub/ws";
 
 const startFetch = createStartHandler(defaultStreamHandler);
 
@@ -34,11 +36,30 @@ export default {
 	// Bun honors PORT implicitly; explicit so the contract is visible (Railway).
 	port: Number(process.env.PORT ?? 3000),
 	hostname: "0.0.0.0",
-	async fetch(request: Request): Promise<Response> {
+	websocket: websocketHandlers,
+	async fetch(request: Request, server?: Server<WsData>): Promise<Response> {
 		const url = new URL(request.url);
 
 		// Railway healthcheck target; the "mode" shape is a fossil kept stable.
 		if (url.pathname === "/api/mode") return json({ mode: "hub" });
+
+		// The input plane (see hub/ws.ts). Before the /api/hub/ routing below so
+		// the upgrade is never handled as a normal request. `server` is absent
+		// under vite dev (node http, not Bun.serve) — callers then fail to
+		// connect and keep using the HTTP input mailbox, which is the point of
+		// keeping that path alive.
+		if (url.pathname === "/api/hub/ws") {
+			if (!hubAuthorized(request, url))
+				return json({ error: "unauthorized" }, 401);
+			const role = url.searchParams.get("role");
+			const name = url.searchParams.get("name");
+			if ((role !== "rig" && role !== "leader") || !name)
+				return json({ error: "role and name required" }, 400);
+			if (server?.upgrade(request, { data: { role, name } }))
+				// Bun requires returning nothing once the socket is taken over
+				return undefined as unknown as Response;
+			return json({ error: "websocket upgrade unavailable" }, 400);
+		}
 
 		// Hub relay — raw routes beside the typed contract.
 		if (url.pathname.startsWith("/api/hub/")) {

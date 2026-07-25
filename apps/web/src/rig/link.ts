@@ -328,6 +328,59 @@ export const startRigLink = (opts: {
 		await Promise.all(previewing.map((cam) => pushOne(mjpeg, cam)));
 	};
 
+	// --- input plane socket (hub/ws.ts) ------------------------------------
+	// Input is the one hop where the 50ms link tick is felt, so the hub pushes
+	// it here the moment it arrives instead of parking it in the mailbox. The
+	// /link tick keeps running unchanged: a socket-pushed packet never enters
+	// the mailbox, so nothing is delivered twice, and if the socket is down
+	// (vite dev has no Bun.serve, a proxy eats the upgrade, an old hub) input
+	// simply rides the mailbox again — slower, identical semantics.
+	let inputSocketWarned = false;
+	const openInputSocket = (): void => {
+		const wsUrl = `${base.replace(/^http/, "ws")}/api/hub/ws?role=rig&name=${encodeURIComponent(rigName)}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+		let ws: WebSocket;
+		try {
+			ws = new WebSocket(wsUrl);
+		} catch {
+			setTimeout(openInputSocket, 2_000);
+			return;
+		}
+		let reconnected = false;
+		const retry = () => {
+			if (reconnected) return; // error + close both fire; reconnect once
+			reconnected = true;
+			setTimeout(openInputSocket, 2_000);
+		};
+		ws.onopen = () => {
+			inputSocketWarned = false;
+			console.error("[rig-link] input socket up (event-driven input)");
+		};
+		ws.onmessage = (ev) => {
+			try {
+				const msg = JSON.parse(String(ev.data)) as {
+					t?: string;
+					joints?: Record<string, number>;
+					axes?: Record<string, number>;
+				};
+				if (msg.t !== "input") return;
+				void localApi("/api/robot/teleop/input", {
+					method: "POST",
+					body: JSON.stringify({ joints: msg.joints, axes: msg.axes }),
+				});
+			} catch {}
+		};
+		ws.onerror = () => {
+			if (!inputSocketWarned) {
+				inputSocketWarned = true;
+				console.error(
+					"[rig-link] input socket unavailable — input rides the HTTP link",
+				);
+			}
+			retry();
+		};
+		ws.onclose = retry;
+	};
+
 	// Self-scheduling (not setInterval): a tick that outlives its budget —
 	// routine once WAN RTT > 50ms — must not stack concurrent duplicates.
 	const loop = (fn: () => Promise<void>, ms: number) => {
@@ -340,6 +393,7 @@ export const startRigLink = (opts: {
 	console.error(
 		`[rig-link] ${rigName} -> ${base} (link ${LINK_MS}ms, frames ${FRAME_MS}ms)`,
 	);
+	openInputSocket();
 	loop(link, LINK_MS);
 	loop(pushFrames, FRAME_MS);
 	loop(refreshTasks, 2_000); // sidecar reads — slow cadence is plenty
