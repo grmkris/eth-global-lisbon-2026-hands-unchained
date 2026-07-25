@@ -77,6 +77,13 @@ export function TaskPanel(props: {
 		onStart(taskId);
 	};
 
+	// `now` (the 500ms ticker above) is deliberately a TRIGGER, not a read: the
+	// body calls Date.now() directly, so biome sees the dep as unused. Dropping it
+	// would leave the effect re-running only when an attempt/recording flag flips,
+	// and the CHAIN_WAIT_MS bail-out below would never fire — auto-continue would
+	// hang silently after an attempt that saved no episode, which is the exact
+	// failure that timeout exists to report.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `now` is a ticker that must re-run this effect so the CHAIN_WAIT_MS timeout can fire
 	useEffect(() => {
 		if (!autoContinue || !iAmDriving || chainTask === undefined) return;
 		// the recorder refuses a start while its session closes (video encoding

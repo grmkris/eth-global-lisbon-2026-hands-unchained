@@ -351,6 +351,19 @@ export const startRigLink = (opts: {
 		}
 	};
 
+	/**
+	 * One upload in flight PER CAMERA, and a tick that finds one busy simply
+	 * skips that camera — it does not wait and does not queue.
+	 *
+	 * Two things fall out of that. Cameras stop blocking each other: awaiting
+	 * `Promise.all` made every tick cost `max(cam RTTs)`, so one slow camera
+	 * throttled the other. And on a saturated uplink — the hackathon-wifi case —
+	 * the rig DROPS frames instead of piling them up, so the operator sees a
+	 * lower frame rate at roughly constant latency rather than a smooth feed
+	 * sliding further and further into the past. Latest-wins, same principle as
+	 * the input mailbox: a skipped frame is corrected by the next one.
+	 */
+	const framesInFlight = new Set<string>();
 	const pushFrames = async () => {
 		const cameras = (await localApi("/api/cameras/status")) as {
 			previewing?: string[];
@@ -362,7 +375,11 @@ export const startRigLink = (opts: {
 		camBrightness = cameras?.brightness ?? {};
 		const mjpeg = mjpegBase(); // null until the driver reports its port
 		if (!mjpeg || previewing.length === 0) return;
-		await Promise.all(previewing.map((cam) => pushOne(mjpeg, cam)));
+		for (const cam of previewing) {
+			if (framesInFlight.has(cam)) continue; // still uploading — skip, don't queue
+			framesInFlight.add(cam);
+			void pushOne(mjpeg, cam).finally(() => framesInFlight.delete(cam));
+		}
 	};
 
 	// --- input plane socket (hub/ws.ts) ------------------------------------
@@ -428,9 +445,21 @@ export const startRigLink = (opts: {
 
 	// Self-scheduling (not setInterval): a tick that outlives its budget —
 	// routine once WAN RTT > 50ms — must not stack concurrent duplicates.
+	//
+	// The delay is a DEADLINE, not a gap: sleeping the full `ms` *after* the
+	// work made every cadence in this file silently half-rate over WAN, because
+	// the period was `ms + work`. Measured against the deployed hub: frames ran
+	// at 151ms (80 + 58ms upload + ~13) = 6.6fps instead of 12.5, and the link
+	// at 98ms (50 + 48) = 10Hz instead of the documented 20. Loopback hid it —
+	// there `work` is ~0, which is why the original Checkpoint A passed.
+	// MIN_GAP_MS keeps an overrunning tick from degenerating into a hot loop.
+	const MIN_GAP_MS = 15;
 	const loop = (fn: () => Promise<void>, ms: number) => {
 		const tick = () => {
-			void fn().finally(() => setTimeout(tick, ms));
+			const started = Date.now();
+			void fn().finally(() =>
+				setTimeout(tick, Math.max(MIN_GAP_MS, ms - (Date.now() - started))),
+			);
 		};
 		tick();
 	};

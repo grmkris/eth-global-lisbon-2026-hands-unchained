@@ -18,6 +18,8 @@ export interface RigSummary {
 	lastError: string | null;
 	camMapping: { workspace: number | null; wrist: number | null } | null;
 	camBrightness: Record<string, number>;
+	/** per-cam age of the newest frame the hub holds, ms */
+	camAgeMs: Record<string, number>;
 	record: RecordStatus | null;
 	attempt: AttemptState | null;
 	tasks: ReadonlyArray<TaskInfo>;
@@ -69,6 +71,11 @@ export const hubToken = {
 	set: (token: string): void => {
 		localStorage.setItem("lab-hub-token", token);
 		const secure = location.protocol === "https:" ? "; Secure" : "";
+		// The suggested Cookie Store API is async and unsupported in Safari. This
+		// write must be visible to the very next request the page makes — an <img>
+		// MJPEG stream that cannot send an auth header — so a promise-based set
+		// would race it.
+		// biome-ignore lint/suspicious/noDocumentCookie: Cookie Store is async + no Safari support; this must land before the next <img> request
 		document.cookie = `${HUB_TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; max-age=31536000; SameSite=Lax${secure}`;
 	},
 };

@@ -54,6 +54,9 @@ export interface Rig {
 	lastCommandResult: RigCommandResult | null;
 	lastSeen: number;
 	frames: Map<string, RigFrame>;
+	/** cam -> everyone currently blocked in `waitForFrame` for it. Lets an
+	 * open MJPEG stream be woken by `setFrame` instead of polling for it. */
+	frameWaiters: Map<string, Set<() => void>>;
 	/** advertised by the rig on rev mismatch; survives every telemetry tick */
 	tasks: ReadonlyArray<TaskInfo>;
 	tasksRev: string | null;
@@ -110,6 +113,7 @@ export const upsertRig = (
 		Rig,
 		| "name"
 		| "frames"
+		| "frameWaiters"
 		| "input"
 		| "pending"
 		| "lease"
@@ -132,6 +136,7 @@ export const upsertRig = (
 		...patch,
 		lastSeen: Date.now(),
 		frames: new Map(),
+		frameWaiters: new Map(),
 		input: null,
 		pending: [],
 		lease: null,
@@ -189,7 +194,46 @@ export const releaseLease = (rig: Rig, holder: string): void => {
 
 export const setFrame = (rig: Rig, cam: string, data: Uint8Array): void => {
 	rig.frames.set(cam, { data, at: Date.now() });
+	const waiters = rig.frameWaiters.get(cam);
+	if (waiters === undefined) return;
+	rig.frameWaiters.delete(cam); // wake once; each waiter re-registers if it loops
+	for (const wake of waiters) wake();
 };
+
+/**
+ * Block until this rig pushes a new frame for `cam`, or `timeoutMs` passes.
+ *
+ * Replaces a 50ms poll in the MJPEG responder, which cost every viewer ~25ms of
+ * latency on average and woke the hub 20x/s per open stream. The timeout is a
+ * keepalive, not a deadline: it exists so a caller whose client vanished mid-
+ * wait (or whose rig went dark) gets control back to re-check its own state
+ * rather than parking forever.
+ */
+export const waitForFrame = (
+	rig: Rig,
+	cam: string,
+	timeoutMs: number,
+): Promise<void> =>
+	new Promise<void>((resolve) => {
+		let settled = false;
+		const done = () => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			// setFrame drops the whole set, so this is a no-op on the woken path —
+			// it matters when we leave via the timeout instead.
+			rig.frameWaiters.get(cam)?.delete(wake);
+			resolve();
+		};
+		const wake = () => done();
+		const timer = setTimeout(done, timeoutMs);
+		let waiters = rig.frameWaiters.get(cam);
+		if (waiters === undefined) {
+			waiters = new Set();
+			rig.frameWaiters.set(cam, waiters);
+		}
+		waiters.add(wake);
+	});
 
 // --- leaders ---------------------------------------------------------------
 // Operator-side leader arms, registered by controller.py exactly like rigs

@@ -70,6 +70,18 @@ function LeaderOnboardCard() {
 	);
 }
 
+/**
+ * Age of the newest frame the HUB holds, measured hub-side — so it covers the
+ * rig->hub half of the path (capture, push cadence, uplink) and not the
+ * hub->browser half. That is the half we control, and the half that degrades
+ * on a bad uplink: a number that climbs instead of holding steady means the
+ * rig cannot carry the push cadence and is falling behind.
+ */
+function FrameAge({ ms }: { ms: number | undefined }) {
+	if (ms === undefined) return null;
+	return <span>{ms} ms</span>;
+}
+
 function DrivePage() {
 	const { rig: rigName } = Route.useParams();
 	const rig = useQuery(rigQuery(rigName));
@@ -235,6 +247,7 @@ function DrivePage() {
 							key={cam}
 							name={cam}
 							src={`/api/hub/cams/${encodeURIComponent(rigName)}/${encodeURIComponent(cam)}`}
+							statusLine={<FrameAge ms={data.camAgeMs?.[cam]} />}
 						/>
 					) : (
 						<CamOffAir

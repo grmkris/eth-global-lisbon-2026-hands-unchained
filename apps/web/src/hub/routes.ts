@@ -30,10 +30,10 @@ import {
 	releaseLease,
 	setFrame,
 	shouldDrop,
-	sleep,
 	takeLeaderCommand,
 	upsertLeader,
 	upsertRig,
+	waitForFrame,
 } from "./store";
 import { isVerb, VERBS } from "./verbs";
 
@@ -67,6 +67,12 @@ const rigSummary = (rig: Rig) => ({
 	runs: rig.runs,
 	camMapping: rig.camMapping,
 	camBrightness: rig.camBrightness,
+	/** age of each cam's newest frame, hub-side. The one number that says
+	 * whether video is keeping up — a value that climbs means the rig's uplink
+	 * cannot carry the push cadence. */
+	camAgeMs: Object.fromEntries(
+		[...rig.frames].map(([cam, frame]) => [cam, Date.now() - frame.at]),
+	),
 	lastCommandResult: rig.lastCommandResult,
 	holder: leaseHolder(rig),
 	linkMs: rig.linkMs,
@@ -99,7 +105,9 @@ const mjpegResponse = (rig: Rig, cam: string): Response => {
 					controller.enqueue(CRLF);
 					return;
 				}
-				await sleep(50);
+				// woken by setFrame; the timeout is only a keepalive so a stream
+				// whose rig went dark still re-checks `closed` instead of parking
+				await waitForFrame(rig, cam, 1_000);
 			}
 		},
 		cancel() {
