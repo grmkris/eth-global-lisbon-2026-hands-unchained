@@ -8,6 +8,17 @@ import type {
 } from "#/api/contract";
 import { HUB_TOKEN_COOKIE } from "#/lib/constants";
 
+export interface LeaderInputDebug {
+	leader: string;
+	transport: "http" | "websocket";
+	joints: Record<string, number>;
+	at: number;
+	/** Packet age computed by the hub, avoiding browser/hub wall-clock skew. */
+	ageMs: number;
+	packets: number;
+	dropped: boolean;
+}
+
 export interface RigSummary {
 	name: string;
 	backend: string;
@@ -35,6 +46,8 @@ export interface RigSummary {
 		error: string | null;
 		at: number;
 	} | null;
+	/** Last authorized packet from the rig's bound remote leader. */
+	leaderInputDebug: LeaderInputDebug | null;
 	holder: string | null;
 	linkMs: number;
 	lastSeen: number;

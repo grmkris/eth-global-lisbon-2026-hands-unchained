@@ -35,6 +35,16 @@ export interface RigCommandResult {
 	at: number;
 }
 
+/** Last authorized remote-leader packet accepted by the hub for a rig. */
+export interface LeaderInputDebug {
+	leader: string;
+	transport: "http" | "websocket";
+	joints: Record<string, number>;
+	at: number;
+	packets: number;
+	dropped: boolean;
+}
+
 export interface Rig {
 	name: string;
 	backend: string;
@@ -76,6 +86,8 @@ export interface Rig {
 		joints?: Record<string, number>;
 		at: number;
 	} | null;
+	/** Browser-visible diagnostics for the currently bound remote leader. */
+	leaderInputDebug: LeaderInputDebug | null;
 	pending: RigCommand[];
 	lease: { holder: string; expiresAt: number } | null;
 	/** round-trip of the rig's own link loop, measured hub-side */
@@ -121,6 +133,7 @@ export const upsertRig = (
 		| "frames"
 		| "frameWaiters"
 		| "input"
+		| "leaderInputDebug"
 		| "pending"
 		| "lease"
 		| "lastSeen"
@@ -144,6 +157,7 @@ export const upsertRig = (
 		frames: new Map(),
 		frameWaiters: new Map(),
 		input: null,
+		leaderInputDebug: null,
 		pending: [],
 		lease: null,
 		tasks: [],
@@ -196,6 +210,29 @@ export const claimLease = (
 
 export const releaseLease = (rig: Rig, holder: string): void => {
 	if (leaseHolder(rig) === holder) rig.lease = null;
+};
+
+/** Record one authorized remote-leader packet without logging request bodies. */
+export const noteLeaderInput = (
+	rig: Rig,
+	leader: string,
+	transport: LeaderInputDebug["transport"],
+	joints: Record<string, number>,
+	dropped: boolean,
+): void => {
+	const previous = rig.leaderInputDebug;
+	rig.leaderInputDebug = {
+		leader,
+		transport,
+		joints: { ...joints },
+		at: Date.now(),
+		packets: previous?.leader === leader ? previous.packets + 1 : 1,
+		dropped,
+	};
+};
+
+export const clearLeaderInputDebug = (rig: Rig): void => {
+	rig.leaderInputDebug = null;
 };
 
 export const setFrame = (rig: Rig, cam: string, data: Uint8Array): void => {
@@ -339,6 +376,8 @@ export const leaderBound = (
  * the same browser tab simply re-claiming — clientId lives in sessionStorage. */
 export const pruneLeaderBinding = (leader: Leader): void => {
 	if (leader.boundTo === null || leaderBound(leader)) return;
+	const rig = leader.rig === null ? undefined : rigs.get(leader.rig);
+	if (rig?.leaderInputDebug?.leader === leader.name) clearLeaderInputDebug(rig);
 	leader.boundTo = null;
 	leader.rig = null;
 };
