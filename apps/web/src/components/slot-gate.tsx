@@ -378,7 +378,14 @@ export function SlotGate({
 					)}
 				</Step>
 
-				<Step n={2} title="Prove you're human" done={verified}>
+				{/* done = verified AND bound. A session with no address passes every
+				    gate up to the unlock and then fails there, so ticking this on
+				    `verified` alone sends people to a 409 with a green check. */}
+				<Step
+					n={2}
+					title="Prove you're human"
+					done={verified && bound !== null}
+				>
 					<WorldStep session={session} address={address} />
 				</Step>
 

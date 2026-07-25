@@ -73,11 +73,26 @@ export function WorldStep({
 		})();
 	}, [open, world, address]);
 
-	if (session.verified)
+	/**
+	 * VERIFIED IS NOT ENOUGH — it has to be bound.
+	 *
+	 * A session carries a nullifier and an address; `session.ts` still accepts
+	 * the 3-segment cookies minted before binding existed, so "verified with no
+	 * address" is a real state that lasts up to 24 hours. It sails through the
+	 * drive gate and then dies at the unlock with "verify again to bind your
+	 * wallet" — and this component used to short-circuit on `verified` alone,
+	 * rendering the word "verified" and no way to act on that instruction. A
+	 * dead end with no button.
+	 *
+	 * So an unbound session is treated as incomplete, and says why.
+	 */
+	const bound = session.boundAddress != null;
+
+	if (session.verified && bound)
 		return (
 			<span className="text-sm text-muted-foreground">
-				verified{session.nullifier ? ` · ${session.nullifier}` : ""}
-				{session.boundAddress ? " · bound to your wallet" : ""}
+				verified{session.nullifier ? ` · ${session.nullifier}` : ""} · bound to
+				your wallet
 			</span>
 		);
 
@@ -97,8 +112,18 @@ export function WorldStep({
 
 	return (
 		<>
+			{session.verified && !bound && (
+				<p className="mb-2 text-warn text-xs">
+					Your session was verified before it was tied to a wallet, so the arm
+					cannot tell that this browser owns the wallet that booked. Verify once
+					more and it will be — nothing is lost, and your stake stays where it
+					is.
+				</p>
+			)}
 			<Button size="sm" onClick={() => setOpen(true)}>
-				Verify with World ID
+				{session.verified && !bound
+					? "Verify again to bind your wallet"
+					: "Verify with World ID"}
 			</Button>
 			{open && rpContext !== null && preset !== null && (
 				<Suspense fallback={null}>

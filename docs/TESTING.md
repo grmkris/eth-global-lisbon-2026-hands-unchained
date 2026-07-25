@@ -203,9 +203,11 @@ unset.
 
 ### Money
 
-Booking IS staking, so this needs real testnet funds in MetaMask: 0.05 OG on
-0G Galileo (16602, faucet `https://faucet.0g.ai`) or 0.5 HBAR on Hedera
-testnet (296, `https://portal.hedera.com/faucet`). Same rules either chain.
+Booking IS staking, so this needs real testnet funds in MetaMask: 0G Galileo
+(16602, faucet `https://faucet.0g.ai`) or Hedera testnet (296,
+`https://portal.hedera.com/faucet`). Same rules either chain. The stake is read
+LIVE from each contract's `minStake` — don't hardcode it in your head, the gate
+prints the real number.
 
 If your wallet already knows a network called "0G Galileo" at chain id **16601**
 (viem shipped that id for a while), `switchChain` fails and the gate says so
@@ -219,7 +221,7 @@ explicitly — rename or remove the stale entry.
 | 2 | Connect → verify with the simulator | step 2 reads "verified · bound to your wallet" |
 | 3 | **Hard-refresh the page** | step 1 still shows your address, checked, **with no wallet popup** — it is re-read from the session, not from localStorage |
 | 4 | Connect a DIFFERENT MetaMask account | an explicit warning that you proved World ID on the other one; the arm only opens for the wallet that booked |
-| 5 | Book · 0.05 OG | one MetaMask signature. The clock does NOT start |
+| 5 | Book (the gate names the stake) | one MetaMask signature. The clock does NOT start |
 | 6 | **Take control & start** | no second popup (the hub relays `startSlot`); 30:00 counting down |
 | 7 | Start an attempt, drive, ✓ Success | the row narrates itself: *reading your episode off the rig* → *0G referee deliberating* → *posting the verdict on chain* → the verdict, with the reason, the provider, the `chatID` and `sig ✓` |
 | 8 | Claim ✓ on an episode you did NOT do | fail + **strike**; the task progress does not advance and the bar shows "1 rejected" |
