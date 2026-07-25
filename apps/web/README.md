@@ -1,7 +1,7 @@
 # Lab Console
 
 TanStack Start (React 19) + Effect v4 HttpApi on Bun. One build, three roles —
-see `../SPEC.md` for architecture, `../TESTING.md` for checklists.
+see `../../docs/SPEC.md` for architecture, `../../docs/TESTING.md` for checklists.
 
 ## Roles
 
