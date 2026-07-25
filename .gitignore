@@ -1,0 +1,25 @@
+# deps / build
+node_modules/
+dist/
+.turbo/
+.tanstack/
+
+# python
+.venv/
+__pycache__/
+
+# runtime state + secrets
+.data/
+*.local
+.env
+.env.*
+
+# agent tooling (machine-local)
+.claude/
+.agents/
+.agent-sources/
+skills-lock.json
+.mcp.json
+
+# os
+.DS_Store

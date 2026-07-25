@@ -1,0 +1,20 @@
+{
+	"name": "proof-of-hands",
+	"private": true,
+	"type": "module",
+	"packageManager": "bun@1.3.14",
+	"workspaces": ["apps/web"],
+	"scripts": {
+		"dev": "bun run --cwd apps/web dev",
+		"build": "bun run --cwd apps/web build",
+		"check": "bun run --cwd apps/web check",
+		"typecheck": "cd apps/web && bunx tsc --noEmit",
+		"hub": "bun run --cwd apps/web hub",
+		"hub:prod": "bun run --cwd apps/web hub:prod",
+		"agent": "bun run --cwd apps/web agent",
+		"rig:sim": "bun run --cwd apps/web rig:sim",
+		"rig:real": "bun run --cwd apps/web rig:real",
+		"driver:sync": "cd apps/driver && uv sync",
+		"driver:ast": "cd apps/driver && for f in *.py backends/*.py sources/*.py; do .venv/bin/python -c \"import ast; ast.parse(open('$f').read())\" || echo FAIL $f; done"
+	}
+}
