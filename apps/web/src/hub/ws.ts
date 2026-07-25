@@ -24,6 +24,7 @@ import {
 	impair,
 	isOnline,
 	leaderMayDrive,
+	noteLeaderInput,
 	shouldDrop,
 } from "./store";
 
@@ -82,7 +83,9 @@ const message = async (ws: Sock, raw: string | Buffer): Promise<void> => {
 	// exactly the HTTP rule: bound to the current lease holder, no renewal
 	if (!leaderMayDrive(leader, rig)) return;
 	await impair();
-	if (shouldDrop()) return;
+	const dropped = shouldDrop();
+	noteLeaderInput(rig, leader.name, "websocket", packet.joints, dropped);
+	if (dropped) return;
 	// Only trust the socket while the rig's own HTTP link says it is alive: a
 	// half-open socket (network partition, the rig reconnected over a fresh TCP
 	// connection) swallows sends silently, and input would vanish until Bun's

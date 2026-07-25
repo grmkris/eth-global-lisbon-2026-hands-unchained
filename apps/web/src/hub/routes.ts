@@ -12,6 +12,7 @@ import type {
 } from "#/api/contract";
 import {
 	claimLease,
+	clearLeaderInputDebug,
 	drainCommands,
 	getLeader,
 	getRig,
@@ -26,6 +27,7 @@ import {
 	listLeaders,
 	listRigs,
 	MAX_PENDING,
+	noteLeaderInput,
 	pruneLeaderBinding,
 	type Rig,
 	releaseLease,
@@ -77,6 +79,7 @@ const rigSummary = (rig: Rig) => ({
 		[...rig.frames].map(([cam, frame]) => [cam, Date.now() - frame.at]),
 	),
 	lastCommandResult: rig.lastCommandResult,
+	leaderInputDebug: rig.leaderInputDebug,
 	holder: leaseHolder(rig),
 	linkMs: rig.linkMs,
 	lastSeen: rig.lastSeen,
@@ -270,6 +273,7 @@ export const handleHubRequest = async (
 			leader.boundTo = body.clientId;
 			leader.rig = rig.name;
 			leader.pending = { action: "drive", rig: rig.name, queuedAt: Date.now() };
+			clearLeaderInputDebug(rig);
 			// The hub starts the remote source itself — the agent sends no verbs, and
 			// the holder stamp stays the browser.
 			//
@@ -293,6 +297,7 @@ export const handleHubRequest = async (
 		}
 		if (body.action === "stop") {
 			const rig = leader.rig ? getRig(leader.rig) : undefined;
+			if (rig) clearLeaderInputDebug(rig);
 			leader.boundTo = null;
 			leader.rig = null;
 			leader.pending = { action: "stop", queuedAt: Date.now() };
@@ -364,8 +369,13 @@ export const handleHubRequest = async (
 					claimLease(rig, clientId); // renew
 				}
 				await impair();
+				// Record authorized leader input even when injected impairment drops it;
+				// the debug panel must distinguish transport from delivery failures.
+				const dropped = shouldDrop();
+				if (leader && body.joints)
+					noteLeaderInput(rig, leader.name, "http", body.joints, dropped);
 				// dropped input is never resent — same as a lost UDP packet
-				if (!shouldDrop())
+				if (!dropped)
 					rig.input = body.joints
 						? { joints: body.joints, at: Date.now() }
 						: { axes: body.axes ?? {}, at: Date.now() };
