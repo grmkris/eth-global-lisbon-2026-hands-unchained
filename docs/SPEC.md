@@ -150,6 +150,8 @@ beat, which is exactly the gate), once per finished attempt so a lost race
 never becomes a self-retrying loop.
 
 ### Safety model (remote driving)
+E-STOP works with no backend connected (it is the one control shown
+unconditionally, so it must never answer "not connected") ·
 15°/tick clamp on synthetic sources (only a rig-local leader runs uncapped) ·
 0.5 s hub deadman (hold pose) · servo EEPROM limits from the OWNER's
 calibration are the hard stop · e-stop for anyone, lease or not ·
@@ -162,7 +164,11 @@ an OS-assigned localhost MJPEG port reported in `ready` (several rigs per
 machine). Spawn is lazy on first RPC; crash → next RPC respawns. `connect
 {backend: real|sim}` picks who answers — callers never know the
 difference. Leader arm attach is optional on BOTH backends: attach failure
-warns and comes up follower-only (headless agents get one autoconnect attempt).
+warns and comes up follower-only (headless agents get one autoconnect attempt),
+and `robot_state` carries the resulting `leader` flag on every transition so the
+UI never offers a leader button that would fail. A real record session RESTORES
+what it took on exit: the camera previews it stopped and the arm it disconnected
+(sim always came back `connected`, so only hardware ever felt this).
 
 ### Effect architecture (server, as built)
 Services (`Context.Service` — correct for the pinned `effect@4.0.0-beta.101`;
@@ -196,8 +202,7 @@ subprocess is a plain class, not a scoped `Command` resource.
 
 ## Shipped (v1)
 - Hub lab pages (all over the rig verb pipe — owner key required): camera
-  setup (probe/preview/confirm on the drive page), free-form record panel
-  (sources: leader/keys/phone*/scripted, live HUD from telemetry), datasets
+  assignment (inside the Rig owner fold, real rigs only), datasets
   (Hub merge + remote-parquet episode report cards, length-outlier flags,
   exclude-list builder), trainings (rig-advertised runs ∪ imported Hub
   models, lineage, client-generated Colab cell, HF ckpt polling).

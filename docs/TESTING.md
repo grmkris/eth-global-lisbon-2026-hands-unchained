@@ -16,8 +16,9 @@ bun run rig:sim
 ```
 
 The rig terminal prints its OWNER KEY at boot (also `apps/web/.data/owner.json`).
-Owner panels on the drive page (camera setup, record, tasks) need it once per
-browser.
+The **Rig owner** fold on the drive page (tasks, plus camera assignment on a
+real rig) needs it once per browser. There is no separate record panel — task
+attempts are the only recording path.
 
 ## 1 — Sim smoke (no hardware, hub UI only)
 
@@ -27,10 +28,10 @@ All on `http://localhost:3001`:
 |---|------|--------|
 | 1 | Lobby `/` | `kris-sim` card online (autoconnected sim) |
 | 2 | Open the card → **Take control** | both cams stream (MuJoCo scene); joints grid live |
-| 3 | **Teleop (keys)** → click the jog pad | W/S/A/D/Q/E jog the arm; O/C gripper |
+| 3 | Click the jog pad (no Teleop button — focusing it starts keys teleop) | W/S/A/D/Q/E jog the arm; O/C gripper |
 | 4 | Release all keys / click away | arm holds pose (deadman ~0.5 s) |
-| 5 | Owner: Record panel → source `Scripted expert`, 2 eps × 5 s | REC pill cycles recording/resetting, saved count reaches 2, panel returns to the form |
-| 6 | Record again → source `Keyboard`, drive during REC via the pad | keys drive the arm while recording; 2/2 saved |
+| 5 | Rig owner fold → paste key → create a task, max eps 2, 10 s episodes | task card appears (lobby too) |
+| 6 | Take control → jog pad → **Start attempt (1/2)** → drive → ✓ Success; tick auto-start → 2/2 | keys drive the arm while recording; `complete ✓`, Start disabled |
 | 7 | Datasets page → `report` on the new dataset | episode table renders; exclude an ep → `--dataset.episodes` flag string appears |
 | 8 | Trainings → New training → pick the dataset + rig → Create | detail page opens, Colab cell renders (client-generated); run appears in the rig's advertisement within ~2 s |
 | 9 | E-STOP during any teleop | physics pauses, state back to connected |
@@ -41,18 +42,19 @@ Rig: `bun run rig:real` (or `HUB_URL=<deployed> … bun run agent`). Everything
 else happens on the hub's drive page.
 
 Pre-flight (every session — macOS shuffles camera indexes on replug):
-- [ ] Drive page → Camera setup → **Probe + preview all** → identify
-      workspace/wrist from the thumbnails → confirm each
+- [ ] Drive page → **Rig owner** fold → Cameras → **Probe + preview** → identify
+      workspace/wrist on the MAIN feed grid → assign each. Until both are
+      assigned, recording is refused (`cameras not confirmed`)
 - [ ] Brightness badges inside the 115–131 band (one dominant desk lamp)
 - [ ] Both arms powered + plugged (follower `...832001`, leader `...538411`)
 
 | # | Step | Expect |
 |---|------|--------|
-| 1 | **Connect REAL** | state connected; joints grid live |
-| 2 | **Teleop (leader arm)** | follower mirrors leader, no lag spikes |
-| 3 | Stop → **Teleop (keys)** → jog gently | EE-space jog works; big jump attempt → driver stderr shows the 15°/frame clamp warning |
+| 1 | The rig autoconnects at boot; if `armState` is disconnected → Rig owner fold → **Connect (real arm)** | state connected; joints grid live |
+| 2 | **Drive with the rig's own leader arm** (the button only exists because an arm is really attached) | follower mirrors leader, no lag spikes |
+| 3 | **Stop teleop** → click the jog pad → jog gently | EE-space jog works; big jump attempt → driver stderr shows the 15°/frame clamp warning |
 | 4 | E-STOP (raised arm — catch it!) | torque kills instantly, arm goes limp |
-| 5 | Owner record: 2 real eps, source `Leader arm` (cameras confirmed) | REC pill; ✓ Keep saves; done 2/2 |
+| 5 | Task with max 2 eps, tick auto-start, run both attempts with the leader | after EACH attempt the camera feeds come back by themselves within ~2 s and the arm returns to `connected` (it used to end `disconnected` with dark feeds); 2/2 saved |
 | 6 | Datasets → report card on the new set | lengths sane, no unexpected `short` flags |
 
 Phone source is currently broken (driver venv lacks the lerobot phone
@@ -69,8 +71,8 @@ Look for `[rig-link] kris-sim -> http://localhost:3001` in tab 2.
 | # | Step | Expect |
 |---|------|--------|
 | 1 | `:3001/lobby` | `kris-sim` card, online |
-| 2 | Open the card → **Take control** → **Connect SIM** (if not autoconnected) | both feeds appear within ~2 s |
-| 3 | **Teleop (keys)** → click the jog pad → W/S/A/D/Q/E | arm moves in the hub's video; joints grid updates |
+| 2 | Open the card → **Take control** | both feeds appear within ~2 s (the rig autoconnects) |
+| 3 | Click the jog pad → W/S/A/D/Q/E | arm moves in the hub's video; joints grid updates |
 | 4 | Release all keys | arm holds — the deadman fires because the hub does **not** replay input |
 | 5 | Second browser tab on the same rig | video plays, jog pad hidden, "someone else is driving" |
 | 6 | Take over from tab 2, then drive from tab 1 | tab 1 gets 403; one writer at a time |
@@ -115,7 +117,8 @@ Known gaps / by design:
   upgrade there and input rides the HTTP mailbox (the rig logs "input socket
   unavailable", leader logs "via http"). To exercise the socket locally:
   `bun run build && PORT=3001 bun run hub:prod`. Railway runs the built server.
-- Real-mode video during record stays dark (the recorder owns the devices).
+- Real-mode video during record stays dark (the recorder owns the devices) — but
+  the previews come back by themselves when the session ends.
 - Report cards for datasets NOT pushed to the Hub only render on the machine
   that recorded them (remote-parquet reads need the dataset on the Hub).
 - Contract changes need a dev-server restart (the API handler survives HMR on purpose).
@@ -126,7 +129,7 @@ Setup as in the intro; paste the owner key into the drive page's owner panel.
 
 | # | Step | Expect |
 |---|------|--------|
-| 1 | Drive page → "Rig owner — manage tasks" → paste key → create a task | task card appears (lobby too); wrong key shows `✗ wrong owner key` via lastCommandResult |
+| 1 | Drive page → **Rig owner** fold → paste key → create a task | task card appears (lobby too); wrong key shows `✗ wrong owner key` via lastCommandResult |
 | 2 | Take control → Start attempt | REC pill within ~3 s (spin-up grace covers dataset create), countdown from the task's episodeSeconds |
 | 3 | Drive during the attempt (jog pad) | input flows into the recording (record source = your teleop source) |
 | 4 | ✓ Success | episode saved — `info.json total_episodes` +1, task title is the per-frame lerobot label; `.data/attempts.json` row {operator, outcome: success} |

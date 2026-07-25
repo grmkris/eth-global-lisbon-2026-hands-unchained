@@ -24,7 +24,7 @@ network deadman. Plain HTTP end to end: curl-debuggable, no WebRTC, no SDKs.
 
 - `apps/web` — one TypeScript app (TanStack Start + Effect v4, Bun), two
   entries: **the hub** (`src/server.ts`, the deployed web app — lobby, drive,
-  datasets, trainings, camera setup, recording) and **the agent**
+  datasets, trainings, tasks/attempts) and **the agent**
   (`src/agent.ts`, a headless rig). Every owner action reaches the rig over
   the hub's verb pipe — nothing runs locally but the agent.
 - `apps/driver` — Python (uv, pinned `lerobot==0.6.0`): real-arm serial +
@@ -44,7 +44,7 @@ cd apps/driver && uv sync && cd ../..     # python driver (macOS, python 3.12)
 # loopback rehearsal of production (two tabs):
 bun run hub                                # hub → :3001
 bun run rig:sim                            # headless sim rig (no port), autoconnects
-# open http://localhost:3001 → Take control → Teleop (keys) → WASD/QE
+# open http://localhost:3001 → Take control → click the jog pad → WASD/QE
 ```
 
 Register a rig with the deployed hub (zero config — hub URL is the baked-in
