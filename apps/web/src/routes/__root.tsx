@@ -7,11 +7,15 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { ExternalLink, FlaskConical } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
+import { HandMark } from "#/components/logo";
 import { ShellStatus } from "#/components/shell-status";
 import { ThemeToggle } from "#/components/theme-toggle";
 import { Toaster } from "#/components/ui/sonner";
+// Imported through Vite so it lands in /assets/* — the only path server.ts
+// serves statically in production. A public/ dir would 404 there.
+import faviconUrl from "../logo-mark.svg?url";
 import appCss from "../styles.css?url";
 
 const queryClient = new QueryClient();
@@ -34,6 +38,11 @@ export const Route = createRootRoute({
 			{
 				rel: "stylesheet",
 				href: appCss,
+			},
+			{
+				rel: "icon",
+				type: "image/svg+xml",
+				href: faviconUrl,
 			},
 		],
 	}),
@@ -82,7 +91,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<QueryClientProvider client={queryClient}>
 					<nav className="sticky top-0 z-10 flex items-center gap-4 border-b bg-background/90 px-6 py-3 text-sm backdrop-blur">
 						<Link to="/" className="flex items-center gap-2 font-semibold">
-							<FlaskConical className="size-4 text-muted-foreground" />
+							<HandMark className="size-[18px] shrink-0" />
 							Proof of Hands
 						</Link>
 						<Nav />

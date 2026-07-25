@@ -36,12 +36,38 @@ It started as generated raster (`logo-concepts/split-4.jpg`) and was traced to
 vector with `trace-logo.py`, which turns the black strokes into filled outlines
 so the mark takes `fill: currentColor` and tints itself like everything else in
 the blueprint system. The deck draws it at **84x84** in the slide corner and
-**200x200** on the cover; it is legible at both, but it muds below ~40px, so a
-favicon would want a reduced cut rather than this file shrunk.
+**200x200** on the cover, and is legible at both.
+
+Below ~40px it muds, so there are **two cuts, not one**:
+
+| file | concept | used by |
+|---|---|---|
+| `logo.svg` | `split-4` — full exoskeleton, rails and pivots | the deck (84px, 200px) |
+| `logo-mark-small.svg` | `mark-small-2` — bold silhouette, one seam, three dots | the app (18px nav, favicon) |
 
 ```sh
 python3 presentation/trace-logo.py split-4 --smooth 1.3 --tolerance 0.8 --width 900
+python3 presentation/trace-logo.py mark-small-2 --smooth 1.3 --tolerance 0.8 --width 700 \
+  --out presentation/logo-mark-small.svg
 ```
+
+The reduced cut is not the full mark shrunk — it is its own drawing. At 16px the
+full mark's finger gaps close into a blob; the reduced one keeps the silhouette
+because it has almost nothing else in it.
+
+### Where the app uses it
+
+`logo-mark-small.svg` is the source of truth for two generated files in
+`apps/web`, and all three must be regenerated together:
+
+- `src/components/logo.tsx` — inline `<HandMark>`, so the nav mark needs no
+  request and inherits the nav's ink through `currentColor`.
+- `src/logo-mark.svg` — the favicon. Standalone, so it cannot use
+  `currentColor`; it carries the brand accent plus a
+  `prefers-color-scheme` override so it stays legible on a light *and* a dark
+  tab strip. Vite inlines it as a `data:` URI (it is under the 4 KB
+  `assetsInlineLimit`), which conveniently sidesteps `server.ts` only serving
+  `/assets/*` in production — a `public/` dir would 404 there.
 
 `--width` is the real quality/size dial: 900 gives 8 KB and is visually
 identical to 16 KB at 1200; below ~700 the outline starts to wobble and the

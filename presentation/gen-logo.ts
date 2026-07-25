@@ -163,6 +163,34 @@ outlines only, centred, with the fingerprint clearly legible as a spiral rather
 than as noise.`,
   },
   {
+    id: "mark-small",
+    note: "Reduced cut of the chosen mark — for 16-32px (app nav, favicon)",
+    prompt: `
+The same subject as the chosen mark, drawn as a REDUCTION for very small sizes:
+a single open hand seen flat palm-forward, fingers up, thumb out to the left,
+with one straight vertical line down its middle and the right half reading as
+machine.
+
+This version exists because the detailed mark turns to mud below about 40
+pixels. So strip it to the absolute minimum that still says "hand, half of it
+machine":
+
+- Very heavy, thick strokes — roughly twice the weight you would normally use.
+- The hand silhouette is one bold, closed, simplified shape. Short blunt fingers,
+  wide gaps between them, no tapering, no anatomical curve. Closed flat across
+  the wrist at the bottom.
+- The interior of the human (left) half is completely EMPTY. No lines at all.
+- The machine (right) half carries exactly THREE marks and nothing else: three
+  solid filled dots, one on each of the three fingers on that side, sitting where
+  a knuckle joint would be. Solid filled circles, not outlines, not rings.
+- One straight vertical line down the centre of the hand, same heavy weight.
+- Nothing else whatsoever. No rails, no exoskeleton frame, no panel seams, no
+  tendons, no wrist cuff detail, no extra joints.
+
+It must still be recognisable as a hand at 16x16 pixels. Err on the side of
+too bold and too simple.`,
+  },
+  {
     id: "seal",
     note: "The seal — touching fingertips inside a technical circle with registration ticks",
     prompt: `
