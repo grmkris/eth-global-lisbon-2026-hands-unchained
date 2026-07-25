@@ -28,6 +28,8 @@ export interface LedgerRow {
 	/** the on-chain slot this attempt was driven under. null = slots are off,
 	 * which is the whole platform when ZG_SLOT_MARKET_ADDRESS is unset. */
 	slotId: number | null;
+	/** which chain that slot's money is on — "0g" | "hedera" | null */
+	slotChain: string | null;
 	operator: {
 		clientId: string;
 		nullifier: string | null;
@@ -166,6 +168,7 @@ export const openRow = (input: {
 	clientId: string;
 	evmAddress?: string | null;
 	slotId?: number | null;
+	slotChain?: string | null;
 }): LedgerRow => {
 	// a re-fired attempt_start while a row is open (task-panel auto-continue)
 	// reuses the open row rather than orphaning it
@@ -183,6 +186,7 @@ export const openRow = (input: {
 		rigAttemptId: null,
 		source: null,
 		slotId: input.slotId ?? null,
+		slotChain: input.slotChain ?? null,
 		operator: {
 			clientId: input.clientId,
 			nullifier: nullifierFor(input.clientId),

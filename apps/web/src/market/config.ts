@@ -91,27 +91,87 @@ export const ZG = {
 };
 
 /**
- * The slot market on 0G Galileo — booking a rig IS staking, the clock starts at
- * the PIN unlock, and TEE-verified verdicts pay or strike. Unset = the platform
- * runs exactly as before, with no slots, no queue and no PIN.
+ * The slot market. The SAME contract is deployed on 0G Galileo and on Hedera
+ * testnet, and the operator picks which one holds their money — so choosing a
+ * chain changes the token, not the rules.
  *
- * `settlerKey` is a HOT key: it relays startSlot and submits every verdict. It
- * cannot forge a verdict (the contract checks 0G's signature) and it cannot
- * profit from voiding anyone (slashed stakes go to the reward pool), but it can
- * drain that pool if it is also the contract owner. Give it its own key.
+ * A chain is configured by giving it an address and a settler key; unset means
+ * that chain simply is not offered. Both unset means the platform runs exactly
+ * as it did before slots existed.
+ *
+ * `valueDecimals` is NOT cosmetic and is the one thing to get right here.
+ * Hedera's EVM denominates value in TINYBAR (1e8 = 1 HBAR) — the JSON-RPC
+ * relay divides the weibar a wallet sends by 1e10 — so a contract amount read
+ * back from Hedera must be scaled by 1e8 and one from 0G by 1e18. Mixing them
+ * is a silent factor of ten billion, which is exactly the bug that made a
+ * 0.5 HBAR stake read as five billion HBAR on the first deploy.
  */
-export const SLOTS = {
+export interface SlotChain {
+	key: string;
+	chainId: number;
+	label: string;
+	token: string;
+	address: string;
+	settlerKey: string;
+	rpc: string;
+	explorerTx: (hash: string) => string;
+	explorerAddress: (addr: string) => string;
+	faucet: string;
+	/** 18 on a normal EVM; 8 on Hedera, whose EVM speaks tinybar */
+	valueDecimals: number;
+	/** true where the contract can read 0G's registry itself */
+	liveSigner: boolean;
+}
+
+const ZG_CHAIN: SlotChain = {
+	key: "0g",
+	chainId: 16602,
+	label: "0G Galileo",
+	token: "OG",
 	address: process.env.ZG_SLOT_MARKET_ADDRESS ?? "",
 	settlerKey: process.env.ZG_SETTLER_KEY ?? process.env.ZG_PRIVATE_KEY ?? "",
+	rpc: process.env.ZG_RPC ?? "https://evmrpc-testnet.0g.ai",
+	explorerTx: (h) => `https://chainscan-galileo.0g.ai/tx/${h}`,
+	explorerAddress: (a) => `https://chainscan-galileo.0g.ai/address/${a}`,
+	faucet: "https://faucet.0g.ai",
+	valueDecimals: 18,
+	liveSigner: true,
+};
+
+const HEDERA_CHAIN: SlotChain = {
+	key: "hedera",
+	chainId: 296,
+	label: "Hedera testnet",
+	token: "HBAR",
+	address: process.env.HEDERA_SLOT_MARKET_ADDRESS ?? "",
+	settlerKey:
+		process.env.HEDERA_SETTLER_KEY ?? process.env.HEDERA_EVM_KEY ?? "",
+	rpc: process.env.HEDERA_EVM_RPC ?? "https://testnet.hashio.io/api",
+	explorerTx: (h) => `https://hashscan.io/testnet/transaction/${h}`,
+	explorerAddress: (a) => `https://hashscan.io/testnet/account/${a}`,
+	faucet: "https://portal.hedera.com/faucet",
+	valueDecimals: 8,
+	liveSigner: false,
+};
+
+const chainConfigured = (c: SlotChain): boolean =>
+	c.address !== "" && c.settlerKey !== "";
+
+/** Only the chains this hub can actually settle on. */
+export const slotChains = (): ReadonlyArray<SlotChain> =>
+	[ZG_CHAIN, HEDERA_CHAIN].filter(chainConfigured);
+
+export const slotChain = (key: string): SlotChain | null =>
+	slotChains().find((c) => c.key === key) ?? null;
+
+export const SLOTS = {
 	/** rigId = keccak256("<ns>|<rigName>") — see market/chain.ts */
 	namespace: process.env.ZG_SLOT_NS ?? "proof-of-hands",
 	/** Require a slot to drive at all. Off = a rig nobody booked stays free. */
 	required: process.env.SLOT_REQUIRED === "1",
-	/** Mirrors of on-chain immutables, for UI copy before the first chain read.
-	 * The contract is authoritative; zg-slots.ts reads the real values at boot. */
 	slotSeconds: Number(process.env.SLOT_DURATION_S ?? 1800),
 	get configured(): boolean {
-		return this.address !== "" && this.settlerKey !== "";
+		return slotChains().length > 0;
 	},
 };
 

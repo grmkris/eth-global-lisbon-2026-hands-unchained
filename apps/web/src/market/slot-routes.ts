@@ -15,7 +15,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { Address } from "viem";
 import { json } from "#/hub/routes";
 import { MIN_PIN_LENGTH, pinHashOf, rigIdOf, ZG_FAUCET } from "#/market/chain";
-import { SLOTS } from "#/market/config";
+import { SLOTS, slotChain, slotChains } from "#/market/config";
 import { readSession } from "#/market/session";
 import {
 	mintSlotValue,
@@ -24,6 +24,7 @@ import {
 	slotSetCookie,
 } from "#/market/slot-session";
 import {
+	allHeads,
 	cachedRig,
 	clearPinAttempts,
 	liveSlot,
@@ -41,6 +42,7 @@ import type { SlotView } from "#/market/zg-slots";
 const chain = () => import("#/market/zg-slots");
 
 const publicSlot = (slot: SlotView) => ({
+	chain: slot.chainKey,
 	slotId: slot.slotId,
 	operator: slot.operator,
 	stakeOg: slot.stakeOg,
@@ -85,6 +87,7 @@ const rigDto = (rig: string) => {
 	const cached = cachedRig(rig);
 	const live = liveSlot(rig);
 	const pending = pendingSlot(rig);
+	const voided = allHeads(rig).some((h) => h.status === "voided");
 	return {
 		rig,
 		rigId: rigIdOf(rig, SLOTS.namespace),
@@ -92,18 +95,21 @@ const rigDto = (rig: string) => {
 			? "live"
 			: pending
 				? "awaiting-start"
-				: cached?.head?.status === "voided"
+				: voided
 					? "voided"
 					: "free",
 		live: live ? publicSlot(live) : null,
 		pending: pending ? publicSlot(pending) : null,
-		queue: (cached?.queue ?? []).map((s, i) => ({
-			slotId: s.slotId,
-			operator: s.operator,
-			position: i,
-			bookedAt: s.bookedAt,
-			status: s.status,
-		})),
+		queue: (cached?.chains ?? []).flatMap((c) =>
+			c.queue.map((s, i) => ({
+				chain: c.chainKey,
+				slotId: s.slotId,
+				operator: s.operator,
+				position: i,
+				bookedAt: s.bookedAt,
+				status: s.status,
+			})),
+		),
 		/** the read is older than a poll interval — the UI says so rather than
 		 * pretending a cached number is fresh */
 		stale: cached ? Date.now() - cached.polledAt > 30_000 : true,
@@ -125,15 +131,30 @@ export const handleSlotRequest = async (
 
 	// GET /slots — everything the lobby needs in one call
 	if (path === "/slots" && request.method === "GET") {
+		const c = await chain();
+		// Every chain the operator may put money on, each with its own params
+		// read from ITS OWN contract — the stake is 0.05 OG on 0G and 0.5 HBAR
+		// on Hedera, and nothing here should assume they match.
+		const chains = await Promise.all(
+			slotChains().map(async (sc) => ({
+				key: sc.key,
+				chainId: sc.chainId,
+				label: sc.label,
+				token: sc.token,
+				contract: sc.address,
+				faucet: sc.faucet,
+				/** the contract reads 0G's registry itself, vs a pinned constant */
+				liveSigner: sc.liveSigner,
+				params: await c.slotParams(sc).catch(() => null),
+			})),
+		);
 		return json({
 			configured: true,
-			chainId: 16602,
-			contract: SLOTS.address,
 			namespace: SLOTS.namespace,
 			required: SLOTS.required,
 			faucet: ZG_FAUCET,
 			minPinLength: MIN_PIN_LENGTH,
-			params: await (await chain()).slotParams(),
+			chains,
 			rigs: rigNames.map(rigDto),
 		});
 	}
@@ -218,9 +239,27 @@ export const handleSlotRequest = async (
 
 	// Not started yet? Relay it. THIS is where the 30 minutes begins — and the
 	// operator never sees a second wallet popup, because the hub pays for it.
+	// SINGLE OCCUPANCY ACROSS CHAINS. Two people can book the same rig on two
+	// different chains — neither contract can see the other — so the hub is the
+	// only thing that can stop both clocks running. It refuses to relay the
+	// second start; that operator can cancel for a full refund.
+	const otherLive = liveSlot(rig);
+	if (otherLive !== null && otherLive.slotId !== slot.slotId)
+		return json(
+			{
+				error: `this rig is already held on ${otherLive.chainKey} until ${new Date(
+					otherLive.endAt * 1000,
+				).toLocaleTimeString()} — cancel your booking for a refund`,
+			},
+			409,
+		);
+
+	const sc = slotChain(slot.chainKey);
+	if (sc === null) return json({ error: "unknown chain for this slot" }, 500);
+
 	let started = slot;
 	if (slot.status === "booked") {
-		const tx = await (await chain()).startSlot(slot.slotId);
+		const tx = await (await chain()).startSlot(sc, slot.slotId);
 		if (tx === null)
 			return json(
 				{ error: "could not start your slot on-chain — try again" },

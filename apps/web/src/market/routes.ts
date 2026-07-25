@@ -184,7 +184,14 @@ export const handleMarketRequest = async (
 		>;
 		try {
 			const { verifyWorldProof } = await import("#/market/world");
-			const result = await verifyWorldProof(body);
+			// Work out the address FIRST: it is pinned into the verification
+			// request, so World rejects a proof that was not made for it.
+			const claimed =
+				typeof body.address === "string" &&
+				/^0x[0-9a-fA-F]{40}$/.test(body.address)
+					? body.address.toLowerCase()
+					: null;
+			const result = await verifyWorldProof(body, claimed);
 			// Identity Check must actually attest the requested attributes.
 			// null = the credential didn't carry an attestation (proof-of-human,
 			// or a simulator that doesn't evaluate attributes) — allowed, but
@@ -194,15 +201,9 @@ export const handleMarketRequest = async (
 				result.identityAttested === false
 			)
 				return json({ error: "identity attributes not attested" }, 403);
-			// Bind the human to the wallet they proved on. The address arrives
-			// alongside the proof and is the same one IDKit signed as the
-			// signal, so identity and money share one chain of custody instead
-			// of being a cookie sitting next to an unrelated address.
-			const claimed =
-				typeof body.address === "string" &&
-				/^0x[0-9a-fA-F]{40}$/.test(body.address)
-					? body.address.toLowerCase()
-					: null;
+			// Bound above, and enforced by World's own verifier rather than by
+			// us: identity and money now share one chain of custody instead of
+			// a cookie sitting next to an unrelated address.
 			const value = mintSessionValue(result.nullifier, claimed);
 			return new Response(
 				JSON.stringify({

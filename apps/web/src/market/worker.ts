@@ -21,13 +21,15 @@ import {
 	HEDERA,
 	marketEnabled,
 	SLOTS,
+	slotChain,
 	TEE_BRIDGE,
 } from "#/market/config";
 import { grade } from "#/market/grader/index";
 import { stopSampler } from "#/market/sampler";
 import {
+	allHeads,
 	beginInFlight,
-	cachedRig,
+	chainOf,
 	endInFlight,
 	ensureSlotMirror,
 	liveSlot,
@@ -117,18 +119,19 @@ const enforceSlots = (): void => {
 			rig.leaseHardExpiry = live.endAt * 1000; // keep the ceiling fresh
 			continue;
 		}
-		const head = cachedRig(rig.name)?.head ?? null;
-		const expired =
-			head !== null &&
-			head.status === "running" &&
-			head.endAt * 1000 <= Date.now();
-		const voided = head !== null && head.status === "voided";
-		if (!expired && !voided) {
-			if (head === null) rig.leaseHardExpiry = null;
+		const heads = allHeads(rig.name);
+		if (heads.length === 0) {
+			rig.leaseHardExpiry = null;
 			continue;
 		}
-		if (!markEnforced(head.slotId)) continue;
-		endSlotOnRig(rig.name, head, voided ? "voided" : "expired");
+		for (const head of heads) {
+			const expired =
+				head.status === "running" && head.endAt * 1000 <= Date.now();
+			const voided = head.status === "voided";
+			if (!expired && !voided) continue;
+			if (!markEnforced(head.slotId)) continue;
+			endSlotOnRig(rig.name, head, voided ? "voided" : "expired");
+		}
 	}
 };
 
@@ -175,29 +178,31 @@ const endSlotOnRig = (
 const settleDueSlots = async (): Promise<void> => {
 	if (!SLOTS.configured) return;
 	for (const rig of listRigs()) {
-		const head = cachedRig(rig.name)?.head ?? null;
-		if (head === null) continue;
-		const settleable =
-			(head.status === "running" && head.endAt * 1000 <= Date.now()) ||
-			head.status === "voided";
-		if (!settleable) continue;
-		const pending = listRows().some(
-			(r) =>
-				r.slotId === head.slotId &&
-				r.status !== "anchored" &&
-				r.status !== "rejected",
-		);
-		if (pending) continue;
-		const key = `settle:${head.slotId}`;
-		if (!beginInFlight(key)) continue;
-		try {
-			const slots = await import("#/market/zg-slots");
-			await slots.settleSlot(head.slotId);
-			await refreshRig(rig.name);
-		} catch (e) {
-			console.error(`[market] settle ${head.slotId} failed:`, e);
-		} finally {
-			endInFlight(key);
+		for (const head of allHeads(rig.name)) {
+			const settleable =
+				(head.status === "running" && head.endAt * 1000 <= Date.now()) ||
+				head.status === "voided";
+			if (!settleable) continue;
+			const pending = listRows().some(
+				(r) =>
+					r.slotId === head.slotId &&
+					r.status !== "anchored" &&
+					r.status !== "rejected",
+			);
+			if (pending) continue;
+			const chain = chainOf(head);
+			if (chain === null) continue;
+			const key = `settle:${head.chainKey}:${head.slotId}`;
+			if (!beginInFlight(key)) continue;
+			try {
+				const slots = await import("#/market/zg-slots");
+				await slots.settleSlot(chain, head.slotId);
+				await refreshRig(rig.name);
+			} catch (e) {
+				console.error(`[market] settle ${head.slotId} failed:`, e);
+			} finally {
+				endInFlight(key);
+			}
 		}
 	}
 };
@@ -359,12 +364,19 @@ const advance = async (row: LedgerRow): Promise<void> => {
 		if (SLOTS.configured && row.slotId !== null) {
 			try {
 				const slots = await import("#/market/zg-slots");
-				const result = await slots.recordEpisodeOnSlot(row, row.slotId);
-				if (result !== null) {
-					row.provenance.slotTx = result.txHash;
-					row.provenance.slotAttested = result.attested;
-					if (row.operator.evmAddress)
-						void slots.withdrawFor(row.operator.evmAddress);
+				const chain = slotChain(row.slotChain ?? "");
+				if (chain !== null) {
+					const result = await slots.recordEpisodeOnSlot(
+						chain,
+						row,
+						row.slotId,
+					);
+					if (result !== null) {
+						row.provenance.slotTx = result.txHash;
+						row.provenance.slotAttested = result.attested;
+						if (row.operator.evmAddress)
+							void slots.withdrawFor(chain, row.operator.evmAddress);
+					}
 				}
 			} catch (e) {
 				console.error(`[market] slot verdict failed for ${row.id}:`, e);

@@ -17,7 +17,7 @@
  *    a capability we could not check is the one unsafe direction.
  */
 import { listRigs } from "#/hub/store";
-import { SLOTS } from "#/market/config";
+import { SLOTS, type SlotChain, slotChain, slotChains } from "#/market/config";
 import type { SlotView } from "#/market/zg-slots";
 
 /** ethers stays OUT of the boot path — the hub must start, and MARKET_MODE=0
@@ -25,13 +25,20 @@ import type { SlotView } from "#/market/zg-slots";
  * grader and tee-bridge follow. */
 const chain = () => import("#/market/zg-slots");
 
-export interface RigSlots {
-	rig: string;
+/** What one chain says about one rig. */
+export interface ChainSlots {
+	chainKey: string;
 	/** head of the queue — `booked` (waiting for a PIN) or `running` */
 	head: SlotView | null;
 	queue: SlotView[];
 	/** when the head reached the front; the no-show clock, not bookedAt */
 	headSince: number;
+}
+
+export interface RigSlots {
+	rig: string;
+	/** one entry per configured chain — a rig can be booked on either */
+	chains: ChainSlots[];
 	polledAt: number;
 	/** last RPC failure, surfaced rather than swallowed */
 	error: string | null;
@@ -68,25 +75,32 @@ const POLL_QUEUED_MS = 5_000;
 const POLL_IDLE_MS = 15_000;
 const TICK_MS = 1_000;
 
+const heads = (entry: RigSlots): SlotView[] =>
+	entry.chains.map((c) => c.head).filter((h): h is SlotView => h !== null);
+
 const staleAfter = (entry: RigSlots): number => {
-	if (entry.head === null) return POLL_IDLE_MS;
-	return entry.head.status === "running" ? POLL_LIVE_MS : POLL_QUEUED_MS;
+	const hs = heads(entry);
+	if (hs.length === 0) return POLL_IDLE_MS;
+	return hs.some((h) => h.status === "running") ? POLL_LIVE_MS : POLL_QUEUED_MS;
 };
 
 export const refreshRig = async (rig: string): Promise<RigSlots | null> => {
 	if (!SLOTS.configured) return null;
 	try {
 		const c = await chain();
-		const [head, queue, since] = await Promise.all([
-			c.headSlot(rig),
-			c.queueFor(rig),
-			c.headSince(rig),
-		]);
+		const chains = await Promise.all(
+			slotChains().map(async (sc): Promise<ChainSlots> => {
+				const [head, queue, since] = await Promise.all([
+					c.headSlot(sc, rig),
+					c.queueFor(sc, rig),
+					c.headSince(sc, rig),
+				]);
+				return { chainKey: sc.key, head, queue, headSince: since ?? 0 };
+			}),
+		);
 		const entry: RigSlots = {
 			rig,
-			head,
-			queue,
-			headSince: since ?? 0,
+			chains,
 			polledAt: Date.now(),
 			error: null,
 		};
@@ -103,9 +117,7 @@ export const refreshRig = async (rig: string): Promise<RigSlots | null> => {
 		}
 		const entry: RigSlots = {
 			rig,
-			head: null,
-			queue: [],
-			headSince: 0,
+			chains: [],
 			polledAt: Date.now(),
 			error: message,
 		};
@@ -115,8 +127,11 @@ export const refreshRig = async (rig: string): Promise<RigSlots | null> => {
 };
 
 /** Re-read a slot we already know the id of (post-write confirmation). */
-export const refreshSlot = async (slotId: number): Promise<SlotView | null> =>
-	SLOTS.configured ? (await chain()).readSlot(slotId) : null;
+export const refreshSlot = async (
+	sc: SlotChain,
+	slotId: number,
+): Promise<SlotView | null> =>
+	SLOTS.configured ? (await chain()).readSlot(sc, slotId) : null;
 
 export const cachedRig = (rig: string): RigSlots | null =>
 	state.byRig.get(rig) ?? null;
@@ -128,16 +143,33 @@ export const cachedRig = (rig: string): RigSlots | null =>
  * second mechanism, and it keeps working with the RPC down.
  */
 export const liveSlot = (rig: string): SlotView | null => {
-	const head = state.byRig.get(rig)?.head ?? null;
-	if (head === null || head.status !== "running") return null;
-	if (head.endAt * 1000 <= Date.now()) return null;
-	return head;
+	const entry = state.byRig.get(rig);
+	if (!entry) return null;
+	// A rig can be booked on either chain, but only ONE person may hold the arm.
+	// The hub enforces that at unlock (it refuses to relay startSlot on chain B
+	// while chain A is live), so at most one of these should ever be running —
+	// and if two somehow are, the earliest start wins and stays winning.
+	const running = heads(entry)
+		.filter((h) => h.status === "running" && h.endAt * 1000 > Date.now())
+		.sort((a, b) => a.startedAt - b.startedAt);
+	return running[0] ?? null;
 };
+
+/** The chain a given slot's money lives on. */
+export const chainOf = (slot: SlotView): SlotChain | null =>
+	slotChain(slot.chainKey);
 
 /** Booked but never unlocked — the head is waiting for someone to type a key. */
 export const pendingSlot = (rig: string): SlotView | null => {
-	const head = state.byRig.get(rig)?.head ?? null;
-	return head !== null && head.status === "booked" ? head : null;
+	const entry = state.byRig.get(rig);
+	if (!entry) return null;
+	return heads(entry).find((h) => h.status === "booked") ?? null;
+};
+
+/** Every head across every chain — what the enforcement tick walks. */
+export const allHeads = (rig: string): SlotView[] => {
+	const entry = state.byRig.get(rig);
+	return entry ? heads(entry) : [];
 };
 
 export const remainingMs = (slot: SlotView): number =>
@@ -240,15 +272,15 @@ export const ensureSlotMirror = (): void => {
 	state.timer = setInterval(() => void pollDue(), TICK_MS);
 	void (async () => {
 		for (const rig of listRigs()) await refreshRig(rig.name);
-		const known = [...state.byRig.values()].filter((e) => e.head !== null);
+		const known = [...state.byRig.values()].flatMap((e) =>
+			heads(e).map((h) => `${e.rig}#${h.slotId}@${h.chainKey}(${h.status})`),
+		);
 		if (known.length > 0)
-			console.error(
-				`[slots] reconciled ${known.length} slot(s) from chain: ${known
-					.map((e) => `${e.rig}#${e.head?.slotId}(${e.head?.status})`)
-					.join(", ")}`,
-			);
+			console.error(`[slots] reconciled from chain: ${known.join(", ")}`);
 	})();
 	console.error(
-		`[slots] mirror live against ${SLOTS.address} (ns "${SLOTS.namespace}")`,
+		`[slots] mirror live on ${slotChains()
+			.map((c) => `${c.label} ${c.address.slice(0, 10)}…`)
+			.join(" + ")} (ns "${SLOTS.namespace}")`,
 	);
 };

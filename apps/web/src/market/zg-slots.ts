@@ -18,7 +18,7 @@
 import { ethers } from "ethers";
 import { slotMarketAbi } from "#/market/abi/slot-market";
 import { rigIdOf } from "#/market/chain";
-import { SLOTS, ZG } from "#/market/config";
+import { SLOTS, type SlotChain } from "#/market/config";
 import type { LedgerRow } from "#/market/store";
 import { attestationParts } from "#/market/tee-bridge";
 
@@ -36,6 +36,8 @@ export const SLOT_STATUS = [
 export type SlotStatus = (typeof SLOT_STATUS)[number];
 
 export interface SlotView {
+	/** which chain holds this slot's money — "0g" | "hedera" */
+	chainKey: string;
 	slotId: number;
 	rigId: string;
 	operator: string;
@@ -66,41 +68,56 @@ export interface SlotParams {
 }
 
 const g = globalThis as unknown as {
-	__zgSlots?: ethers.Contract;
-	__zgSlotParams?: SlotParams;
+	__zgSlots?: Map<string, ethers.Contract>;
+	__zgSlotParams?: Map<string, SlotParams>;
 };
+g.__zgSlots ??= new Map();
+g.__zgSlotParams ??= new Map();
 
 export const slotsConfigured = (): boolean => SLOTS.configured;
 
-const contract = (): ethers.Contract | null => {
-	if (!SLOTS.configured) return null;
-	g.__zgSlots ??= new ethers.Contract(
-		SLOTS.address,
+const contract = (chain: SlotChain): ethers.Contract => {
+	const cached = g.__zgSlots?.get(chain.key);
+	if (cached) return cached;
+	const made = new ethers.Contract(
+		chain.address,
 		slotMarketAbi as unknown as ethers.InterfaceAbi,
 		new ethers.Wallet(
-			SLOTS.settlerKey,
-			new ethers.JsonRpcProvider(ZG.rpc, undefined, { staticNetwork: true }),
+			chain.settlerKey,
+			new ethers.JsonRpcProvider(chain.rpc, undefined, { staticNetwork: true }),
 		),
 	);
-	return g.__zgSlots;
+	g.__zgSlots?.set(chain.key, made);
+	return made;
 };
 
 export const rigId = (rigName: string): string =>
 	rigIdOf(rigName, SLOTS.namespace);
 
-const og = (wei: bigint): number => Number(ethers.formatEther(wei));
+/**
+ * Contract amount -> human number. The decimals are PER CHAIN: 0G is a normal
+ * 1e18 EVM, Hedera's speaks tinybar at 1e8. Using formatEther on a Hedera
+ * value silently divides by ten billion too much.
+ */
+const amount = (raw: bigint, chain: SlotChain): number =>
+	Number(ethers.formatUnits(raw, chain.valueDecimals));
 
 /** The raw tuple order is SlotMarket's `slots` public getter — keep in step. */
-const toView = (slotId: number, raw: ethers.Result): SlotView => ({
+const toView = (
+	slotId: number,
+	raw: ethers.Result,
+	chain: SlotChain,
+): SlotView => ({
+	chainKey: chain.key,
 	slotId,
 	rigId: raw[0] as string,
 	operator: raw[1] as string,
-	stakeOg: og(raw[2] as bigint),
+	stakeOg: amount(raw[2] as bigint, chain),
 	pinHash: raw[3] as string,
 	bookedAt: Number(raw[4]),
 	startedAt: Number(raw[5]),
 	endAt: Number(raw[6]),
-	accruedOg: og(raw[7] as bigint),
+	accruedOg: amount(raw[7] as bigint, chain),
 	passes: Number(raw[8]),
 	episodes: Number(raw[9]),
 	strikes: Number(raw[10]),
@@ -109,51 +126,56 @@ const toView = (slotId: number, raw: ethers.Result): SlotView => ({
 
 // --- reads ------------------------------------------------------------------
 
-export const readSlot = async (slotId: number): Promise<SlotView | null> => {
-	const c = contract();
-	if (c === null || slotId === 0) return null;
-	const raw = (await c.slots(slotId)) as ethers.Result;
-	const view = toView(slotId, raw);
+export const readSlot = async (
+	chain: SlotChain,
+	slotId: number,
+): Promise<SlotView | null> => {
+	if (slotId === 0) return null;
+	const raw = (await contract(chain).slots(slotId)) as ethers.Result;
+	const view = toView(slotId, raw, chain);
 	return view.status === "none" ? null : view;
 };
 
 /** The slot at the head of this rig's queue — booked OR running. */
-export const headSlot = async (rigName: string): Promise<SlotView | null> => {
-	const c = contract();
-	if (c === null) return null;
-	const id = Number(await c.currentSlot(rigId(rigName)));
-	return id === 0 ? null : readSlot(id);
+export const headSlot = async (
+	chain: SlotChain,
+	rigName: string,
+): Promise<SlotView | null> => {
+	const id = Number(await contract(chain).currentSlot(rigId(rigName)));
+	return id === 0 ? null : readSlot(chain, id);
 };
 
 export const queueFor = async (
+	chain: SlotChain,
 	rigName: string,
 	max = 8,
 ): Promise<SlotView[]> => {
-	const c = contract();
-	if (c === null) return [];
+	const c = contract(chain);
 	const len = Number(await c.queueLength(rigId(rigName)));
 	const ids = await Promise.all(
 		Array.from({ length: Math.min(len, max) }, (_, i) =>
 			c.queueAt(rigId(rigName), i),
 		),
 	);
-	const slots = await Promise.all(ids.map((id) => readSlot(Number(id))));
+	const slots = await Promise.all(ids.map((id) => readSlot(chain, Number(id))));
 	return slots.filter((s): s is SlotView => s !== null);
 };
 
 /** When the current head reached the front — the no-show clock, not bookedAt. */
-export const headSince = async (rigName: string): Promise<number | null> => {
-	const c = contract();
-	if (c === null) return null;
-	const raw = (await c.rigQueue(rigId(rigName))) as ethers.Result;
+export const headSince = async (
+	chain: SlotChain,
+	rigName: string,
+): Promise<number | null> => {
+	const raw = (await contract(chain).rigQueue(rigId(rigName))) as ethers.Result;
 	return Number(raw[1]);
 };
 
 /** Immutables + the pool. Cached forever except the pool, which moves. */
-export const slotParams = async (): Promise<SlotParams | null> => {
-	const c = contract();
-	if (c === null) return null;
-	if (!g.__zgSlotParams) {
+export const slotParams = async (
+	chain: SlotChain,
+): Promise<SlotParams | null> => {
+	const c = contract(chain);
+	if (!g.__zgSlotParams?.has(chain.key)) {
 		const [dur, grade, noShow, min, reward, strikes, settler, signer] =
 			await Promise.all([
 				c.slotDuration(),
@@ -165,28 +187,29 @@ export const slotParams = async (): Promise<SlotParams | null> => {
 				c.settler(),
 				c.zgSigner(),
 			]);
-		g.__zgSlotParams = {
+		g.__zgSlotParams?.set(chain.key, {
 			slotSeconds: Number(dur),
 			gradeGraceSeconds: Number(grade),
 			noShowGraceSeconds: Number(noShow),
-			minStakeOg: og(min as bigint),
-			rewardPerEpisodeOg: og(reward as bigint),
+			minStakeOg: amount(min as bigint, chain),
+			rewardPerEpisodeOg: amount(reward as bigint, chain),
 			maxStrikes: Number(strikes),
 			rewardPoolOg: 0,
 			settler: settler as string,
 			zgSigner: signer as string,
-		};
+		});
 	}
-	const params = g.__zgSlotParams;
-	params.rewardPoolOg = og((await c.rewardPool()) as bigint);
+	const params = g.__zgSlotParams?.get(chain.key);
+	if (!params) return null;
+	params.rewardPoolOg = amount((await c.rewardPool()) as bigint, chain);
 	return params;
 };
 
-export const owedOg = async (address: string): Promise<number> => {
-	const c = contract();
-	if (c === null) return 0;
-	return og((await c.owed(address)) as bigint);
-};
+export const owedOg = async (
+	chain: SlotChain,
+	address: string,
+): Promise<number> =>
+	amount((await contract(chain).owed(address)) as bigint, chain);
 
 // --- settler writes ---------------------------------------------------------
 
@@ -213,37 +236,48 @@ const send = async (
  * Reverts `slot not bookable` if it already started, which the unlock handler
  * treats as success — that is the redeploy-recovery path.
  */
-export const startSlot = async (slotId: number): Promise<string | null> => {
-	const c = contract();
-	if (c === null) return null;
-	return send(`startSlot ${slotId}`, () => c.startSlot(slotId));
-};
+export const startSlot = async (
+	chain: SlotChain,
+	slotId: number,
+): Promise<string | null> =>
+	send(`startSlot ${slotId} on ${chain.key}`, () =>
+		contract(chain).startSlot(slotId),
+	);
 
-export const settleSlot = async (slotId: number): Promise<string | null> => {
-	const c = contract();
-	if (c === null) return null;
-	return send(`settle ${slotId}`, () => c.settle(slotId));
-};
+export const settleSlot = async (
+	chain: SlotChain,
+	slotId: number,
+): Promise<string | null> =>
+	send(`settle ${slotId} on ${chain.key}`, () =>
+		contract(chain).settle(slotId),
+	);
 
 /** No-op on chain when nothing is due, so it is safe to call on a timer. */
-export const sweepRig = async (rigName: string): Promise<string | null> => {
-	const c = contract();
-	if (c === null) return null;
-	return send(`sweep ${rigName}`, () => c.sweep(rigId(rigName)));
-};
+export const sweepRig = async (
+	chain: SlotChain,
+	rigName: string,
+): Promise<string | null> =>
+	send(`sweep ${rigName} on ${chain.key}`, () =>
+		contract(chain).sweep(rigId(rigName)),
+	);
 
-export const skipHead = async (rigName: string): Promise<string | null> => {
-	const c = contract();
-	if (c === null) return null;
-	return send(`skipHead ${rigName}`, () => c.skipHead(rigId(rigName)));
-};
+export const skipHead = async (
+	chain: SlotChain,
+	rigName: string,
+): Promise<string | null> =>
+	send(`skipHead ${rigName} on ${chain.key}`, () =>
+		contract(chain).skipHead(rigId(rigName)),
+	);
 
 /** Push a deferred payout so the operator never needs a wallet to be paid. */
-export const withdrawFor = async (address: string): Promise<string | null> => {
-	const c = contract();
-	if (c === null) return null;
-	if ((await owedOg(address)) === 0) return null;
-	return send(`withdraw ${address}`, () => c.withdraw(address));
+export const withdrawFor = async (
+	chain: SlotChain,
+	address: string,
+): Promise<string | null> => {
+	if ((await owedOg(chain, address)) === 0) return null;
+	return send(`withdraw ${address} on ${chain.key}`, () =>
+		contract(chain).withdraw(address),
+	);
 };
 
 export interface VerdictResult {
@@ -262,11 +296,12 @@ export interface VerdictResult {
  * punitive.
  */
 export const recordEpisodeOnSlot = async (
+	chain: SlotChain,
 	row: LedgerRow,
 	slotId: number,
 ): Promise<VerdictResult | null> => {
-	const c = contract();
-	if (c === null || row.grade === null) return null;
+	if (row.grade === null) return null;
+	const c = contract(chain);
 
 	const episodeId = ethers.id(row.id);
 	const score = Math.max(0, Math.min(65535, Math.round(row.grade.score)));

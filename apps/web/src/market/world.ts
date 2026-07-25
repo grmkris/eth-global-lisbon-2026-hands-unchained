@@ -55,6 +55,19 @@ export const getRpContext = async (): Promise<Record<string, unknown>> => {
 
 export const verifyWorldProof = async (
 	payload: Record<string, unknown>,
+	/**
+	 * The wallet this proof must be bound to. Pinned into the verification
+	 * request so WORLD'S verifier enforces it, not us.
+	 *
+	 * This is the whole binding. Spreading the client's own `signal` through
+	 * would prove nothing: the browser generates the proof AND names the
+	 * signal, so they always agree. An operator could take one valid proof,
+	 * POST it with a different address, and bind one human to unlimited
+	 * wallets — which is precisely the sybil hole the binding exists to close.
+	 * Overriding it means a proof produced for wallet A fails outright when
+	 * submitted for wallet B.
+	 */
+	expectedSignal: string | null,
 ): Promise<WorldVerification> => {
 	if (!WORLD.rpId) throw new Error("WORLD_RP_ID unset");
 
@@ -79,6 +92,11 @@ export const verifyWorldProof = async (
 				...payload,
 				action: WORLD.action,
 				environment: WORLD.env,
+				// IDKit spells it differently per preset, so pin both rather than
+				// guess which one this credential used.
+				...(expectedSignal === null
+					? {}
+					: { signal: expectedSignal, legacy_signal: expectedSignal }),
 			}),
 		},
 	);
