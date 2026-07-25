@@ -87,7 +87,12 @@ middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
 - **Auth** (`src/hub/auth.ts`): shared secret `HUB_TOKEN` — bearer header
   (API/rig link), cookie (MJPEG `<img>` + sendBeacon can't set headers), query
   param (curl debug). Unset ⇒ open. **Currently unset.** Real identity is a
-  later problem; the lease is collision avoidance, not security.
+  later problem; the lease is collision avoidance, not security. Known
+  consequence, unchanged by the leader work: a client picks its own identity
+  (`clientId`, and the socket's `?name=`), so anyone who can reach the hub can
+  speak as `leader-<someone>` and feed a rig that leader is bound to without
+  holding the lease. Same hole on both transports, by design at this tier —
+  it closes when `HUB_TOKEN`/identity turns on.
 - **Leader-over-wire** (`apps/driver/controller.py` = the LEADER AGENT → hub
   → `sources/remote.py`): symmetric to the rig agent — `bun run teleop`
   auto-detects the leader's port, connects it, and registers on the hub's
@@ -202,6 +207,13 @@ subprocess is a plain class, not a scoped `Command` resource.
   control, safety buttons for bystanders, fault surfacing), headless agents,
   sim + real rigs side by side, leader-over-wire, token auth (off), friend
   onboarding (`docs/friend-setup.md`).
+- **Operator recording — the crowdsourced-data product** (this is the loop the
+  v0 roadmap deferred "until identity exists"; it shipped with the lease as a
+  stand-in): the owner defines a task with a quota, any operator takes the rig
+  and attempts it with the keyboard OR their own leader arm, and each success
+  appends one labeled episode to the owner's dataset with the operator
+  stamped. `episodesDone` drives a real 13/20 progress bar and an
+  auto-continue chain that advances only on a saved episode.
 - Sim backend: MuJoCo Menagerie scene, gripper-mounted wrist cam, lerobot-
   frame joint mapping (degrees-from-mid ↔ MJCF offsets), scripted expert,
   optional native viewer (`LAB_SIM_VIEWER=1` + mjpython), records real
@@ -219,8 +231,9 @@ subprocess is a plain class, not a scoped `Command` resource.
 - **Rollout/eval + DAgger UI**: eval matrix (position×orientation), DAgger
   sessions feeding child training runs. CLI (`lerobot-rollout`) until then.
 - **Extend flow**: contract supports `resume`; UI hardcodes new-dataset.
-- **Operator recording** (the crowdsourced-data product): task assignment +
-  record verbs over the hub — deliberately absent until identity exists.
+- **Operator identity**: attempts are stamped with the lease holder — a
+  per-tab random clientId, not a person. Real identity (and turning
+  `HUB_TOKEN` on) is what turns provenance into something you can trust.
 - Platform hardening: real identity/auth-on, queued-command TTL (stale hub
   commands currently deliver on rig re-register). (The WS input plane landed —
   see Principles 5; browser keyboard input still rides HTTP, which it tolerates.)
