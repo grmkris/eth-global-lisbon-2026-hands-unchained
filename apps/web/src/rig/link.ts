@@ -79,6 +79,8 @@ interface RobotState {
 	state: string;
 	backend: string;
 	source: string | null;
+	/** a leader arm is physically attached to THIS rig */
+	leader: boolean;
 	joints: Record<string, number>;
 	lastError: string | null;
 }
@@ -261,6 +263,8 @@ export const startRigLink = (opts: {
 		// cached driver-event state — both are cheap in-memory reads
 		const record = await localApi("/api/record/status");
 		const attempt = await localApi("/api/attempts/state");
+		// cached driver-event state too — the owner watches an upload from the UI
+		const push = await localApi("/api/datasets/push-status");
 
 		try {
 			// rev-echo: send the full array only when the hub's echo differs
@@ -275,6 +279,7 @@ export const startRigLink = (opts: {
 					backend: robot?.backend ?? "real",
 					armState: robot?.state ?? "disconnected",
 					source: robot?.source ?? null,
+					leader: robot?.leader ?? false,
 					joints: robot?.joints ?? {},
 					cams: previewing,
 					camMapping,
@@ -282,6 +287,7 @@ export const startRigLink = (opts: {
 					lastError: robot?.lastError ?? null,
 					record,
 					attempt,
+					push,
 					lastCommandResult,
 					linkMs,
 					tasksRev: tasksCache.rev,

@@ -6,6 +6,7 @@
  */
 import type {
 	AttemptState,
+	PushStatus,
 	RecordStatus,
 	RunInfo,
 	TaskInfo,
@@ -39,6 +40,9 @@ export interface Rig {
 	backend: string;
 	armState: string;
 	source: string | null;
+	/** a leader arm is physically attached to the rig — the driver's answer, not
+	 * a guess, so the UI can hide a leader button that would fail */
+	leader: boolean;
 	joints: Record<string, number>;
 	cams: ReadonlyArray<string>;
 	/** surfaced to the operator: a dead teleop loop must not be silent */
@@ -50,6 +54,8 @@ export interface Rig {
 	record: RecordStatus | null;
 	/** live attempt (task try) status */
 	attempt: AttemptState | null;
+	/** live dataset publish status — the owner watches an upload from the UI */
+	push: PushStatus | null;
 	/** outcome of the last relayed verb — wrong owner key must not be silent */
 	lastCommandResult: RigCommandResult | null;
 	lastSeen: number;

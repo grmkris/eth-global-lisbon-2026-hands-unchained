@@ -5,6 +5,7 @@
  */
 import type {
 	AttemptState,
+	PushStatus,
 	RecordStatus,
 	RunInfo,
 	TaskInfo,
@@ -57,12 +58,14 @@ const rigSummary = (rig: Rig) => ({
 	backend: rig.backend,
 	armState: rig.armState,
 	source: rig.source,
+	leader: rig.leader,
 	online: isOnline(rig),
 	cams: rig.cams,
 	joints: rig.joints,
 	lastError: rig.lastError,
 	record: rig.record,
 	attempt: rig.attempt,
+	push: rig.push,
 	tasks: rig.tasks,
 	runs: rig.runs,
 	camMapping: rig.camMapping,
@@ -137,12 +140,14 @@ export const handleHubRequest = async (
 			backend: string;
 			armState: string;
 			source: string | null;
+			leader?: boolean;
 			joints: Record<string, number>;
 			cams: ReadonlyArray<string>;
 			lastError?: string | null;
 			linkMs?: number;
 			record?: RecordStatus | null;
 			attempt?: AttemptState | null;
+			push?: PushStatus | null;
 			lastCommandResult?: Rig["lastCommandResult"];
 			camMapping?: Rig["camMapping"];
 			camBrightness?: Record<string, number>;
@@ -157,6 +162,7 @@ export const handleHubRequest = async (
 			backend: body.backend,
 			armState: body.armState,
 			source: body.source,
+			leader: body.leader ?? false,
 			joints: body.joints ?? {},
 			cams: body.cams ?? [],
 			lastError: body.lastError ?? null,
@@ -164,6 +170,7 @@ export const handleHubRequest = async (
 			camBrightness: body.camBrightness ?? {},
 			record: body.record ?? null,
 			attempt: body.attempt ?? null,
+			push: body.push ?? null,
 			lastCommandResult: body.lastCommandResult ?? null,
 			linkMs: body.linkMs ?? 0,
 		});

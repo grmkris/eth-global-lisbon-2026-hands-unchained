@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import type {
 	AttemptState,
+	PushStatus,
 	RecordStatus,
 	RunInfo,
 	TaskInfo,
@@ -12,6 +13,8 @@ export interface RigSummary {
 	backend: string;
 	armState: string;
 	source: string | null;
+	/** a leader arm is physically attached to the rig (rig-local teleop possible) */
+	leader: boolean;
 	online: boolean;
 	cams: ReadonlyArray<string>;
 	joints: Record<string, number>;
@@ -22,6 +25,8 @@ export interface RigSummary {
 	camAgeMs: Record<string, number>;
 	record: RecordStatus | null;
 	attempt: AttemptState | null;
+	/** live dataset publish status (owner panel shows progress + the link) */
+	push: PushStatus | null;
 	tasks: ReadonlyArray<TaskInfo>;
 	runs: ReadonlyArray<RunInfo>;
 	lastCommandResult: {

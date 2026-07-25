@@ -1,6 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Hand, OctagonX, Play, Square, TriangleAlert } from "lucide-react";
+import {
+	Hand,
+	OctagonX,
+	Play,
+	Plug,
+	Square,
+	TriangleAlert,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CamFeed, CamOffAir } from "#/components/cam-feed";
@@ -9,7 +16,6 @@ import { ErrorNote } from "#/components/error-note";
 import { KeyJogPad } from "#/components/key-jog-pad";
 import { OwnerPanel } from "#/components/owner-panel";
 import { PageHeader } from "#/components/page-header";
-import { RecordPanel } from "#/components/record-panel";
 import {
 	ArmStateBadge,
 	SimBadge,
@@ -40,7 +46,7 @@ export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
 function LeaderOnboardCard() {
 	const origin = typeof window === "undefined" ? "" : window.location.origin;
 	const hubFlag = origin && origin !== DEFAULT_HUB ? ` --hub ${origin}` : "";
-	const commands = `cd apps/driver && uv sync   # first time only\ncd ../web && bun run teleop${hubFlag}`;
+	const commands = `cd apps/driver && uv sync   # first time only\ncd .. && bun run teleop${hubFlag}`;
 	return (
 		<Card className="mt-4">
 			<CardContent className="flex flex-col gap-2 text-sm">
@@ -136,6 +142,28 @@ function DrivePage() {
 			}),
 		onError: (e) => toast.error(apiErrorMessage(e)),
 	});
+
+	// What is consuming input right now — the record source while a session runs,
+	// otherwise the live teleop source. Only keys/phone accept browser axes; a
+	// leader's joints go through set_joints and cannot take them.
+	const armState = rig.data?.armState;
+	const inTeleop = armState === "teleop" || armState === "recording";
+	const sink =
+		rig.data?.record?.active === true
+			? (rig.data.record.source ?? null)
+			: (rig.data?.source ?? null);
+	const axesSink = sink === "keys" || sink === "phone";
+	const padArmed = armState === "connected" || axesSink;
+	const padReason =
+		padArmed || armState === undefined
+			? null
+			: armState === "disconnected"
+				? "the arm is not connected"
+				: sink === "remote"
+					? `${drivingLeader?.name ?? "a remote"}'s leader arm is driving — stop it to use the keyboard`
+					: sink === "leader"
+						? "the rig's own leader arm is driving — stop teleop to use the keyboard"
+						: `${sink ?? "another source"} is driving`;
 
 	const myAttempt =
 		rig.data?.attempt?.active === true &&
@@ -312,71 +340,79 @@ function DrivePage() {
 						</span>
 					</div>
 
-					{iAmDriving && (
-						<div className="flex flex-wrap gap-2">
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => command.mutate("connect_sim")}
-							>
-								Connect SIM
-							</Button>
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => command.mutate("connect_real")}
-							>
-								Connect REAL
-							</Button>
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => command.mutate("teleop_start")}
-							>
-								<Play />
-								Teleop (keys)
-							</Button>
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => command.mutate("teleop_start_leader")}
-							>
-								<Play />
-								Teleop (leader arm)
-							</Button>
+					{/* Only what can actually succeed right now. Connect SIM/REAL became
+					    one recovery button (the rig reports its own backend, and it
+					    autoconnects at boot); "Teleop (keys)" is gone because the jog pad
+					    starts keys teleop itself; the rig-local leader button appears only
+					    when a leader arm is really attached — it used to offer itself on
+					    every rig and then fail with "connect with the leader arm first". */}
+					{(iAmDriving || inTeleop || data?.online) && (
+						<div className="flex flex-wrap items-center gap-2">
+							{iAmDriving && data?.armState === "disconnected" && (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() =>
+										command.mutate(
+											data.backend === "sim" ? "connect_sim" : "connect_real",
+										)
+									}
+								>
+									<Plug />
+									Connect ({data.backend === "sim" ? "sim" : "real arm"})
+								</Button>
+							)}
+							{iAmDriving && data?.leader && data.armState === "connected" && (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => command.mutate("teleop_start_leader")}
+								>
+									<Play />
+									Drive with the rig's own leader arm
+								</Button>
+							)}
 							{/* remote leader agents — the hub relays "drive this rig" */}
-							{onlineLeaders
-								.filter((l) => l.driving === null)
-								.map((l) => (
-									<Button
-										key={l.name}
-										size="sm"
-										variant="outline"
-										disabled={leaderCommand.isPending}
-										onClick={() =>
-											leaderCommand.mutate({ name: l.name, action: "drive" })
-										}
-									>
-										<Play />
-										Drive with {l.name}'s leader
-									</Button>
-								))}
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => command.mutate("teleop_stop")}
-							>
-								<Square />
-								Stop teleop
-							</Button>
-							<Button
-								size="sm"
-								variant="destructive"
-								onClick={() => command.mutate("estop")}
-							>
-								<OctagonX />
-								E-STOP
-							</Button>
+							{iAmDriving &&
+								data?.armState !== "disconnected" &&
+								onlineLeaders
+									.filter((l) => l.driving === null)
+									.map((l) => (
+										<Button
+											key={l.name}
+											size="sm"
+											variant="outline"
+											disabled={leaderCommand.isPending}
+											onClick={() =>
+												leaderCommand.mutate({ name: l.name, action: "drive" })
+											}
+										>
+											<Play />
+											Drive with {l.name}'s leader
+										</Button>
+									))}
+							{/* Safety verbs bypass the lease on purpose: anyone watching a rig
+							    misbehave can stop it. One instance each, for everyone. */}
+							{inTeleop && (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => command.mutate("teleop_stop")}
+								>
+									<Square />
+									Stop teleop
+								</Button>
+							)}
+							{data?.online && (
+								<Button
+									size="sm"
+									variant="destructive"
+									onClick={() => command.mutate("estop")}
+								>
+									<OctagonX />
+									E-STOP
+								</Button>
+							)}
 						</div>
 					)}
 
@@ -390,35 +426,27 @@ function DrivePage() {
 						</Alert>
 					)}
 
-					{/* The pad stays live while your leader drives: keyboard axes and
-					    leader joints are latest-wins on the same mailbox, so whichever
-					    packet lands last wins. Undesigned, not a bug. */}
+					{/* The pad ARMS itself: focusing it starts keys teleop when the arm is
+					    merely connected, so "Teleop (keys)" is not a button you can forget
+					    to press. It goes inert when something else owns the input instead
+					    of fighting it — a leader's joints and browser axes share one
+					    single-slot mailbox, and axes would displace the leader's packet
+					    AND then fail rig-side ("no input-driven teleop source active"),
+					    which looked like nothing happening. */}
 					{iAmDriving ? (
-						<KeyJogPad onAxes={onAxes} />
+						<KeyJogPad
+							onAxes={onAxes}
+							armed={padArmed}
+							disabledReason={padReason}
+							onArm={() => {
+								if (data?.armState === "connected")
+									command.mutate("teleop_start");
+							}}
+						/>
 					) : (
-						<div className="flex flex-wrap items-center gap-3">
-							<p className="text-sm text-muted-foreground">
-								Take control to drive. Video stays live either way.
-							</p>
-							{/* Safety verbs work without the lease — anyone watching a rig
-							    misbehave can stop it. */}
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => command.mutate("teleop_stop")}
-							>
-								<Square />
-								Stop teleop
-							</Button>
-							<Button
-								size="sm"
-								variant="destructive"
-								onClick={() => command.mutate("estop")}
-							>
-								<OctagonX />
-								E-STOP
-							</Button>
-						</div>
+						<p className="text-sm text-muted-foreground">
+							Take control to drive. Video stays live either way.
+						</p>
 					)}
 
 					{data && Object.keys(data.joints).length > 0 && (
@@ -434,16 +462,11 @@ function DrivePage() {
 				</CardContent>
 			</Card>
 
-			{data?.online && <LeaderOnboardCard />}
+			{data?.online && onlineLeaders.length === 0 && <LeaderOnboardCard />}
 
 			{data && (
 				<div className="mt-4 flex flex-col gap-4">
 					<CameraSetup
-						rig={data}
-						busy={commandWith.isPending}
-						onCommand={ownerCommand}
-					/>
-					<RecordPanel
 						rig={data}
 						busy={commandWith.isPending}
 						onCommand={ownerCommand}
@@ -456,6 +479,13 @@ function DrivePage() {
 								verb: "task_upsert",
 								ownerKey,
 								args: { task },
+							})
+						}
+						onPush={(ownerKey, repoName) =>
+							commandWith.mutate({
+								verb: "dataset_push",
+								ownerKey,
+								args: { repoName },
 							})
 						}
 						onDelete={(ownerKey, id) =>

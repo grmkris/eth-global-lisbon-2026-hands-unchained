@@ -48,6 +48,13 @@ const table = {
 	// tasks (owner-managed, key validated rig-side)
 	task_upsert: { path: "/api/tasks/upsert", owner: true, args: ["task"] },
 	task_delete: { path: "/api/tasks/delete", owner: true, args: ["id"] },
+	// publish a recorded dataset to the HF Hub. Owner-only, and the RIG supplies
+	// its own HF namespace + token — the hub relays intent, never credentials.
+	dataset_push: {
+		path: "/api/datasets/push",
+		owner: true,
+		args: ["repoName", "private"],
+	},
 	// attempts (lease-holder; operator identity stamped by the hub)
 	attempt_start: {
 		path: "/api/attempts/start",
@@ -57,23 +64,10 @@ const table = {
 	attempt_finish: { path: "/api/attempts/finish", args: ["success"] },
 	// camera setup (owner — opens/closes device handles)
 	camera_probe: { path: "/api/cameras/probe-preview", owner: true },
-	camera_preview_stop: { path: "/api/cameras/preview/stop", owner: true },
 	camera_confirm: {
 		path: "/api/cameras/confirm",
 		owner: true,
 		args: ["workspace", "wrist"],
-	},
-	// free-form recording (owner — the guest recording path is attempts)
-	record_start: {
-		path: "/api/record/start",
-		owner: true,
-		body: { resume: false },
-		args: ["repoName", "task", "numEpisodes", "episodeS", "resetS", "source"],
-	},
-	record_control: {
-		path: "/api/record/control",
-		owner: true,
-		args: ["action"],
 	},
 	// training-run registry (rig-side sidecar, same pattern as tasks)
 	run_create: {
