@@ -11,10 +11,8 @@
  * the whole product — the booking — and why the 30 minutes starts when they
  * walk up rather than when they paid.
  */
-import { timingSafeEqual } from "node:crypto";
-import type { Address } from "viem";
 import { json } from "#/hub/routes";
-import { MIN_PIN_LENGTH, pinHashOf, rigIdOf, ZG_FAUCET } from "#/market/chain";
+import { rigIdOf, ZG_FAUCET } from "#/market/chain";
 import { SLOTS, slotChain, slotChains } from "#/market/config";
 import { readSession } from "#/market/session";
 import {
@@ -26,12 +24,9 @@ import {
 import {
 	allHeads,
 	cachedRig,
-	clearPinAttempts,
 	liveSlot,
-	notePinAttempt,
 	noteSlotClient,
 	pendingSlot,
-	pinAttemptAllowed,
 	refreshRig,
 	remainingMs,
 } from "#/market/slots";
@@ -153,7 +148,6 @@ export const handleSlotRequest = async (
 			namespace: SLOTS.namespace,
 			required: SLOTS.required,
 			faucet: ZG_FAUCET,
-			minPinLength: MIN_PIN_LENGTH,
 			chains,
 			rigs: rigNames.map(rigDto),
 		});
@@ -171,13 +165,15 @@ export const handleSlotRequest = async (
 			await refreshRig(rig);
 		const token = readSlotToken(request, rig);
 		const live = liveSlot(rig);
+		const hasToken = token !== null && token.slotId === live?.slotId;
 		return json({
 			...rigDto(rig),
-			you: {
-				hasToken: token !== null && token.slotId === live?.slotId,
-				slotId: token?.slotId ?? null,
-			},
-			episodes: live ? episodesOf(live.slotId) : [],
+			you: { hasToken, slotId: token?.slotId ?? null },
+			// Only the holder sees their own episode ledger. Served to everyone it
+			// reads as "this is my slot" in a browser that holds nothing — which
+			// is exactly how it was reported: a second browser showing a
+			// countdown, a stake and graded rows belonging to someone else.
+			episodes: live && hasToken ? episodesOf(live.slotId) : [],
 		});
 	}
 
@@ -209,33 +205,37 @@ export const handleSlotRequest = async (
 	// --- the unlock ---------------------------------------------------------
 
 	// World stays the first gate: no verified human, no slot control.
-	if (readSession(request) === null)
-		return json({ error: "verification required" }, 402);
-
-	const pin = body.pin?.trim();
-	if (!pin) return json({ error: "key required" }, 400);
-
-	const throttleKey = `${rig}:${request.headers.get("x-forwarded-for") ?? "local"}`;
-	if (!pinAttemptAllowed(throttleKey))
-		return json({ error: "too many attempts — wait a minute" }, 429);
+	const session = readSession(request);
+	if (session === null) return json({ error: "verification required" }, 402);
 
 	await refreshRig(rig);
 	const slot = liveSlot(rig) ?? pendingSlot(rig);
 	if (slot === null) return json({ error: "no slot booked on this rig" }, 404);
 
-	notePinAttempt(throttleKey);
-
-	const expected = slot.pinHash.toLowerCase();
-	const got = pinHashOf(slot.operator as Address, pin).toLowerCase();
-	const ok =
-		expected.length === got.length &&
-		timingSafeEqual(Buffer.from(expected), Buffer.from(got));
-	if (!ok) {
-		// constant-ish delay so a wrong key cannot be told from a slow chain read
-		await new Promise((r) => setTimeout(r, 300));
-		return json({ error: "that key doesn't match this slot" }, 401);
-	}
-	clearPinAttempts(throttleKey);
+	/**
+	 * THE WALLET IS THE KEY — there is no PIN.
+	 *
+	 * The old flow made you invent a string, commit its hash on chain and type
+	 * it back to start the clock. That was a secret that could be forgotten,
+	 * shoulder-surfed, or shared to hand your stake to a stranger, and it
+	 * bought nothing the wallet doesn't already prove.
+	 *
+	 * The World proof is signed against the operator's address (World's own
+	 * verifier rejects a mismatch), so a session bound to address X is proof
+	 * that this browser belongs to the human who controls X. The chain says
+	 * which address booked. Comparing the two is strictly stronger than any
+	 * PIN, and it is invisible: nothing to type, nothing to lose.
+	 */
+	if (session.address === null)
+		return json(
+			{
+				error:
+					"verify again to bind your wallet — this slot opens for the wallet that booked it",
+			},
+			409,
+		);
+	if (session.address.toLowerCase() !== slot.operator.toLowerCase())
+		return json({ error: "this slot belongs to a different wallet" }, 403);
 
 	// Not started yet? Relay it. THIS is where the 30 minutes begins — and the
 	// operator never sees a second wallet popup, because the hub pays for it.

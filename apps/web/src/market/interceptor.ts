@@ -51,8 +51,8 @@ const slotGate = (
 	request: Request,
 	rigName: string,
 	body: Body,
-): { slotId: number | null } | Response => {
-	if (!SLOTS.configured) return { slotId: null };
+): { slotId: number | null; slotChain: string | null } | Response => {
+	if (!SLOTS.configured) return { slotId: null, slotChain: null };
 
 	const live = liveSlot(rigName);
 	if (live === null) {
@@ -68,10 +68,20 @@ const slotGate = (
 		// "free to drive" (the platform as it always was) or "book first".
 		if (SLOTS.required)
 			return json({ error: "book a slot to drive this rig" }, 402);
-		return { slotId: null };
+		return { slotId: null, slotChain: null };
 	}
 
 	const token = readSlotToken(request, rigName);
+	// The cookie proves this browser unlocked the slot; the session proves
+	// which wallet the human verified on. Both must agree with the chain, or a
+	// verified human could drive on someone else's stake.
+	const gateSession = readSession(request);
+	if (
+		gateSession !== null &&
+		gateSession.address !== null &&
+		gateSession.address.toLowerCase() !== live.operator.toLowerCase()
+	)
+		return json({ error: "this slot belongs to a different wallet" }, 403);
 	if (token === null || token.slotId !== live.slotId)
 		return json(
 			{
@@ -86,7 +96,11 @@ const slotGate = (
 	// without `force` — that is how control moves between the operator's own
 	// devices. Everyone else is refused, force or not.
 	if (body.clientId) noteSlotClient(body.clientId, live.slotId);
-	return { slotId: live.slotId };
+	// The chain has to ride along. Without it the row's slotChain stays null,
+	// slotChain("") resolves to null in the worker, and recordEpisodeOnSlot is
+	// never called — so no episode reaches the contract, no credits accrue and
+	// a passing operator is never paid. The whole economic loop hung on this.
+	return { slotId: live.slotId, slotChain: live.chainKey };
 };
 
 export const marketIntercept = async (
@@ -147,6 +161,7 @@ export const marketIntercept = async (
 			clientId: body.clientId,
 			evmAddress: bond?.evmAddress ?? liveSlot(rigName)?.operator ?? null,
 			slotId: gate.slotId,
+			slotChain: gate.slotChain,
 		});
 		startSampler(row);
 	} else {

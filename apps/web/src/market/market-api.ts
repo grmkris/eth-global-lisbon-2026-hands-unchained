@@ -287,14 +287,14 @@ export const rigSlotQuery = (rig: string) =>
 		refetchInterval: 3_000,
 	});
 
-export const unlockSlot = (rig: string, pin: string, clientId: string) =>
+export const unlockSlot = (rig: string, clientId: string) =>
 	post<{
 		ok: true;
 		slotId: number;
 		startedAt: number;
 		endAt: number;
 		remainingMs: number;
-	}>(`/api/market/slots/${encodeURIComponent(rig)}/unlock`, { pin, clientId });
+	}>(`/api/market/slots/${encodeURIComponent(rig)}/unlock`, { clientId });
 
 /** Cache hint after a wallet booking, so the UI doesn't wait out a poll. */
 export const noteBooked = (rig: string, txHash: string) =>

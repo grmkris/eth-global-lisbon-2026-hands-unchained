@@ -32,7 +32,18 @@ export const grade = async (row: LedgerRow): Promise<Grade> => {
 	// A "success" claim with no saved episode is fraud-shaped regardless of
 	// grader: the work product does not exist. episodeSaved === null means the
 	// recorder telemetry never surfaced — unknown, so don't auto-reject.
-	if (row.claimed === "success" && row.telemetry.episodeSaved === false)
+	//
+	// But `episodeSaved` is a DERIVED flag (a delta on the recorder's counter,
+	// sampled over the network) while `episode` is the parquet itself, read off
+	// disk and proven to belong to this attempt. When they disagree, the file
+	// wins: a real operator drove 972° of arc across 580 recorded frames and
+	// this precheck failed them for "no saved episode", never even reaching the
+	// referee. Direct evidence outranks a counter every time.
+	if (
+		row.claimed === "success" &&
+		row.telemetry.episodeSaved === false &&
+		row.telemetry.episode === null
+	)
 		return {
 			score: 0,
 			pass: false,

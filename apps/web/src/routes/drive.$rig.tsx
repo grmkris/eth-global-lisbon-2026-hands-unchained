@@ -570,8 +570,10 @@ function DrivePage() {
 				</CardContent>
 			</Card>
 
+			{/* the holder's own ledger — a spectator sees the badge, not this */}
 			{slot.enabled &&
 				slot.info &&
+				slot.info.you?.hasToken === true &&
 				(slot.live || slot.info.state === "voided") && (
 					<div className="mt-4">
 						<SlotPanel info={slot.info} maxStrikes={slot.maxStrikes} />

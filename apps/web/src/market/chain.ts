@@ -57,6 +57,17 @@ export const rigIdOf = (
  * mismatch here produces a well-formed but wrong hash and surfaces only as
  * "that PIN doesn't match" forever.
  */
+/**
+ * The on-chain commitment for a booking. The contract requires a non-zero
+ * `pinHash` and never checks a preimage — `startSlot(slotId)` takes no
+ * secret — so the commitment only has to be deterministic and bound to the
+ * booker. Deriving it from the address means there is NO PIN: the wallet is
+ * the key, which is stronger than a typed string nobody can remember and
+ * anyone can shoulder-surf.
+ */
+export const walletCommitment = (operator: Address): `0x${string}` =>
+	pinHashOf(operator, "proof-of-hands:wallet-is-the-key");
+
 export const pinHashOf = (operator: Address, pin: string): `0x${string}` =>
 	// lowercased first: the hash is over the raw 20 bytes so case cannot change
 	// the result, but viem validates EIP-55 and would throw on an address whose

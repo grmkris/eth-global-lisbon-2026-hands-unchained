@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	Coins,
-	Copy,
 	ExternalLink,
 	KeyRound,
 	ShieldCheck,
@@ -13,11 +12,10 @@ import { SlotTimer } from "#/components/slot-timer";
 import { StatusBadge } from "#/components/status-badge";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
-import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { WorldStep } from "#/components/world-step";
 import { clientId } from "#/lib/hub-api";
-import { generateSlotKey, shortAddress } from "#/market/chain";
+import { shortAddress } from "#/market/chain";
 import type {
 	MarketSessionInfo,
 	RigSlotInfo,
@@ -76,17 +74,15 @@ export function SlotUnlock({
 	mine: boolean;
 }) {
 	const queryClient = useQueryClient();
-	const [pin, setPin] = useState("");
 	const [busy, setBusy] = useState(false);
 
 	const submit = async () => {
 		setBusy(true);
 		try {
-			const res = await unlockSlot(rig, pin.trim(), clientId);
+			const res = await unlockSlot(rig, clientId);
 			toast.success("slot unlocked — your 30 minutes start now", {
 				description: `slot #${res.slotId}`,
 			});
-			setPin("");
 			void queryClient.invalidateQueries({ queryKey: ["market"] });
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : "unlock failed");
@@ -97,34 +93,14 @@ export function SlotUnlock({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<Label htmlFor="slot-key" className="text-muted-foreground">
-				{mine
-					? "Your slot key"
-					: "Someone has this rig booked. If it's you, enter your key."}
-			</Label>
-			<div className="flex gap-2">
-				<Input
-					id="slot-key"
-					value={pin}
-					onChange={(e) => setPin(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" && pin.trim()) void submit();
-					}}
-					placeholder="the key you chose when booking"
-					className="max-w-xs font-mono"
-					autoComplete="off"
-				/>
-				<Button
-					size="sm"
-					onClick={() => void submit()}
-					disabled={busy || pin.trim().length === 0}
-				>
-					<KeyRound />
-					{busy ? "unlocking…" : "Unlock & start"}
-				</Button>
-			</div>
+			<Button size="sm" onClick={() => void submit()} disabled={busy}>
+				<KeyRound />
+				{busy ? "unlocking…" : mine ? "Take control & start" : "This is mine"}
+			</Button>
 			<p className="text-muted-foreground text-xs">
-				slot #{slotId} · the clock starts when you unlock, not when you paid
+				{mine
+					? `slot #${slotId} · the clock starts when you take control, not when you paid`
+					: `slot #${slotId} is held by another wallet — if that wallet is yours, this opens it`}
 			</p>
 		</div>
 	);
@@ -149,7 +125,6 @@ export function SlotGate({
 	info: RigSlotInfo | null;
 }) {
 	const queryClient = useQueryClient();
-	const [key, setKey] = useState(() => generateSlotKey());
 	const [busy, setBusy] = useState(false);
 	// Held here, not inside a step: the address is what the World proof is
 	// signed against AND what books the slot, so both steps need it.
@@ -186,10 +161,6 @@ export function SlotGate({
 			toast.error("booking is not configured on this hub");
 			return;
 		}
-		if (key.trim().length < slots.minPinLength) {
-			toast.error(`your key needs at least ${slots.minPinLength} characters`);
-			return;
-		}
 		if (chosen === null) {
 			toast.error("no chain is configured on this hub");
 			return;
@@ -199,7 +170,6 @@ export function SlotGate({
 			const { hash } = await bookSlot({
 				rig,
 				namespace: slots.namespace,
-				pin: key.trim(),
 				stakeOg,
 				contract: chosen.contract,
 				chainKey: chosen.key,
@@ -310,36 +280,6 @@ export function SlotGate({
 									</p>
 								</div>
 							)}
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor="new-key" className="text-muted-foreground">
-									Your slot key — you'll type this to take control
-								</Label>
-								<div className="flex gap-2">
-									<Input
-										id="new-key"
-										value={key}
-										onChange={(e) => setKey(e.target.value)}
-										className="max-w-xs font-mono"
-										autoComplete="off"
-									/>
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={() => {
-											void navigator.clipboard?.writeText(key);
-											toast.success("key copied");
-										}}
-									>
-										<Copy />
-									</Button>
-								</div>
-								{/* The threat model, in front of the person who bears it. */}
-								<p className="text-muted-foreground text-xs">
-									Hashed on chain when you book. Anyone who has it can drive
-									your slot — and lose your stake. Keep the generated one unless
-									you have a reason not to.
-								</p>
-							</div>
 							<Button size="sm" onClick={() => void doBook()} disabled={busy}>
 								<Wallet />
 								{busy

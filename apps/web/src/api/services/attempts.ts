@@ -24,7 +24,7 @@ import {
 import { RIG } from "#/api/rig";
 import { getHolder } from "#/rig/holder";
 import { DatasetCatalog } from "./dataset-catalog";
-import { awaitEpisodeMotion } from "./episode-motion";
+import { awaitEpisodeMotion, latestEpisodeIndex } from "./episode-motion";
 import { Recorder } from "./record";
 import { RobotSvc } from "./robot";
 import { TasksRegistry } from "./tasks-registry";
@@ -84,6 +84,9 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 			/** last saved episode's real motion — outlives `current` on purpose:
 			 * the hub reads this after the attempt goes inactive */
 			let lastEpisode: EpisodeMotionInfo | null = null;
+			/** highest episode index on disk when this attempt began — anything
+			 * above it is ours, anything at or below it belongs to somebody else */
+			let episodeBaseline = -1;
 
 			const toState = (): AttemptState =>
 				new AttemptState(
@@ -300,6 +303,10 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 						});
 						// a new attempt must never inherit the previous measurement
 						lastEpisode = null;
+						// snapshot the dataset so we can recognise OUR episode later
+						episodeBaseline = yield* Effect.promise(() =>
+							latestEpisodeIndex(`${RIG.hfUser}/${task.repoName}`),
+						);
 						current = {
 							attemptId: crypto.randomUUID().slice(0, 8),
 							task,
@@ -327,7 +334,7 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 						// `lastEpisode` is picked up whenever it lands.
 						const measure = () => {
 							const repoId = `${RIG.hfUser}/${cur.task.repoName}`;
-							void awaitEpisodeMotion(repoId)
+							void awaitEpisodeMotion(repoId, { afterIndex: episodeBaseline })
 								.then((m) => {
 									if (m) {
 										lastEpisode = new EpisodeMotionInfo(m);

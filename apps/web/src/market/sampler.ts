@@ -90,10 +90,19 @@ const sample = (row: LedgerRow, state: SamplerState): void => {
 
 	// episode saved: the recorder count moved past its value at open. Valid
 	// during the grace window too — that is the window it moves in.
+	// The recorder's `saved` counter is PER RECORD SESSION: recorder.py resets
+	// it to 0 on every attempt and leaves it at 1 when the session ends. So
+	// snapshotting it at attempt_start and waiting for growth works exactly
+	// once — from the second attempt on, the baseline is a stale 1, the new
+	// session counts 0->1, the delta never fires, and an honest operator is
+	// told they saved nothing. Watch the counter RISE within this attempt
+	// instead of comparing against whatever the last one left behind.
 	const saved = rig.record?.saved;
 	if (saved !== undefined && saved !== null) {
-		if (state.savedAtOpen === null) state.savedAtOpen = saved;
-		else if (saved > state.savedAtOpen) row.telemetry.episodeSaved = true;
+		// a fresh session starting (counter dropped) rebases us
+		if (state.savedAtOpen === null || saved < state.savedAtOpen)
+			state.savedAtOpen = saved;
+		if (saved > state.savedAtOpen) row.telemetry.episodeSaved = true;
 		else if (row.telemetry.episodeSaved !== true)
 			row.telemetry.episodeSaved = false;
 	}

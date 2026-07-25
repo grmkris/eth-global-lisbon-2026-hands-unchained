@@ -21,8 +21,8 @@ import {
 import { hederaTestnet } from "viem/chains";
 import { slotMarketAbi } from "#/market/abi/slot-market";
 import {
-	pinHashOf,
 	rigIdOf,
+	walletCommitment,
 	ZG_STALE_CHAIN_ID,
 	zgGalileo,
 } from "#/market/chain";
@@ -116,7 +116,6 @@ export const currentAddress = async (): Promise<`0x${string}` | null> => {
 export const bookSlot = async (input: {
 	rig: string;
 	namespace: string;
-	pin: string;
 	stakeOg: number;
 	contract: `0x${string}`;
 	chainKey: string;
@@ -130,7 +129,7 @@ export const bookSlot = async (input: {
 		address: input.contract,
 		abi: slotMarketAbi,
 		functionName: "bookSlot",
-		args: [rigIdOf(input.rig, input.namespace), pinHashOf(account, input.pin)],
+		args: [rigIdOf(input.rig, input.namespace), walletCommitment(account)],
 		value: parseEther(String(input.stakeOg)),
 	});
 	return { hash, account };

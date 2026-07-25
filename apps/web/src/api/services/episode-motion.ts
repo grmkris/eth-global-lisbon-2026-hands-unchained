@@ -119,20 +119,44 @@ export const readEpisodeMotion = async (
 	}
 };
 
+/** Highest episode index currently in the dataset, or -1 when there is none.
+ * Sampled at attempt START so we can tell OUR episode from the ones already
+ * on disk. */
+export const latestEpisodeIndex = async (repoId: string): Promise<number> => {
+	try {
+		const rows = (await parquetReadObjects({
+			file: await asyncBufferFromFile(
+				`${LEROBOT_CACHE}/${repoId}/data/chunk-000/file-000.parquet`,
+			),
+		})) as Array<Record<string, unknown>>;
+		if (rows.length === 0) return -1;
+		return Math.max(...rows.map((r) => num(r.episode_index)));
+	} catch {
+		return -1; // no dataset yet — the first episode will be index 0
+	}
+};
+
 /**
  * The recorder flushes the parquet a beat AFTER it reports the session done,
- * so a single read right after "keep" finds nothing. Poll instead of
- * guessing a delay, and give up quietly — a missing measurement is unknown,
- * and the grader is built to say so rather than assume idleness.
+ * so a single read right after "keep" finds nothing. Poll instead of guessing
+ * a delay, and give up quietly — a missing measurement is unknown, and the
+ * grader is built to say so rather than assume idleness.
+ *
+ * `afterIndex` is what makes the answer OURS. Without it this returned
+ * whatever episode happened to be newest, so an attempt that saved nothing
+ * silently inherited the previous operator's trajectory — two attempts in a
+ * row reported byte-identical motion, which is how the bug surfaced.
  */
 export const awaitEpisodeMotion = async (
 	repoId: string,
-	opts: { timeoutMs?: number; knownFrames?: number } = {},
+	opts: { timeoutMs?: number; afterIndex?: number } = {},
 ): Promise<EpisodeMotion | null> => {
+	const after = opts.afterIndex ?? -1;
 	const deadline = Date.now() + (opts.timeoutMs ?? 20_000);
 	while (Date.now() < deadline) {
 		const motion = await readEpisodeMotion(repoId, null);
-		if (motion !== null && motion.frames > 0) return motion;
+		if (motion !== null && motion.frames > 0 && motion.episodeIndex > after)
+			return motion;
 		await new Promise((r) => setTimeout(r, 1_000));
 	}
 	return null;
