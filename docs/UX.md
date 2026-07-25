@@ -22,7 +22,7 @@ this: rig stated once, intents are 1–3 fields.
 - **Datasets** — merged local+Hub list with sync badges, SIM badges; detail: episode table (length-outlier flags), exclude-builder → `--dataset.episodes` string.
 - **Trainings** — run list (Hub `kris0/*` auto-imported); detail: lineage, Hub ckpt timeline, generated Colab cell, hypothesis/finding notes.
 - **Lobby** (hub) — rig cards: live preview, online/holder state, link ms, impairment badge, token gate when auth is on.
-- **Drive `/drive/$rig`** (hub) — cam feeds, Take control / Take over (force, with confirm), keyboard jog pad, connect/teleop verb buttons for the holder, **Stop teleop + E-STOP for everyone**, rig fault surfacing, link/rtt readout.
+- **Drive `/drive/$rig`** (hub) — cam feeds; **choosing a source IS taking the rig** (Drive with keyboard / with \<name\>'s leader / with the rig's own arm — each claims the lease then starts that source, with a confirm when stealing a live holder); Release control to hand it back; keyboard jog pad, inert with a reason when something else owns the input; **Stop teleop + E-STOP for everyone**; Start attempt disabled until something is actually driving; rig fault surfacing, link/rtt readout.
 
 ## Backlog UX (not built — the plan when it lands)
 - **Preflight gate**: recording blocked until cams confirmed · brightness in band · calibration fresh · disk OK — all green → Start.

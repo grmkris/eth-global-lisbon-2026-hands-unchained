@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-	Hand,
+	Keyboard,
 	OctagonX,
 	Play,
 	Plug,
@@ -39,6 +39,12 @@ import {
 } from "#/lib/hub-api";
 
 export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
+
+/** How the operator wants to move the arm — the entry point to everything. */
+type DriveChoice =
+	| { kind: "keys" }
+	| { kind: "rigLeader" }
+	| { kind: "leader"; name: string };
 
 /**
  * Age of the newest frame the HUB holds, measured hub-side — so it covers the
@@ -79,13 +85,6 @@ function DrivePage() {
 		onError: (e) => toast.error(apiErrorMessage(e)),
 	});
 
-	const claim = useMutation({
-		// Taking over from a live holder is a force-steal (friends-only hub);
-		// the kicked client learns on its next input and backs off.
-		mutationFn: (force: boolean) => claimRig(rigName, force),
-		onSuccess: () => toast.success("you have control"),
-		onError: (e) => toast.error(apiErrorMessage(e)),
-	});
 	const release = useMutation({
 		mutationFn: () => releaseRig(rigName),
 		onSuccess: () => toast.success("control released"),
@@ -107,9 +106,59 @@ function DrivePage() {
 		onError: (e) => toast.error(apiErrorMessage(e)),
 	});
 
+	/**
+	 * Picking how you drive IS taking the rig.
+	 *
+	 * The lease exists for real reasons (single writer; the identity stamped onto
+	 * every attempt) but nobody thinks "I would like to acquire a lease" — they
+	 * think "I want to drive this arm with my leader". So there is no Take
+	 * control button: each Drive choice claims first and then starts that source.
+	 *
+	 * Sequential on purpose: the hub 403s the leader-drive branch unless the
+	 * caller ALREADY holds the lease ("take control first"), so the claim has to
+	 * land before the bind.
+	 */
+	const drive = useMutation({
+		mutationFn: async (choice: DriveChoice) => {
+			await claimRig(rigName, holder !== null && holder !== clientId);
+			if (choice.kind === "leader")
+				return sendLeaderCommand(choice.name, "drive", rigName);
+			return sendRigCommand(
+				rigName,
+				choice.kind === "rigLeader" ? "teleop_start_leader" : "teleop_start",
+			);
+		},
+		onSuccess: (_d, choice) =>
+			toast.success(
+				choice.kind === "leader"
+					? `${choice.name}'s leader is taking the rig`
+					: choice.kind === "rigLeader"
+						? "driving with the rig's own leader arm"
+						: "you are driving with the keyboard",
+			),
+		// a lost claim race answers 409 with no `error` key, so say something useful
+		onError: (e) =>
+			toast.error(
+				apiErrorMessage(e) === "Conflict"
+					? "someone else took the rig first"
+					: apiErrorMessage(e),
+			),
+	});
+	/** Ask before stealing a live holder's rig — friends-tier, same as before. */
+	const pickSource = (choice: DriveChoice) => {
+		if (
+			holder &&
+			holder !== clientId &&
+			!confirm("Someone is driving this rig. Take over anyway?")
+		)
+			return;
+		drive.mutate(choice);
+	};
+
 	// What is consuming input right now — the record source while a session runs,
 	// otherwise the live teleop source. Only keys/phone accept browser axes; a
 	// leader's joints go through set_joints and cannot take them.
+	const recordingNow = rig.data?.record?.active === true;
 	const armState = rig.data?.armState;
 	const inTeleop = armState === "teleop" || armState === "recording";
 	const sink =
@@ -128,6 +177,28 @@ function DrivePage() {
 					: sink === "leader"
 						? "the rig's own leader arm is driving — stop teleop to use the keyboard"
 						: `${sink ?? "another source"} is driving`;
+
+	/**
+	 * Why "Start attempt" cannot work yet — the fix for the trap that recorded an
+	 * episode with NOTHING driving the arm. attempts.ts takes whatever source is
+	 * live (`priorSource = robotState.source ?? "keys"`), so an attempt started
+	 * before choosing a source burns an episode against the task's quota while
+	 * the arm sits still.
+	 */
+	const attemptBlockedReason =
+		rig.data === undefined || !rig.data.online
+			? "the rig is offline"
+			: armState === "disconnected"
+				? "the arm is not connected"
+				: rig.data.backend === "real" &&
+						(rig.data.camMapping?.workspace === null ||
+							rig.data.camMapping?.wrist === null)
+					? "cameras not confirmed — the rig owner must assign workspace/wrist"
+					: !inTeleop || sink === null
+						? "pick how you'll drive first"
+						: !iAmDriving
+							? "someone else is driving this rig"
+							: null;
 
 	const myAttempt =
 		rig.data?.attempt?.active === true &&
@@ -204,30 +275,28 @@ function DrivePage() {
 					</span>
 				}
 				actions={
+					// No "Take control": you take the rig by choosing how to drive it.
+					// Release stays so a booth visitor can hand it back.
 					iAmDriving ? (
 						<Button
 							variant="outline"
-							onClick={() => release.mutate()}
+							onClick={() => {
+								// the attempt watcher discards a partial episode 30s after the
+								// holder goes away — don't let that happen by surprise
+								if (
+									myAttempt &&
+									!confirm(
+										"An attempt is recording. Releasing the rig will discard it. Continue?",
+									)
+								)
+									return;
+								release.mutate();
+							}}
 							disabled={release.isPending}
 						>
 							Release control
 						</Button>
-					) : (
-						<Button
-							onClick={() => {
-								if (
-									holder &&
-									!confirm("Someone is driving this rig. Take over anyway?")
-								)
-									return;
-								claim.mutate(holder !== null);
-							}}
-							disabled={claim.isPending || !data?.online}
-						>
-							<Hand />
-							{holder ? "Take over" : "Take control"}
-						</Button>
-					)
+					) : null
 				}
 			/>
 
@@ -257,6 +326,7 @@ function DrivePage() {
 						rig={data}
 						iAmDriving={iAmDriving}
 						myAttempt={myAttempt}
+						blockedReason={attemptBlockedReason}
 						busy={commandWith.isPending}
 						onStart={(taskId) =>
 							commandWith.mutate({ verb: "attempt_start", args: { taskId } })
@@ -331,19 +401,40 @@ function DrivePage() {
 									Connect ({data.backend === "sim" ? "sim" : "real arm"})
 								</Button>
 							)}
-							{iAmDriving && data?.leader && data.armState === "connected" && (
+							{/* Drive choices: each CLAIMS the rig and starts that source. Not
+							    gated on holding it — choosing is how you take it. All go quiet
+							    during a recording: the recorder owns the arm, so teleop_start*
+							    is refused ("recording is active") and the click would
+							    half-succeed, binding a leader whose joints then hit a source
+							    that cannot accept them, silently, at ~25 packets/s. */}
+							{data?.online && armState !== "disconnected" && !recordingNow && (
+								<Button
+									size="sm"
+									variant={sink === "keys" ? "default" : "outline"}
+									disabled={drive.isPending}
+									onClick={() => pickSource({ kind: "keys" })}
+								>
+									<Keyboard />
+									{sink === "keys" && iAmDriving
+										? "driving — keyboard"
+										: "Drive with keyboard"}
+								</Button>
+							)}
+							{data?.leader && armState === "connected" && !recordingNow && (
 								<Button
 									size="sm"
 									variant="outline"
-									onClick={() => command.mutate("teleop_start_leader")}
+									disabled={drive.isPending}
+									onClick={() => pickSource({ kind: "rigLeader" })}
 								>
 									<Play />
 									Drive with the rig's own leader arm
 								</Button>
 							)}
 							{/* remote leader agents — the hub relays "drive this rig" */}
-							{iAmDriving &&
-								data?.armState !== "disconnected" &&
+							{data?.online &&
+								armState !== "disconnected" &&
+								!recordingNow &&
 								onlineLeaders
 									.filter((l) => l.driving === null)
 									.map((l) => (
@@ -351,9 +442,9 @@ function DrivePage() {
 											key={l.name}
 											size="sm"
 											variant="outline"
-											disabled={leaderCommand.isPending}
+											disabled={drive.isPending}
 											onClick={() =>
-												leaderCommand.mutate({ name: l.name, action: "drive" })
+												pickSource({ kind: "leader", name: l.name })
 											}
 										>
 											<Play />
@@ -420,7 +511,7 @@ function DrivePage() {
 						/>
 					) : (
 						<p className="text-sm text-muted-foreground">
-							Take control to drive. Video stays live either way.
+							Pick how you'll drive above. Video stays live either way.
 						</p>
 					)}
 

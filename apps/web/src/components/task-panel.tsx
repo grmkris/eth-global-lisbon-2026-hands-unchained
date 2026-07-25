@@ -33,9 +33,13 @@ export function TaskPanel(props: {
 	myAttempt: boolean;
 	onStart: (taskId: string) => void;
 	onFinish: (success: boolean) => void;
+	/** why an attempt cannot start right now, null when it can. The route owns
+	 * this because it is the thing that knows what is driving. */
+	blockedReason: string | null;
 	busy: boolean;
 }) {
-	const { rig, iAmDriving, myAttempt, onStart, onFinish, busy } = props;
+	const { rig, iAmDriving, myAttempt, onStart, onFinish, blockedReason, busy } =
+		props;
 	const active = rig.tasks.filter((t) => t.active);
 	const attempt = rig.attempt;
 	const recording = rig.record?.active === true;
@@ -245,10 +249,10 @@ export function TaskPanel(props: {
 								<Button
 									size="sm"
 									onClick={() => start(task.id)}
-									disabled={!iAmDriving || recording || busy || complete}
-									title={
-										iAmDriving ? undefined : "Take control first, then attempt"
+									disabled={
+										blockedReason !== null || recording || busy || complete
 									}
+									title={blockedReason ?? undefined}
 								>
 									<Play />
 									{task.maxEpisodes !== null

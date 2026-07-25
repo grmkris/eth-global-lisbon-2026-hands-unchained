@@ -42,7 +42,7 @@ run walks you through lerobot's calibration wizard (middle position, then
 full range of every joint). The script registers your leader under your
 hostname and idles.
 
-Now open a rig in the lobby → **Take control** → **Drive with \<your\>'s
+Now open a rig in the lobby → **Drive with \<your\>'s
 leader**. Move your leader — the remote arm follows; the page keeps the
 camera view. Stop from the page or Ctrl-C.
 

@@ -44,7 +44,7 @@ cd apps/driver && uv sync && cd ../..     # python driver (macOS, python 3.12)
 # loopback rehearsal of production (two tabs):
 bun run hub                                # hub → :3001
 bun run rig:sim                            # headless sim rig (no port), autoconnects
-# open http://localhost:3001 → Take control → click the jog pad → WASD/QE
+# open http://localhost:3001 → Drive with keyboard → WASD/QE
 ```
 
 Register a rig with the deployed hub (zero config — hub URL is the baked-in
@@ -67,7 +67,7 @@ provenance (`.data/attempts.json` on the rig).
 
 ```
 owner: task_upsert (owner key) ──▶ task card in lobby + drive
-operator: Take control → drive → Start attempt → do the task
+operator: pick how to drive (keyboard / their leader) → Start attempt → do the task
         → ✓ Success (episode saved)  /  ✗ Discard (buffer dropped)
 dataset: grows episode by episode, labeled, on the rig owner's machine
 ```
