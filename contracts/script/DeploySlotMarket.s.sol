@@ -49,7 +49,8 @@ contract DeploySlotMarket is Script {
         address provider = vm.envAddress("ZG_PROVIDER");
 
         console.log("1) reading the TEE signer from 0G (the trust anchor)");
-        IInferenceServing.Service memory svc = IInferenceServing(INFERENCE_SERVING).getService(provider);
+        IInferenceServing.Service memory svc =
+            IInferenceServing(INFERENCE_SERVING).getService(provider);
         require(svc.teeSignerAddress != address(0), "provider has no TEE signer registered");
         console.log("   provider :", provider);
         console.log("   model    :", svc.model);
@@ -73,7 +74,9 @@ contract DeploySlotMarket is Script {
         require(deployer.balance > fund, "deployer has no OG - hit faucet.0g.ai first");
 
         vm.startBroadcast(pk);
-        SlotMarket market = new SlotMarket{value: fund}(
+        SlotMarket market = new SlotMarket{
+            value: fund
+        }(
             svc.teeSignerAddress,
             pType,
             pIdentity,
@@ -110,7 +113,10 @@ contract DeploySlotMarket is Script {
     /// registry, so fall back rather than bricking the deploy on it. The probe
     /// is a separate contract because a cheatcode revert is only catchable
     /// across a call boundary, and forge forbids `address(this)` in scripts.
-    function _descriptors(string memory additionalInfo) private returns (string memory, string memory) {
+    function _descriptors(string memory additionalInfo)
+        private
+        returns (string memory, string memory)
+    {
         string memory pType = "centralized";
         string memory pIdentity = "aliyun";
         JsonProbe probe = new JsonProbe();

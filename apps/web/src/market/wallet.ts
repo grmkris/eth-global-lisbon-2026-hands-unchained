@@ -70,7 +70,10 @@ export const sendStake = async (
 	});
 };
 
-export const explorerTx = (hash: string): string =>
+/** Renamed from `explorerTx` when 0G became the chain that matters: an
+ * unqualified "explorer" now means chainscan-galileo, and a Hedera link should
+ * have to say so. Only rendered for rows that actually carry a Hedera hash. */
+export const hederaTx = (hash: string): string =>
 	`https://hashscan.io/testnet/transaction/${hash}`;
 
 export const shortAddress = (address: string): string =>

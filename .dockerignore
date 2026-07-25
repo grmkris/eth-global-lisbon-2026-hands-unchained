@@ -11,3 +11,11 @@ node_modules
 apps/driver
 docs
 **/*.md
+# Foundry project — never COPY'd by apps/web/Dockerfile, and `out/` alone is
+# megabytes of build context uploaded for nothing on every deploy.
+contracts
+# Real private keys live in apps/web/.env.market. Only .gitignore was keeping
+# them out of the image, which does nothing for a local `docker build` — those
+# keys would be baked into an intermediate layer.
+**/.env
+**/.env.*

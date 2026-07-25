@@ -20,6 +20,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/ui/table";
+import { explorerAddress, explorerTx } from "#/market/chain";
 import {
 	type MarketLedgerRow,
 	marketLedgerQuery,
@@ -168,7 +169,7 @@ function MarketPage() {
 									{row.operator.evmAddress && (
 										<a
 											className="block text-muted-foreground underline"
-											href={`https://hashscan.io/testnet/account/${row.operator.evmAddress}`}
+											href={explorerAddress(row.operator.evmAddress)}
 											target="_blank"
 											rel="noreferrer"
 										>
@@ -194,7 +195,7 @@ function MarketPage() {
 									{row.payment?.txId ? (
 										<a
 											className="underline"
-											href={`https://hashscan.io/testnet/transaction/${row.payment.txId}`}
+											href={explorerTx(row.payment.txId)}
 											target="_blank"
 											rel="noreferrer"
 										>
@@ -212,7 +213,7 @@ function MarketPage() {
 									{row.provenance?.teeTxHash ? (
 										<a
 											className="underline"
-											href={`https://hashscan.io/testnet/transaction/${row.provenance.teeTxHash}`}
+											href={explorerTx(row.provenance.teeTxHash)}
 											target="_blank"
 											rel="noreferrer"
 											title="Hedera contract ecrecovered 0G's TEE signature over this grade"

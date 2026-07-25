@@ -1,7 +1,7 @@
 import { Coins, Loader2 } from "lucide-react";
 import { StatusBadge, type StatusTone } from "#/components/status-badge";
 import type { MarketSessionInfo } from "#/market/market-api";
-import { explorerTx, shortAddress } from "#/market/wallet";
+import { hederaTx, shortAddress } from "#/market/wallet";
 
 /**
  * The operator's money and the fate of their last attempt, always on screen
@@ -55,7 +55,7 @@ export function WalletChip({ session }: { session: MarketSessionInfo }) {
 				{bond ? (
 					<a
 						className="font-mono underline"
-						href={explorerTx(bond.stakeTxHash)}
+						href={hederaTx(bond.stakeTxHash)}
 						target="_blank"
 						rel="noreferrer"
 					>
@@ -91,7 +91,7 @@ export function WalletChip({ session }: { session: MarketSessionInfo }) {
 					{last.payoutTx && (
 						<a
 							className="text-xs underline"
-							href={`https://hashscan.io/testnet/transaction/${last.payoutTx}`}
+							href={hederaTx(last.payoutTx)}
 							target="_blank"
 							rel="noreferrer"
 						>
@@ -101,7 +101,7 @@ export function WalletChip({ session }: { session: MarketSessionInfo }) {
 					{last.teeTxHash && (
 						<a
 							className="text-xs underline"
-							href={explorerTx(last.teeTxHash)}
+							href={hederaTx(last.teeTxHash)}
 							target="_blank"
 							rel="noreferrer"
 							title="Hedera contract verified 0G's TEE signature over this grade"

@@ -24,6 +24,9 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
       - run: bun install --frozen-lockfile
       - run: bun run check
+      # biome does not typecheck, and the market layer is exactly the kind that
+      # compiles locally and rots later
+      - run: bun run typecheck
       - run: bun run build
       - name: python driver AST
         run: |
@@ -31,3 +34,27 @@ jobs:
           for f in *.py backends/*.py sources/*.py; do
             python3 -c "import ast; ast.parse(open('$f').read())" || exit 1
           done
+
+  # The only real tests in the repo. Runs in parallel with the bun job, and
+  # guards the one thing neither typecheck nor biome can see: that the PIN and
+  # rig-id hashes TypeScript computes are byte-identical to what Solidity
+  # commits on chain. A mismatch there stays invisible until an operator cannot
+  # unlock the slot they paid for.
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # forge-std is a git submodule; without this it checks out empty and
+          # every `import {Test} from "forge-std/Test.sol"` fails to resolve
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: forge fmt
+        run: forge fmt --check
+        working-directory: contracts
+      - name: forge build
+        run: forge build
+        working-directory: contracts
+      - name: forge test
+        run: forge test -vv
+        working-directory: contracts
