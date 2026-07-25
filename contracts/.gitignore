@@ -1,4 +1,5 @@
 out/
 cache/
-# Deploy receipts ARE the record of what is live on Galileo — keep them.
-broadcast/*/dry-run/
+# Deploy receipts ARE the record of what is live on Galileo — keep them. The
+# dry-run twins are not: they record a simulation that never touched a chain.
+broadcast/**/dry-run/
