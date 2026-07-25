@@ -222,6 +222,22 @@ export const verifyStakeTx = async (
  * (HIP-583); `setMaxTransactionFee` is raised because the default 2 ℏ is too
  * low when the transfer also has to auto-create the destination.
  */
+/** treasury -> the operator's own wallet. The per-episode micropayment;
+ * the stake itself stays in escrow until they finish. */
+export const payBonusTo = async (evmAddress: string): Promise<string> => {
+	const s = state();
+	const tx = await new TransferTransaction()
+		.addHbarTransfer(HEDERA.operatorId, new Hbar(-BONUS_HBAR))
+		.addHbarTransfer(
+			AccountId.fromEvmAddress(0, 0, evmAddress),
+			new Hbar(BONUS_HBAR),
+		)
+		.setMaxTransactionFee(new Hbar(5))
+		.execute(s.client);
+	await tx.getReceipt(s.client);
+	return txIdForLinks(tx.transactionId.toString());
+};
+
 export const settleToOperator = async (
 	bond: BondState,
 	outcome: "released" | "slashed",

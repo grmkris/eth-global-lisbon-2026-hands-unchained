@@ -93,6 +93,19 @@ export interface Rig {
 	} | null;
 	/** Browser-visible diagnostics for the currently bound remote leader. */
 	leaderInputDebug: LeaderInputDebug | null;
+	/** MONOTONIC input odometer. `input` above is a consume-once mailbox —
+	 * the /link tick nulls it every ~50ms — so anything sampling it races the
+	 * rig and mostly sees null. This only ever counts up, so an observer can
+	 * read deltas and actually measure what the operator commanded. */
+	inputOdo: {
+		packets: number;
+		/** sum of |commanded motion|: axis magnitudes, or leader joint travel */
+		motion: number;
+		/** gripper direction reversals (open->close->open = 2) */
+		gripperFlips: number;
+		gripperSign: -1 | 0 | 1;
+		lastJoints: Record<string, number> | null;
+	};
 	pending: RigCommand[];
 	lease: { holder: string; expiresAt: number } | null;
 	/** round-trip of the rig's own link loop, measured hub-side */
@@ -140,6 +153,7 @@ export const upsertRig = (
 		| "frames"
 		| "frameWaiters"
 		| "input"
+		| "inputOdo"
 		| "leaderInputDebug"
 		| "pending"
 		| "lease"
@@ -165,6 +179,13 @@ export const upsertRig = (
 		frameWaiters: new Map(),
 		input: null,
 		leaderInputDebug: null,
+		inputOdo: {
+			packets: 0,
+			motion: 0,
+			gripperFlips: 0,
+			gripperSign: 0,
+			lastJoints: null,
+		},
 		pending: [],
 		lease: null,
 		tasks: [],
@@ -240,6 +261,46 @@ export const noteLeaderInput = (
 
 export const clearLeaderInputDebug = (rig: Rig): void => {
 	rig.leaderInputDebug = null;
+};
+
+/**
+ * Count one operator input packet on the rig's odometer. Called from BOTH
+ * input write paths (the HTTP mailbox and the WS input plane) so evidence of
+ * work does not depend on which transport the operator happened to get.
+ */
+export const noteInputOdometer = (
+	rig: Rig,
+	input: { axes?: Record<string, number>; joints?: Record<string, number> },
+): void => {
+	const odo = rig.inputOdo;
+	odo.packets += 1;
+	if (input.axes) {
+		const { gripper = 0, ...axes } = input.axes;
+		for (const v of Object.values(axes)) odo.motion += Math.abs(v);
+		const sign = gripper > 0.2 ? 1 : gripper < -0.2 ? -1 : 0;
+		if (sign !== 0) {
+			odo.motion += Math.abs(gripper);
+			if (odo.gripperSign !== 0 && sign !== odo.gripperSign)
+				odo.gripperFlips += 1;
+			odo.gripperSign = sign;
+		}
+	} else if (input.joints) {
+		// a leader arm streams absolute joint targets: travel between packets
+		if (odo.lastJoints !== null)
+			for (const [name, pos] of Object.entries(input.joints)) {
+				const prev = odo.lastJoints[name];
+				if (prev === undefined) continue;
+				const delta = Math.abs(pos - prev);
+				odo.motion += delta / 10; // rough parity with axis units
+				if (name.toLowerCase().includes("gripper") && delta >= 8) {
+					const sign = pos > prev ? 1 : -1;
+					if (odo.gripperSign !== 0 && sign !== odo.gripperSign)
+						odo.gripperFlips += 1;
+					odo.gripperSign = sign;
+				}
+			}
+		odo.lastJoints = { ...input.joints };
+	}
 };
 
 export const setFrame = (rig: Rig, cam: string, data: Uint8Array): void => {

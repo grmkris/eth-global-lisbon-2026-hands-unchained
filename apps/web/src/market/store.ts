@@ -83,6 +83,8 @@ export interface BondState {
 	settleTxId: string | null;
 	amountHbar: number;
 	lockedAt: number;
+	/** last time this operator did anything — drives the idle refund */
+	lastActiveAt: number;
 }
 
 /** Rehydrated-from-HCS aggregates survive redeploys even though rows do not. */

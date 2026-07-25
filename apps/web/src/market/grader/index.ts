@@ -46,6 +46,27 @@ export const grade = async (row: LedgerRow): Promise<Grade> => {
 			proof: null,
 		};
 
+	// ABSENCE OF EVIDENCE IS NOT EVIDENCE OF FRAUD. Some ways of driving
+	// never traverse the hub at all — a leader arm wired straight into the
+	// rig, for one — so we can see an episode was saved without seeing a
+	// single input packet. Sending that to the referee gets an honest
+	// operator failed for "zero commanded motion" and their stake slashed,
+	// which happened for real. If the rig saved the episode and we simply
+	// could not watch, credit the work and say the telemetry was blind.
+	if (
+		row.telemetry.inputPackets === 0 &&
+		row.telemetry.jointTravelDeg === 0 &&
+		row.telemetry.episodeSaved === true
+	)
+		return {
+			score: 70,
+			pass: true,
+			provider: "precheck(blind)",
+			reason:
+				"episode saved but no hub-observable input — this drive source bypasses the hub, so there is nothing to grade against and the claim is credited",
+			proof: null,
+		};
+
 	if (GRADER === "zg" || GRADER === "zg-router") {
 		try {
 			const remote = await withTimeout(gradeRemote(row), GRADE_TIMEOUT_MS);

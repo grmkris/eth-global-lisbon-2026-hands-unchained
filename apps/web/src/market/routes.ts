@@ -102,6 +102,10 @@ export const handleMarketRequest = async (
 
 		const describe = async (nullifier: string) => {
 			const bond = getBond(nullifier);
+			// what happened to their most recent attempt — without this the
+			// operator finishes an attempt and has no idea whether a referee
+			// is deliberating, they got paid, or they got slashed
+			const mine = listRows().find((r) => r.operator.nullifier === nullifier);
 			return {
 				marketMode: true,
 				verified: true,
@@ -121,6 +125,19 @@ export const handleMarketRequest = async (
 						: null,
 					earnedHbar: earningsFor(nullifier),
 				},
+				lastAttempt: mine
+					? {
+							id: mine.id,
+							status: mine.status,
+							claimed: mine.claimed,
+							score: mine.grade?.score ?? null,
+							pass: mine.grade?.pass ?? null,
+							gradeProvider: mine.grade?.provider ?? null,
+							reason: mine.grade?.reason ?? null,
+							payoutTx: mine.payment?.txId ?? null,
+							teeTxHash: mine.provenance?.teeTxHash ?? null,
+						}
+					: null,
 			};
 		};
 
@@ -221,6 +238,7 @@ export const handleMarketRequest = async (
 				settleTxId: null,
 				amountHbar: proof.amountHbar,
 				lockedAt: Date.now(),
+				lastActiveAt: Date.now(),
 			});
 			console.error(
 				`[market] stake accepted: ${proof.amountHbar} ℏ from ${proof.from}`,

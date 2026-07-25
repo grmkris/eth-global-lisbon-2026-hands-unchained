@@ -19,6 +19,7 @@ import {
 	closeRow,
 	getBond,
 	type LedgerRow,
+	listBonds,
 	listRows,
 	openRowFor,
 } from "#/market/store";
@@ -29,6 +30,8 @@ const ABANDON_MS = 35_000;
  * the episode save lands late (video encoding). The fast path grades the
  * moment the sampler sees the save. */
 const GRADE_GRACE_MS = 15_000;
+/** Stake comes back after this long with nothing in flight. */
+const STAKE_IDLE_MS = 5 * 60_000;
 
 const g = globalThis as unknown as {
 	__marketWorker?: { timer: ReturnType<typeof setInterval>; busy: boolean };
@@ -55,6 +58,7 @@ const tick = async (state: { busy: boolean }): Promise<void> => {
 	try {
 		abandonStaleRows();
 		for (const row of listRows()) await advance(row);
+		await releaseIdleStakes();
 	} catch (e) {
 		console.error("[market] worker tick failed:", e);
 	} finally {
@@ -107,16 +111,20 @@ const advance = async (row: LedgerRow): Promise<void> => {
 			: null;
 
 		if (passed) {
-			// stake back + bonus, in ONE transaction to the operator's own wallet
+			// Pay the bonus and LEAVE THE STAKE LOCKED. The stake is the
+			// operator's commitment for the whole session — clearing it per
+			// attempt forced a MetaMask popup between every episode and made
+			// the page look frozen. It comes back when they walk away
+			// (settleIdleBonds) or is slashed if they lie.
 			row.payment = { kind: "bonus", txId: null, amountHbar: 0 };
 			if (bond && HEDERA.configured) {
 				try {
-					const txId = await settle(bond, "released");
-					row.payment.txId = txId;
+					row.payment.txId = await payBonus(bond);
 					row.payment.amountHbar = BONUS_HBAR;
 					row.operator.evmAddress ??= bond.evmAddress;
 					if (row.operator.nullifier)
 						addEarnings(row.operator.nullifier, BONUS_HBAR);
+					bond.lastActiveAt = Date.now();
 				} catch (e) {
 					console.error(`[market] payout failed for ${row.id}:`, e);
 					return; // stay in graded; retried next tick (txId still null)
@@ -124,7 +132,9 @@ const advance = async (row: LedgerRow): Promise<void> => {
 			}
 			row.status = "paid";
 		} else {
-			// fail after CLAIMING success = fraud-shaped -> slash the stake
+			// A failed grade only costs the stake when they CLAIMED success —
+			// that is the lie. An honest discard keeps the stake in place so
+			// they can try again.
 			if (bond && row.claimed === "success" && HEDERA.configured) {
 				try {
 					await settle(bond, "slashed");
@@ -132,14 +142,8 @@ const advance = async (row: LedgerRow): Promise<void> => {
 					console.error(`[market] slash failed for ${row.id}:`, e);
 					return;
 				}
-			} else if (bond && row.claimed !== "success" && HEDERA.configured) {
-				// honest discard/abandon: give the stake back, no bonus
-				try {
-					await settle(bond, "released", { bonus: false });
-				} catch (e) {
-					console.error(`[market] refund failed for ${row.id}:`, e);
-					return;
-				}
+			} else if (bond) {
+				bond.lastActiveAt = Date.now();
 			}
 			row.payment = { kind: "none", txId: null, amountHbar: 0 };
 			row.status = "rejected";
@@ -205,6 +209,35 @@ const settle = async (
 	bond.settleTxId = txId;
 	console.error(`[market] stake ${outcome} for ${bond.evmAddress}: ${txId}`);
 	return txId;
+};
+
+/** treasury -> operator, the bonus only; the stake stays in escrow. */
+const payBonus = async (bond: BondState): Promise<string> => {
+	const h = await import("#/market/hedera");
+	return h.payBonusTo(bond.evmAddress);
+};
+
+/** The operator finished for the day: give the stake back, no bonus. Runs
+ * only when nothing of theirs is in flight. */
+const releaseIdleStakes = async (): Promise<void> => {
+	for (const bond of listBonds()) {
+		if (bond.status !== "locked") continue;
+		if (Date.now() - bond.lastActiveAt < STAKE_IDLE_MS) continue;
+		if (
+			listRows().some(
+				(r) =>
+					r.operator.nullifier === bond.nullifier &&
+					r.status !== "anchored" &&
+					r.status !== "rejected",
+			)
+		)
+			continue;
+		try {
+			await settle(bond, "released", { bonus: false });
+		} catch (e) {
+			console.error("[market] idle stake refund failed:", e);
+		}
+	}
 };
 
 /** The rig-side attempt may only start once a stake is posted. */

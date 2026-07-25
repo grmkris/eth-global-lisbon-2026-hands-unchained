@@ -17,16 +17,12 @@ import { getRig } from "#/hub/store";
 import type { LedgerRow } from "#/market/store";
 
 const SAMPLE_MS = 200;
-/** an input packet older than this is "no input right now" */
-const INPUT_FRESH_MS = 600;
 
 interface SamplerState {
 	timer: ReturnType<typeof setInterval>;
 	lastJoints: Record<string, number> | null;
-	lastInputJoints: Record<string, number> | null;
-	lastInputAt: number;
-	gripperSign: 1 | -1 | 0;
-	gripperFlips: number;
+	/** odometer readings at attempt start — everything is a delta from here */
+	odoAtOpen: { packets: number; motion: number; gripperFlips: number } | null;
 	jointGripper: {
 		extreme: number | null;
 		direction: 1 | -1 | 0;
@@ -49,10 +45,13 @@ export const startSampler = (row: LedgerRow): void => {
 	const state: SamplerState = {
 		timer: setInterval(() => sample(row, state), SAMPLE_MS),
 		lastJoints: null,
-		lastInputJoints: null,
-		lastInputAt: 0,
-		gripperSign: 0,
-		gripperFlips: 0,
+		odoAtOpen: rig
+			? {
+					packets: rig.inputOdo.packets,
+					motion: rig.inputOdo.motion,
+					gripperFlips: rig.inputOdo.gripperFlips,
+				}
+			: null,
 		jointGripper: { extreme: null, direction: 0, reversals: 0 },
 		savedAtOpen: rig?.record?.saved ?? null,
 	};
@@ -96,42 +95,18 @@ const sample = (row: LedgerRow, state: SamplerState): void => {
 	if (row.taskTitle === null && rig.attempt?.taskTitle)
 		row.taskTitle = rig.attempt.taskTitle;
 
-	// --- motion evidence, input plane first (joints freeze while recording) —
-	const input = rig.input;
-	const inputFresh = input !== null && Date.now() - input.at < INPUT_FRESH_MS;
-	if (inputFresh && input.at !== state.lastInputAt) {
-		state.lastInputAt = input.at;
-		row.telemetry.inputPackets += 1;
-		if (input.axes) {
-			// browser jog: commanded motion magnitude + gripper direction flips
-			const { gripper = 0, ...axes } = input.axes;
-			const magnitude = Object.values(axes).reduce(
-				(sum, v) => sum + Math.abs(v),
-				0,
-			);
-			row.telemetry.commandedMotion += magnitude;
-			const sign = gripper > 0.2 ? 1 : gripper < -0.2 ? -1 : 0;
-			if (sign !== 0) {
-				row.telemetry.commandedMotion += Math.abs(gripper);
-				if (state.gripperSign !== 0 && sign !== state.gripperSign)
-					state.gripperFlips += 1;
-				state.gripperSign = sign;
-			}
-		} else if (input.joints) {
-			// a leader arm streams joint targets: travel between packets
-			if (state.lastInputJoints !== null)
-				for (const [name, pos] of Object.entries(input.joints)) {
-					const prev = state.lastInputJoints[name];
-					if (prev !== undefined) {
-						const delta = Math.abs(pos - prev);
-						row.telemetry.commandedMotion += delta / 10; // rough axis-units
-						if (name.toLowerCase().includes("gripper"))
-							trackJointGripper(state, pos);
-					}
-				}
-			state.lastInputJoints = { ...input.joints };
-		}
-	}
+	// --- motion evidence, from the hub's monotonic input odometer.
+	// NOT from rig.input: that is a consume-once mailbox the /link tick nulls
+	// every ~50ms, so polling it races the rig and mostly reads null — which
+	// is exactly how an honest operator once got graded as a fraud.
+	state.odoAtOpen ??= {
+		packets: rig.inputOdo.packets,
+		motion: rig.inputOdo.motion,
+		gripperFlips: rig.inputOdo.gripperFlips,
+	};
+	row.telemetry.inputPackets = rig.inputOdo.packets - state.odoAtOpen.packets;
+	row.telemetry.commandedMotion = rig.inputOdo.motion - state.odoAtOpen.motion;
+	const flips = rig.inputOdo.gripperFlips - state.odoAtOpen.gripperFlips;
 
 	// joints-based travel still accumulates for the windows where the driver
 	// reports them live (pre/post record on some backends) — bonus, not load-
@@ -147,8 +122,10 @@ const sample = (row: LedgerRow, state: SamplerState): void => {
 	state.lastJoints = { ...joints };
 
 	row.telemetry.gripperCycles = Math.max(
-		Math.floor((state.gripperFlips + 1) / 2),
-		Math.floor((state.jointGripper.reversals + 1) / 2),
+		flips > 0 ? Math.floor((flips + 1) / 2) : 0,
+		state.jointGripper.reversals > 0
+			? Math.floor((state.jointGripper.reversals + 1) / 2)
+			: 0,
 	);
 
 	// evidence: keep the freshest workspace frame — a close-time-only snapshot

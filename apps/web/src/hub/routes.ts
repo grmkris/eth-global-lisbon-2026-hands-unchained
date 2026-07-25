@@ -27,6 +27,7 @@ import {
 	listLeaders,
 	listRigs,
 	MAX_PENDING,
+	noteInputOdometer,
 	noteLeaderInput,
 	pruneLeaderBinding,
 	type Rig,
@@ -391,6 +392,7 @@ export const handleHubRequest = async (
 				if (leader && body.joints)
 					noteLeaderInput(rig, leader.name, "http", body.joints, dropped);
 				// dropped input is never resent — same as a lost UDP packet
+				if (!dropped) noteInputOdometer(rig, body);
 				if (!dropped)
 					rig.input = body.joints
 						? { joints: body.joints, at: Date.now(), sentAt: body.sentAt }

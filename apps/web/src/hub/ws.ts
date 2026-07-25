@@ -24,6 +24,7 @@ import {
 	impair,
 	isOnline,
 	leaderMayDrive,
+	noteInputOdometer,
 	noteLeaderInput,
 	shouldDrop,
 } from "./store";
@@ -109,12 +110,12 @@ const message = async (ws: Sock, raw: string | Buffer): Promise<void> => {
 				sentAt: packet.sentAt,
 			}),
 		);
-	else
-		rig.input = {
-			joints: packet.joints,
-			at: Date.now(),
-			sentAt: packet.sentAt,
-		}; // mailbox
+	else noteInputOdometer(rig, { joints: packet.joints });
+	rig.input = {
+		joints: packet.joints,
+		at: Date.now(),
+		sentAt: packet.sentAt,
+	}; // mailbox
 };
 
 export const websocketHandlers = { open, close, message };

@@ -36,6 +36,17 @@ export interface MarketSessionInfo {
 		requirePresence?: boolean;
 	} | null;
 	stake?: MarketStakeInfo;
+	lastAttempt?: {
+		id: string;
+		status: string;
+		claimed: string | null;
+		score: number | null;
+		pass: boolean | null;
+		gradeProvider: string | null;
+		reason: string | null;
+		payoutTx: string | null;
+		teeTxHash: string | null;
+	} | null;
 }
 
 export interface MarketLedgerRow {
@@ -103,7 +114,9 @@ const get = async <T>(path: string): Promise<T> => {
 export const marketSessionQuery = queryOptions({
 	queryKey: ["market", "session"],
 	queryFn: () => get<MarketSessionInfo>("/api/market/session"),
-	staleTime: 10_000,
+	// grading and settlement take tens of seconds and the operator is
+	// watching this line to find out what happened — poll rather than cache
+	refetchInterval: 3_000,
 });
 
 export const marketLedgerQuery = queryOptions({

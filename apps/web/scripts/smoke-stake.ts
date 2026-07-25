@@ -78,6 +78,7 @@ if (payoutTo) {
 			settleTxId: null,
 			amountHbar: BOND_HBAR,
 			lockedAt: Date.now(),
+			lastActiveAt: Date.now(),
 		},
 		"released",
 	);
