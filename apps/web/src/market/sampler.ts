@@ -79,6 +79,7 @@ const sample = (row: LedgerRow, state: SamplerState): void => {
 	const ep = rig.attempt?.lastEpisode;
 	if (ep && row.telemetry.episode === null)
 		row.telemetry.episode = {
+			episodeIndex: ep.episodeIndex,
 			frames: ep.frames,
 			durationS: ep.durationS,
 			jointPathDeg: ep.jointPathDeg,

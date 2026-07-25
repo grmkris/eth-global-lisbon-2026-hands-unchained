@@ -28,6 +28,7 @@ row.telemetry = {
 	episodeSaved: true,
 	samples: 200,
 	episode: {
+		episodeIndex: 0,
 		frames: 1240,
 		durationS: 41.3,
 		jointPathDeg: 812.4,

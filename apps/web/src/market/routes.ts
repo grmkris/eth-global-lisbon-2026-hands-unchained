@@ -6,6 +6,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { json } from "#/hub/routes";
+import { listRigs } from "#/hub/store";
 import {
 	BOND_HBAR,
 	BONUS_HBAR,
@@ -20,6 +21,7 @@ import {
 	readSession,
 	sessionSetCookie,
 } from "#/market/session";
+import { handleSlotRequest } from "#/market/slot-routes";
 import {
 	earningsFor,
 	getBond,
@@ -266,6 +268,15 @@ export const handleMarketRequest = async (
 			return json({ error: "world verification not configured" }, 501);
 		}
 	}
+
+	// The booking surface. Its own module — it is a subsystem, not a route.
+	const slots = await handleSlotRequest(
+		request,
+		url,
+		path,
+		listRigs().map((r) => r.name),
+	);
+	if (slots !== "pass") return slots;
 
 	if (path === "/ledger" && request.method === "GET")
 		return json(listRows().slice(0, 100).map(rowSummary));

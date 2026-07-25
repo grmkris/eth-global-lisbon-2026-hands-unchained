@@ -25,14 +25,19 @@ export interface LedgerRow {
 	 * measure them; a rig-local leader arm or a scripted run never touches
 	 * the network, so zero observed input is expected, not suspicious */
 	source: string | null;
+	/** the on-chain slot this attempt was driven under. null = slots are off,
+	 * which is the whole platform when ZG_SLOT_MARKET_ADDRESS is unset. */
+	slotId: number | null;
 	operator: {
 		clientId: string;
 		nullifier: string | null;
 		/** the operator's own wallet — where the payout lands */
 		evmAddress: string | null;
 	};
-	/** what the OPERATOR said at finish; "abandoned" if the lease evaporated */
-	claimed: "success" | "discarded" | "abandoned" | null;
+	/** What the OPERATOR said at finish. "abandoned" if the lease evaporated;
+	 * "slot_expired" if their 30 minutes ran out mid-recording — which grades
+	 * to no payout AND no strike, because they never claimed anything. */
+	claimed: "success" | "discarded" | "abandoned" | "slot_expired" | null;
 	telemetry: {
 		durationS: number;
 		/** from rig.joints deltas — FREEZES while the recorder owns the bus,
@@ -53,6 +58,9 @@ export interface LedgerRow {
 		 * operator, so it outranks every other signal here. Null = the rig
 		 * could not read the episode back, which means unknown, not zero. */
 		episode: {
+			/** which episode of the dataset this was — the join key between a
+			 * UI row, the parquet on disk and the on-chain verdict */
+			episodeIndex: number;
 			frames: number;
 			durationS: number;
 			jointPathDeg: number;
@@ -80,6 +88,11 @@ export interface LedgerRow {
 		registryTx: string | null;
 		/** Hedera tx where a contract ecrecovered 0G's TEE signature */
 		teeTxHash: string | null;
+		/** SlotMarket.recordEpisode on 0G — the verdict that pays or strikes */
+		slotTx: string | null;
+		/** whether that verdict carried 0G's enclave signature. false means it
+		 * was recorded but can never have cost the operator a strike. */
+		slotAttested: boolean | null;
 	} | null;
 	status: RowStatus;
 	openedAt: number;
@@ -152,6 +165,7 @@ export const openRow = (input: {
 	taskId: string | null;
 	clientId: string;
 	evmAddress?: string | null;
+	slotId?: number | null;
 }): LedgerRow => {
 	// a re-fired attempt_start while a row is open (task-panel auto-continue)
 	// reuses the open row rather than orphaning it
@@ -168,6 +182,7 @@ export const openRow = (input: {
 		taskTitle: null,
 		rigAttemptId: null,
 		source: null,
+		slotId: input.slotId ?? null,
 		operator: {
 			clientId: input.clientId,
 			nullifier: nullifierFor(input.clientId),

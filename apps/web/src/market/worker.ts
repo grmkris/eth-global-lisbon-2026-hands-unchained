@@ -9,10 +9,31 @@
  * operator's stake is returned (plus a bonus) or slashed the moment the
  * verdict lands — not on a timer, so the whole cycle is visible in one take.
  */
-import { getRig, leaseHolder } from "#/hub/store";
-import { BONUS_HBAR, HEDERA, marketEnabled, TEE_BRIDGE } from "#/market/config";
+import {
+	getRig,
+	leaseHolder,
+	listRigs,
+	MAX_PENDING,
+	revokeLease,
+} from "#/hub/store";
+import {
+	BONUS_HBAR,
+	HEDERA,
+	marketEnabled,
+	SLOTS,
+	TEE_BRIDGE,
+} from "#/market/config";
 import { grade } from "#/market/grader/index";
 import { stopSampler } from "#/market/sampler";
+import {
+	beginInFlight,
+	cachedRig,
+	endInFlight,
+	ensureSlotMirror,
+	liveSlot,
+	markEnforced,
+	refreshRig,
+} from "#/market/slots";
 import {
 	addEarnings,
 	type BondState,
@@ -23,6 +44,7 @@ import {
 	listRows,
 	openRowFor,
 } from "#/market/store";
+import type { SlotView } from "#/market/zg-slots";
 
 /** Lease evaporated + rig-side attempt gone this long -> abandoned. */
 const ABANDON_MS = 35_000;
@@ -40,10 +62,11 @@ const g = globalThis as unknown as {
 export const ensureWorker = (): void => {
 	if (!marketEnabled() || g.__marketWorker) return;
 	const state = {
-		timer: setInterval(() => void tick(state), 1_000),
+		timer: setInterval(() => tick(state), 1_000),
 		busy: false,
 	};
 	g.__marketWorker = state;
+	ensureSlotMirror();
 	if (HEDERA.configured)
 		void import("#/market/hedera").then((h) =>
 			h.rehydrateFromMirror().catch((e) => {
@@ -52,17 +75,130 @@ export const ensureWorker = (): void => {
 		);
 };
 
-const tick = async (state: { busy: boolean }): Promise<void> => {
+const tick = (state: { busy: boolean }): void => {
+	// Cache-only and synchronous, ABOVE the single-flight guard on purpose:
+	// ending someone's slot on time must never queue behind a slow 0G RPC
+	// call, and everything below this line is serialized under `busy`.
+	try {
+		enforceSlots();
+	} catch (e) {
+		console.error("[market] slot enforcement failed:", e);
+	}
 	if (state.busy) return; // single-flight: a slow chain call skips ticks
 	state.busy = true;
+	void slowTick(state);
+};
+
+const slowTick = async (state: { busy: boolean }): Promise<void> => {
 	try {
 		abandonStaleRows();
 		for (const row of listRows()) await advance(row);
 		await releaseIdleStakes();
+		await settleDueSlots();
 	} catch (e) {
 		console.error("[market] worker tick failed:", e);
 	} finally {
 		state.busy = false;
+	}
+};
+
+/**
+ * The clock, enforced from cache. A slot that has run out (or been voided by a
+ * third strike) loses the arm here: the in-flight attempt is closed as
+ * `slot_expired` — NOT as a discard, because the operator never claimed
+ * anything and must not be graded as though they had — the recorder is told to
+ * stop, and the lease is revoked and capped so `/input` cannot renew it back.
+ */
+const enforceSlots = (): void => {
+	if (!SLOTS.configured) return;
+	for (const rig of listRigs()) {
+		const live = liveSlot(rig.name);
+		if (live !== null) {
+			rig.leaseHardExpiry = live.endAt * 1000; // keep the ceiling fresh
+			continue;
+		}
+		const head = cachedRig(rig.name)?.head ?? null;
+		const expired =
+			head !== null &&
+			head.status === "running" &&
+			head.endAt * 1000 <= Date.now();
+		const voided = head !== null && head.status === "voided";
+		if (!expired && !voided) {
+			if (head === null) rig.leaseHardExpiry = null;
+			continue;
+		}
+		if (!markEnforced(head.slotId)) continue;
+		endSlotOnRig(rig.name, head, voided ? "voided" : "expired");
+	}
+};
+
+const endSlotOnRig = (
+	rigName: string,
+	slot: SlotView,
+	why: "voided" | "expired",
+): void => {
+	const rig = getRig(rigName);
+	if (!rig) return;
+	const open = openRowFor(rigName);
+	if (open !== null) {
+		stopSampler(open.id);
+		closeRow(rigName, "slot_expired");
+	}
+	// finish first, then stop: letting the recorder close its own session is
+	// cleaner than leaving the rig-side watcher's 30s abandon path to do it.
+	// They drain in order on one link tick.
+	const holder = leaseHolder(rig);
+	if (rig.pending.length + 2 <= MAX_PENDING) {
+		if (open !== null)
+			rig.pending.push({
+				verb: "attempt_finish",
+				args: { success: false },
+				holder,
+				queuedAt: Date.now(),
+			});
+		rig.pending.push({ verb: "teleop_stop", holder, queuedAt: Date.now() });
+	}
+	revokeLease(rig);
+	rig.leaseHardExpiry = Date.now();
+	console.error(
+		`[market] slot ${slot.slotId} on ${rigName} ${why} — control revoked` +
+			(open !== null ? ` (attempt ${open.id} closed as slot_expired)` : ""),
+	);
+};
+
+/**
+ * Money, once the clock is no longer anyone's problem. `settle` is
+ * permissionless after the grading window, but the hub does it so the operator
+ * is paid without touching a wallet. Held back until none of that slot's rows
+ * are still grading, or a late verdict would be settled away.
+ */
+const settleDueSlots = async (): Promise<void> => {
+	if (!SLOTS.configured) return;
+	for (const rig of listRigs()) {
+		const head = cachedRig(rig.name)?.head ?? null;
+		if (head === null) continue;
+		const settleable =
+			(head.status === "running" && head.endAt * 1000 <= Date.now()) ||
+			head.status === "voided";
+		if (!settleable) continue;
+		const pending = listRows().some(
+			(r) =>
+				r.slotId === head.slotId &&
+				r.status !== "anchored" &&
+				r.status !== "rejected",
+		);
+		if (pending) continue;
+		const key = `settle:${head.slotId}`;
+		if (!beginInFlight(key)) continue;
+		try {
+			const slots = await import("#/market/zg-slots");
+			await slots.settleSlot(head.slotId);
+			await refreshRig(rig.name);
+		} catch (e) {
+			console.error(`[market] settle ${head.slotId} failed:`, e);
+		} finally {
+			endInFlight(key);
+		}
 	}
 };
 
@@ -92,6 +228,7 @@ const advance = async (row: LedgerRow): Promise<void> => {
 			const ep = getRig(row.rig)?.attempt?.lastEpisode;
 			if (ep)
 				row.telemetry.episode = {
+					episodeIndex: ep.episodeIndex,
 					frames: ep.frames,
 					durationS: ep.durationS,
 					jointPathDeg: ep.jointPathDeg,
@@ -100,23 +237,18 @@ const advance = async (row: LedgerRow): Promise<void> => {
 					stillFraction: ep.stillFraction,
 				};
 		}
-		// Wait out the grace window for either the episode measurement or the
-		// save counter. Discard/abandon grade immediately — nothing to wait for.
+		// Wait out the grace window for the episode measurement — it is the
+		// best evidence we get, and it lands 1-20s after the save. Anything
+		// other than a success claim grades immediately: there is nothing to
+		// wait for. (This used to be two guards; the second was a strict
+		// superset of the first, so the first never fired.)
 		if (
 			row.claimed === "success" &&
 			row.telemetry.episode === null &&
-			row.telemetry.episodeSaved !== true &&
 			row.closedAt !== null &&
 			Date.now() - row.closedAt < GRADE_GRACE_MS
 		)
 			return;
-		if (
-			row.claimed === "success" &&
-			row.telemetry.episode === null &&
-			row.closedAt !== null &&
-			Date.now() - row.closedAt < GRADE_GRACE_MS
-		)
-			return; // the save landed; give the measurement its full window too
 		stopSampler(row.id);
 		row.grade = await grade(row);
 		row.status = "graded";
@@ -181,6 +313,8 @@ const advance = async (row: LedgerRow): Promise<void> => {
 			zgRoot: null,
 			registryTx: null,
 			teeTxHash: null,
+			slotTx: null,
+			slotAttested: null,
 		};
 		if (HEDERA.configured && HEDERA.topicId !== "") {
 			const h = await import("#/market/hedera");
@@ -213,6 +347,28 @@ const advance = async (row: LedgerRow): Promise<void> => {
 			row.provenance.registryTx = await zg.recordEpisode(row);
 		} catch (e) {
 			console.error(`[market] 0G provenance failed for ${row.id}:`, e);
+		}
+		// THE VERDICT. Deliberately here and not in the `graded` branch: the
+		// contract wants a storageRoot, and zgRoot does not exist until the
+		// upload above has run. Submitting earlier would mean anchoring every
+		// episode to ZeroHash and throwing the evidence link away.
+		//
+		// This is what pays the operator and what can strike them, and the
+		// contract checks 0G's enclave signature itself — so the worst this
+		// hub can do is choose which verdict to bring, never invent one.
+		if (SLOTS.configured && row.slotId !== null) {
+			try {
+				const slots = await import("#/market/zg-slots");
+				const result = await slots.recordEpisodeOnSlot(row, row.slotId);
+				if (result !== null) {
+					row.provenance.slotTx = result.txHash;
+					row.provenance.slotAttested = result.attested;
+					if (row.operator.evmAddress)
+						void slots.withdrawFor(row.operator.evmAddress);
+				}
+			} catch (e) {
+				console.error(`[market] slot verdict failed for ${row.id}:`, e);
+			}
 		}
 		row.status = "anchored";
 	}

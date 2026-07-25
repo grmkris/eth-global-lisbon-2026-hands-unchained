@@ -12,3 +12,10 @@ export const DEFAULT_HUB = "https://web-production-b5106.up.railway.app";
 /** Verified-operator session (market layer). HttpOnly — written only by the
  * server on a successful World ID verification, read by market/session.ts. */
 export const MARKET_SESSION_COOKIE = "pm_session";
+
+/** Proof that this browser unlocked a slot with the operator's key. Per-RIG on
+ * purpose: one shared cookie would silently drop the first rig's token when
+ * someone unlocks a second one, which is an ordinary two-rig booth. Written by
+ * market/slot-session.ts on a verified PIN. */
+export const slotCookieName = (rig: string): string =>
+	`pm_slot_${rig.replace(/[^A-Za-z0-9_-]/g, "_")}`;

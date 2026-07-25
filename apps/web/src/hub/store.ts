@@ -108,6 +108,14 @@ export interface Rig {
 	};
 	pending: RigCommand[];
 	lease: { holder: string; expiresAt: number } | null;
+	/** Absolute wall-clock ceiling on the lease, written by the market layer
+	 * when a booked slot is running. Load-bearing: `/input` calls claimLease on
+	 * EVERY packet and never passes through the market interceptor, so a lease
+	 * revoked at slot end is re-taken within ~50ms by a browser that is still
+	 * driving. Clamping here makes expiry a property of the data structure
+	 * rather than something a timer has to keep winning — the same move as the
+	 * 500ms input freshness gate and the 15s command TTL. */
+	leaseHardExpiry: number | null;
 	/** round-trip of the rig's own link loop, measured hub-side */
 	linkMs: number;
 	/** how input reaches this rig's driver: its hub socket, or the mailbox */
@@ -157,6 +165,7 @@ export const upsertRig = (
 		| "leaderInputDebug"
 		| "pending"
 		| "lease"
+		| "leaseHardExpiry"
 		| "lastSeen"
 		| "tasks"
 		| "tasksRev"
@@ -188,6 +197,7 @@ export const upsertRig = (
 		},
 		pending: [],
 		lease: null,
+		leaseHardExpiry: null,
 		tasks: [],
 		tasksRev: null,
 		runs: [],
@@ -232,8 +242,20 @@ export const claimLease = (
 ): boolean => {
 	const current = leaseHolder(rig);
 	if (!force && current !== null && current !== holder) return false;
-	rig.lease = { holder, expiresAt: Date.now() + LEASE_MS };
+	const cap = rig.leaseHardExpiry ?? Number.POSITIVE_INFINITY;
+	const expiresAt = Math.min(Date.now() + LEASE_MS, cap);
+	if (expiresAt <= Date.now()) return false; // the ceiling has passed
+	rig.lease = { holder, expiresAt };
 	return true;
+};
+
+/**
+ * Drop the lease without knowing who holds it — what the market layer needs at
+ * slot end, where the holder is whoever happens to be driving. `releaseLease`
+ * cannot serve: it takes the holder string and is a no-op on a mismatch.
+ */
+export const revokeLease = (rig: Rig): void => {
+	rig.lease = null;
 };
 
 export const releaseLease = (rig: Rig, holder: string): void => {
