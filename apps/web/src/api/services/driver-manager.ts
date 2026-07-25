@@ -102,10 +102,15 @@ class DriverProc {
 		});
 
 		this.readyPromise = new Promise<void>((resolve, reject) => {
-			const timer = setTimeout(
-				() => reject(new Error("driver did not become ready in 15s")),
-				15_000,
-			);
+			// Cold venv first-import of lerobot+mujoco can exceed 15s — allow 60.
+			// On timeout, DISCARD the cached promise and the process: a rejected
+			// readyPromise must not brick every future rpc (next call respawns).
+			const timer = setTimeout(() => {
+				this.proc?.kill();
+				this.proc = null;
+				this.readyPromise = null;
+				reject(new Error("driver did not become ready in 60s"));
+			}, 60_000);
 			const rl = readline.createInterface({
 				input: proc.stdout as NodeJS.ReadableStream,
 			});
