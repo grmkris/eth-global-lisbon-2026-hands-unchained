@@ -29,6 +29,7 @@ import signal
 import socket
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -121,6 +122,50 @@ def open_input_socket(hub: str, name: str):
         return None
 
 
+def _heartbeat(hub: str, name: str, rig_name: str, hb: dict, stop: threading.Event) -> None:
+    """Session heartbeat, OFF the input hot path.
+
+    The old inline beat (every 15 packets) stalled the 30Hz input stream by
+    one RTT — up to the 0.5s timeout — twice a second: the "inconsistent lag"
+    operators felt. Runs on its OWN HubLink: HubLink wraps a single
+    http.client connection and is not thread-safe, and the hot loop may still
+    be posting HTTP-fallback input on its own link.
+
+    Writes into `hb` and exits on the first session-ending signal —
+    write-once-and-exit keeps the hub's consume-once pending slot intact (a
+    beat fired after taking a `drive` command could swallow the NEXT command,
+    which belongs to the idle main loop). Never ends the session on network
+    failure: the rig's 0.5s deadman and the hub lease expiry are the safety
+    net, same policy as the old inline `except: pass`.
+    """
+    link = HubLink(hub, timeout=1.0)  # off the hot path, so roomier than 0.5s
+    failures = 0
+    warned = False
+    while not stop.is_set():
+        try:
+            _, res = link.post(
+                "/api/hub/leaders/link", {"name": name, "driving": rig_name}
+            )
+            failures = 0
+            warned = False
+            cmd = res.get("command")
+            if cmd:
+                hb["command"] = cmd
+                return
+            if res.get("bound") is False:
+                hb["bound"] = False
+                return
+        except Exception:  # noqa: BLE001 — an uncaught error here would silently
+            failures += 1  # kill the revocation channel while input streams on
+            if failures >= 10 and not warned:
+                warned = True
+                print(
+                    "heartbeat failing — web-UI stop may not reach us;"
+                    " rig deadman still protects"
+                )
+        stop.wait(0.5)
+
+
 def default_name() -> str:
     host = socket.gethostname().split(".")[0].lower()
     return re.sub(r"[^a-z0-9-]", "-", host) or "leader"
@@ -177,16 +222,33 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> dic
 
     ws = open_input_socket(hub, name)
     print(f"driving {rig_name} — move the leader. Stop from the web UI or Ctrl-C.")
-    sent = dropped = packets = 0
+    # Heartbeat/revocation runs on a background thread so the input loop never
+    # blocks on it. Single-writer/single-reader flags (dict item access is
+    # atomic under the GIL): the thread writes, this loop only reads. No lock.
+    hb = {"command": None, "bound": True}
+    stop_hb = threading.Event()
+    hb_thread = threading.Thread(
+        target=_heartbeat,
+        args=(hub, name, rig_name, hb, stop_hb),
+        name="leader-heartbeat",
+        daemon=True,
+    )
+    hb_thread.start()
+    sent = dropped = 0
     window = time.time()
     try:
         while running["on"]:
             tick = time.time()
             action = leader.get_action()  # {"<joint>.pos": deg, "gripper.pos": 0..100}
+            # stamped AFTER the serial read — the capture time telemetry wants
+            sent_at = int(time.time() * 1000)
             if ws is not None:
-                # fire-and-forget: revocation arrives on the heartbeat below
+                # fire-and-forget: revocation arrives via the heartbeat thread
                 try:
-                    ws.send(json.dumps({"t": "input", "rig": rig_name, "joints": action}))
+                    ws.send(json.dumps({
+                        "t": "input", "rig": rig_name, "joints": action,
+                        "sentAt": sent_at,
+                    }))
                     sent += 1
                 except Exception:  # noqa: BLE001 — socket died; HTTP for the rest
                     print("input socket dropped — falling back to HTTP input")
@@ -197,7 +259,10 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> dic
                     ws = None
             else:
                 try:
-                    status, _ = link.post(f"{rig}/input", {**client, "joints": action})
+                    status, _ = link.post(
+                        f"{rig}/input",
+                        {**client, "joints": action, "sentAt": sent_at},
+                    )
                     if status == 403:
                         # the browser released the rig or someone else took it
                         print(f"lost {rig_name} (control changed) — back to idle")
@@ -211,33 +276,23 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> dic
                     sent += 1
                 except (TimeoutError, OSError):
                     dropped += 1  # latest-wins on the hub; next packet corrects
-            packets += 1
-            # heartbeat the leader registry + poll for a web-UI stop (~2x/s).
-            # `bound` is the ONLY revocation signal on the socket path.
-            if packets % 15 == 0:
-                try:
-                    _, res = link.post(
-                        "/api/hub/leaders/link", {"name": name, "driving": rig_name}
-                    )
-                    cmd = res.get("command")
-                    if cmd:
-                        # ANY command mid-drive ends this session: `stop` is the
-                        # obvious one, and a `drive` means we were rebound to a
-                        # different rig — idling lets the main loop pick that up
-                        # instead of streaming into a rig that now rejects us.
-                        print(
-                            "stopped from the web UI — back to idle"
-                            if cmd.get("action") == "stop"
-                            else f"rebound while driving {rig_name} — back to idle"
-                        )
-                        # hand a `drive` back so the main loop honours it rather
-                        # than dropping it (the pending slot is consume-once)
-                        return cmd if cmd.get("action") != "stop" else None
-                    if res.get("bound") is False:
-                        print(f"lost {rig_name} (control changed) — back to idle")
-                        return
-                except (TimeoutError, OSError):
-                    pass
+            # session-ending signals arrive via the heartbeat thread. ANY
+            # command mid-drive ends this session: `stop` is the obvious one,
+            # and a `drive` means we were rebound to a different rig — a
+            # `drive` is handed back so the main loop honours it rather than
+            # dropping it (the hub's pending slot is consume-once).
+            cmd = hb["command"]
+            if cmd:
+                print(
+                    "stopped from the web UI — back to idle"
+                    if cmd.get("action") == "stop"
+                    else f"rebound while driving {rig_name} — back to idle"
+                )
+                return cmd if cmd.get("action") != "stop" else None
+            if hb["bound"] is False:
+                # `bound` is the ONLY revocation signal on the socket path
+                print(f"lost {rig_name} (control changed) — back to idle")
+                return
             if time.time() - window >= 5.0:
                 rate = sent / (time.time() - window)
                 via = "socket" if ws is not None else "http"
@@ -246,6 +301,8 @@ def drive(hub: str, leader, name: str, rig_name: str, hz: float, running) -> dic
                 window = time.time()
             time.sleep(max(0.0, 1.0 / hz - (time.time() - tick)))
     finally:
+        stop_hb.set()
+        hb_thread.join(timeout=1.5)  # covers one in-flight 1.0s beat; daemon anyway
         if ws is not None:
             try:
                 ws.close()

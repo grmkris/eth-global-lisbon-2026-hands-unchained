@@ -32,7 +32,7 @@ import cv2
 
 import recorder
 import teleop_loop
-from shared import BRIGHTNESS, FRAMES, LOCK, emit, log
+from shared import BRIGHTNESS, FRAMES, LOCK, PREVIEW_QUALITY, PREVIEW_WIDTH, emit, log
 
 BACKEND = None  # RealBackend | SimBackend | None
 RECORDING: dict = {"events": None, "thread": None}
@@ -62,7 +62,12 @@ def capture_loop(name: str, index: int, width: int, height: int, fps: int, stop:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             with LOCK:
                 BRIGHTNESS[name] = round(float(gray.mean()), 1)
-        ok2, jpg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if PREVIEW_WIDTH and frame.shape[1] > PREVIEW_WIDTH:
+            scale = PREVIEW_WIDTH / frame.shape[1]
+            frame = cv2.resize(
+                frame, (PREVIEW_WIDTH, max(1, round(frame.shape[0] * scale)))
+            )
+        ok2, jpg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, PREVIEW_QUALITY])
         if ok2:
             with LOCK:
                 FRAMES[name] = jpg.tobytes()

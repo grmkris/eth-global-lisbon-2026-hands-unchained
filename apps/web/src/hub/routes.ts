@@ -88,6 +88,7 @@ const rigSummary = (rig: Rig) => ({
 				},
 	holder: leaseHolder(rig),
 	linkMs: rig.linkMs,
+	inputTransport: rig.inputTransport,
 	lastSeen: rig.lastSeen,
 });
 
@@ -154,6 +155,7 @@ export const handleHubRequest = async (
 			cams: ReadonlyArray<string>;
 			lastError?: string | null;
 			linkMs?: number;
+			inputTransport?: Rig["inputTransport"];
 			record?: RecordStatus | null;
 			attempt?: AttemptState | null;
 			push?: PushStatus | null;
@@ -182,6 +184,8 @@ export const handleHubRequest = async (
 			push: body.push ?? null,
 			lastCommandResult: body.lastCommandResult ?? null,
 			linkMs: body.linkMs ?? 0,
+			// pre-socket agents don't send it — for them input rides the mailbox
+			inputTransport: body.inputTransport ?? "http",
 		});
 		if (body.tasks !== undefined) {
 			rig.tasks = body.tasks;
@@ -200,7 +204,9 @@ export const handleHubRequest = async (
 		rig.input = null;
 		const fresh = pending !== null && Date.now() - pending.at < 500;
 		return json({
-			input: fresh ? { axes: pending.axes, joints: pending.joints } : null,
+			input: fresh
+				? { axes: pending.axes, joints: pending.joints, sentAt: pending.sentAt }
+				: null,
 			commands,
 			holder: leaseHolder(rig),
 			// what the hub currently has — the rig re-advertises on mismatch
@@ -342,6 +348,7 @@ export const handleHubRequest = async (
 				clientId?: string;
 				axes?: Record<string, number>;
 				joints?: Record<string, number>;
+				sentAt?: number;
 				verb?: string;
 				force?: boolean;
 				args?: Record<string, unknown>;
@@ -383,7 +390,7 @@ export const handleHubRequest = async (
 				// dropped input is never resent — same as a lost UDP packet
 				if (!dropped)
 					rig.input = body.joints
-						? { joints: body.joints, at: Date.now() }
+						? { joints: body.joints, at: Date.now(), sentAt: body.sentAt }
 						: { axes: body.axes ?? {}, at: Date.now() };
 				return json({ ok: true });
 			}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StatusBadge } from "#/components/status-badge";
 import type { LeaderInputDebug } from "#/lib/hub-api";
 
@@ -27,6 +27,26 @@ export function LeaderInputDebugPanel({ leader, input }: Props) {
 		return () => clearInterval(timer);
 	}, [hubAgeMs, packetCount]);
 
+	// packets/s derived from the hub's monotonic packet counter, sampled on
+	// each rigQuery tick over a ~5s window (the counter resets on rebind)
+	const rateSamples = useRef<Array<{ t: number; packets: number }>>([]);
+	const [rate, setRate] = useState<number | null>(null);
+	useEffect(() => {
+		const ring = rateSamples.current;
+		if (packetCount === undefined) {
+			ring.length = 0;
+			setRate(null);
+			return;
+		}
+		const now = performance.now();
+		if (ring.length > 0 && packetCount < ring[ring.length - 1].packets)
+			ring.length = 0; // counter reset — fresh window
+		ring.push({ t: now, packets: packetCount });
+		while (ring.length > 0 && now - ring[0].t > 5_000) ring.shift();
+		const dt = now - ring[0].t;
+		setRate(dt > 1_000 ? ((packetCount - ring[0].packets) * 1000) / dt : null);
+	}, [packetCount]);
+
 	const receiving = ageMs !== null && ageMs < 1_000;
 	const source = leader ?? input?.leader ?? null;
 
@@ -49,7 +69,11 @@ export function LeaderInputDebugPanel({ leader, input }: Props) {
 				<div className="mt-2 font-mono text-xs text-muted-foreground">
 					{source}
 					{input
-						? ` · ${input.transport} · packet ${input.packets} · ${ageMs ?? "…"} ms ago`
+						? ` · ${input.transport} · packet ${input.packets}` +
+							(receiving && rate !== null
+								? ` · ${rate.toFixed(0)} pkt/s`
+								: "") +
+							` · ${ageMs ?? "…"} ms ago`
 						: " · no authorized packets received"}
 				</div>
 			) : (

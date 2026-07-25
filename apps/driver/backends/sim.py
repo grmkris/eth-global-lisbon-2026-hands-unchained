@@ -19,7 +19,7 @@ import cv2
 import mujoco
 import numpy as np
 
-from shared import BRIGHTNESS, FRAMES, LOCK, emit, log
+from shared import BRIGHTNESS, FRAMES, LOCK, PREVIEW_QUALITY, emit, log
 from sources.scripted import ScriptedExpert
 
 MENAGERIE_DIR = Path(__file__).parent.parent / "assets/mujoco_menagerie/trs_so_arm100"
@@ -216,7 +216,7 @@ class SimBackend:
                     renderer.update_scene(self.data, camera=cam)
                 rgb = renderer.render()
                 ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR),
-                                       [cv2.IMWRITE_JPEG_QUALITY, 80])
+                                       [cv2.IMWRITE_JPEG_QUALITY, PREVIEW_QUALITY])
                 if ok:
                     with LOCK:
                         FRAMES[cam] = jpg.tobytes()

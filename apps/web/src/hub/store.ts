@@ -85,6 +85,8 @@ export interface Rig {
 		axes?: Record<string, number>;
 		joints?: Record<string, number>;
 		at: number;
+		/** leader-side send stamp (its clock) — telemetry only, never gating */
+		sentAt?: number;
 	} | null;
 	/** Browser-visible diagnostics for the currently bound remote leader. */
 	leaderInputDebug: LeaderInputDebug | null;
@@ -92,6 +94,8 @@ export interface Rig {
 	lease: { holder: string; expiresAt: number } | null;
 	/** round-trip of the rig's own link loop, measured hub-side */
 	linkMs: number;
+	/** how input reaches this rig's driver: its hub socket, or the mailbox */
+	inputTransport: "websocket" | "http";
 }
 
 const RIG_TTL_MS = 5_000; // no heartbeat for this long -> offline

@@ -70,7 +70,12 @@ const close = (ws: Sock): void => {
 
 const message = async (ws: Sock, raw: string | Buffer): Promise<void> => {
 	if (ws.data.role !== "leader") return; // rigs only receive on this plane
-	let packet: { t?: string; rig?: string; joints?: Record<string, number> };
+	let packet: {
+		t?: string;
+		rig?: string;
+		joints?: Record<string, number>;
+		sentAt?: number;
+	};
 	try {
 		packet = JSON.parse(typeof raw === "string" ? raw : raw.toString());
 	} catch {
@@ -93,11 +98,23 @@ const message = async (ws: Sock, raw: string | Buffer): Promise<void> => {
 	const sock = isOnline(rig) ? rigSockets.get(rig.name) : undefined;
 	// `at` gives the rig the same 500ms freshness gate the mailbox path has
 	// (routes.ts): after a stall, a burst of buffered packets must not replay.
+	// `sentAt` (leader clock) rides along for latency telemetry only — the
+	// freshness gate stays on the hub-stamped `at`.
 	if (sock)
 		sock.send(
-			JSON.stringify({ t: "input", joints: packet.joints, at: Date.now() }),
+			JSON.stringify({
+				t: "input",
+				joints: packet.joints,
+				at: Date.now(),
+				sentAt: packet.sentAt,
+			}),
 		);
-	else rig.input = { joints: packet.joints, at: Date.now() }; // mailbox
+	else
+		rig.input = {
+			joints: packet.joints,
+			at: Date.now(),
+			sentAt: packet.sentAt,
+		}; // mailbox
 };
 
 export const websocketHandlers = { open, close, message };

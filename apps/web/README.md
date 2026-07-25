@@ -52,6 +52,10 @@ rig's owner key — printed by the agent at boot (`.data/owner.json`).
 - `FOLLOWER_PORT` / `LEADER_PORT` / `ROBOT_ID` — override `src/api/rig.ts` defaults
 - `HUB_LATENCY_MS` / `HUB_DROP_RATE` — hub-side impairment injection
 - `LAB_FRAME_MS` — (agent) camera push cadence in ms (default 80 = 12.5 fps)
+- `LAB_PREVIEW_QUALITY` — (agent) preview JPEG quality 20–95 (default 60).
+  Preview/hub-push only — recording opens its own cameras at full quality
+- `LAB_PREVIEW_WIDTH` — (agent) downscale preview frames to this width,
+  160–1920, keeping aspect (default 0 = native). Same preview-only scope
 - `LAB_DRIVER_PYTHON` — driver interpreter override (default `../driver/.venv/bin/python`)
 - `PORT` — hub listen port (Railway sets it; default 3000)
 

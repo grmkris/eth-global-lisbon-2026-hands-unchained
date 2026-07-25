@@ -105,6 +105,59 @@ export const startRigLink = (opts: {
 	let linkMs = 0;
 	let linkWarned = false;
 	let frameWarned = false;
+	// advertised to the hub on every /link tick so the drive page can show
+	// whether input is event-driven (socket) or riding the polled mailbox
+	let inputSocketUp = false;
+
+	/**
+	 * Input telemetry, one line every 5s. Ages come from two stamps: `at` (hub
+	 * clock, = hub->rig hop) and `sentAt` (leader clock, = end-to-end). Both
+	 * cross machines, so absolute values carry clock skew — the jitter and the
+	 * trend are the signal, not the number itself.
+	 */
+	const inputStats = {
+		packets: 0,
+		hubAges: [] as number[],
+		e2eAges: [] as number[],
+		since: Date.now(),
+		last: 0,
+	};
+	const p50 = (xs: number[]): number | null => {
+		if (xs.length === 0) return null;
+		const s = [...xs].sort((a, b) => a - b);
+		return s[Math.floor(s.length / 2)];
+	};
+	const noteInput = (at?: number, sentAt?: number): void => {
+		const now = Date.now();
+		if (now - inputStats.last > 5_000) {
+			// fresh burst after idle — start a clean window, or the first line
+			// divides a handful of packets by hours of silence ("0 pkt/s")
+			inputStats.packets = 0;
+			inputStats.hubAges = [];
+			inputStats.e2eAges = [];
+			inputStats.since = now;
+		}
+		inputStats.last = now;
+		inputStats.packets++;
+		if (at !== undefined && inputStats.hubAges.length < 512)
+			inputStats.hubAges.push(now - at);
+		if (sentAt !== undefined && inputStats.e2eAges.length < 512)
+			inputStats.e2eAges.push(now - sentAt);
+		const elapsed = now - inputStats.since;
+		if (elapsed < 5_000) return;
+		const rate = ((inputStats.packets * 1000) / elapsed).toFixed(0);
+		const hub = p50(inputStats.hubAges);
+		const e2e = p50(inputStats.e2eAges);
+		console.error(
+			`[rig-link] input ${rate} pkt/s via ${inputSocketUp ? "socket" : "http"}` +
+				(hub !== null ? ` · hub-hop p50 ${hub}ms` : "") +
+				(e2e !== null ? ` · leader-e2e p50 ${e2e}ms (skew-approx)` : ""),
+		);
+		inputStats.packets = 0;
+		inputStats.hubAges = [];
+		inputStats.e2eAges = [];
+		inputStats.since = now;
+	};
 
 	/**
 	 * Hand one input packet to the local driver. Latest-wins with a SINGLE
@@ -290,6 +343,7 @@ export const startRigLink = (opts: {
 					push,
 					lastCommandResult,
 					linkMs,
+					inputTransport: inputSocketUp ? "websocket" : "http",
 					tasksRev: tasksCache.rev,
 					...(advertiseTasks ? { tasks: tasksCache.tasks } : {}),
 					runsRev: runsCache.rev,
@@ -302,6 +356,7 @@ export const startRigLink = (opts: {
 				input: {
 					axes?: Record<string, number>;
 					joints?: Record<string, number>;
+					sentAt?: number;
 				} | null;
 				commands: Array<{
 					verb: string;
@@ -318,7 +373,12 @@ export const startRigLink = (opts: {
 			hubTasksRev = body.tasksRev ?? null;
 			hubRunsRev = body.runsRev ?? null;
 
-			if (body.input) applyInput(body.input);
+			if (body.input) {
+				// no hub stamp on this path — the mailbox is drained by this very
+				// response, so the hub hop is already inside linkMs
+				noteInput(undefined, body.input.sentAt);
+				applyInput({ axes: body.input.axes, joints: body.input.joints });
+			}
 			for (const cmd of body.commands ?? []) {
 				await runCommand(cmd);
 			}
@@ -414,12 +474,14 @@ export const startRigLink = (opts: {
 		const retry = () => {
 			if (reconnected) return; // error + close both fire; reconnect once
 			reconnected = true;
+			inputSocketUp = false;
 			setTimeout(openInputSocket, inputSocketBackoff);
 			inputSocketBackoff = Math.min(inputSocketBackoff * 2, 30_000);
 		};
 		ws.onopen = () => {
 			inputSocketWarned = false;
 			inputSocketBackoff = 2_000;
+			inputSocketUp = true;
 			console.error("[rig-link] input socket up (event-driven input)");
 		};
 		ws.onmessage = (ev) => {
@@ -429,11 +491,13 @@ export const startRigLink = (opts: {
 					joints?: Record<string, number>;
 					axes?: Record<string, number>;
 					at?: number;
+					sentAt?: number;
 				};
 				if (msg.t !== "input") return;
 				// same 500ms gate the mailbox path applies hub-side: after a stall,
 				// buffered packets are stale targets and must not be replayed
 				if (msg.at !== undefined && Date.now() - msg.at > 500) return;
+				noteInput(msg.at, msg.sentAt);
 				applyInput({ joints: msg.joints, axes: msg.axes });
 			} catch {}
 		};

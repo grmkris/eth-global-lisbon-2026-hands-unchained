@@ -50,6 +50,8 @@ export interface RigSummary {
 	leaderInputDebug: LeaderInputDebug | null;
 	holder: string | null;
 	linkMs: number;
+	/** how input reaches the rig's driver: its hub socket, or the polled mailbox */
+	inputTransport: "websocket" | "http";
 	lastSeen: number;
 }
 

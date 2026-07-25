@@ -371,7 +371,16 @@ function DrivePage() {
 						<span className="font-mono text-muted-foreground">
 							link {data?.linkMs ?? "…"}ms
 							{rtt !== null ? ` · your rtt ${rtt}ms` : ""}
+							{data ? ` · input ${data.inputTransport}` : ""}
 						</span>
+						{data?.inputTransport === "http" && (
+							<StatusBadge
+								tone="warn"
+								title="the rig's input socket is down — input rides the polled HTTP link (slower)"
+							>
+								input: http fallback
+							</StatusBadge>
+						)}
 					</div>
 
 					<LeaderInputDebugPanel
