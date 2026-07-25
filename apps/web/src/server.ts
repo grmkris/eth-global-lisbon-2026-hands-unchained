@@ -11,10 +11,12 @@ import { startRigLink } from "#/rig/link";
 
 const startFetch = createStartHandler(defaultStreamHandler);
 
-// One build, three roles (see api/config.ts):
-//   hub     — the deployed cloud app: lobby + drive UI, relay. No driver.
-//   console — the local lab tool (default); setting HUB_URL also registers it.
-//   agent   — headless rig: local API + rig link only, serves no UI.
+// Two web roles (see api/config.ts): hub (deployed lobby/relay) and console
+// (local lab tool). Headless rigs run `src/agent.ts` instead — no server.
+if (process.env.LAB_MODE === "agent")
+	console.error(
+		"LAB_MODE=agent is gone — run the headless agent instead: `bun run agent` (src/agent.ts)",
+	);
 
 // The hub serves ONLY these /api paths (an allowlist, not a deny-regex —
 // every other endpoint is rig-local and must not exist on a machine with no
@@ -31,10 +33,6 @@ if (HUB_URL && ROLE !== "hub" && !boot.__labRigLinkStarted) {
 		token: process.env.HUB_TOKEN,
 	});
 }
-if (ROLE === "agent" && !HUB_URL)
-	console.error(
-		"[agent] LAB_MODE=agent without HUB_URL — this rig serves no UI and dials no hub; set HUB_URL",
-	);
 
 export default {
 	// Bun honors PORT implicitly; explicit so the contract is visible (Railway).
@@ -44,8 +42,7 @@ export default {
 		const url = new URL(request.url);
 
 		// Which half of the app this process is. The roles ship as one build and
-		// differ only by env, so the client has to ask at runtime. An agent is
-		// still a rig to everyone who talks to it.
+		// differ only by env, so the client has to ask at runtime.
 		if (url.pathname === "/api/mode") {
 			return json({ mode: ROLE === "hub" ? "hub" : "rig", rigName: RIG_NAME });
 		}
@@ -99,12 +96,6 @@ export default {
 					headers: { "cache-control": "public, max-age=31536000, immutable" },
 				});
 		}
-
-		// Headless: an agent is operated through the hub, never browsed directly.
-		if (ROLE === "agent")
-			return new Response("agent mode: no UI — drive this rig via the hub", {
-				status: 404,
-			});
 
 		return startFetch(request);
 	},
