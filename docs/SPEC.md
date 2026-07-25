@@ -216,8 +216,11 @@ subprocess is a plain class, not a scoped `Command` resource.
   auto-continue chain that advances only on a saved episode.
 - Sim backend: MuJoCo Menagerie scene, gripper-mounted wrist cam, lerobot-
   frame joint mapping (degrees-from-mid ↔ MJCF offsets), scripted expert,
-  optional native viewer (`LAB_SIM_VIEWER=1` + mjpython), records real
-  LeRobot datasets. NOT sim2real — plumbing, practice, demo insurance.
+  records real LeRobot datasets. NOT sim2real — plumbing, practice, demo
+  insurance. A sim rig is watched in the BROWSER like any other rig, through
+  the same rendered camera streams — the native-window viewer was deleted
+  (it forced the driver onto `mjpython`, which cannot embed a uv-managed
+  CPython: no `libpython3.12.dylib` in the venv, so the whole driver died).
 
 ## Not built yet (the honest roadmap)
 - **Report card v1**: coverage heatmap (threshold+minAreaRect over first

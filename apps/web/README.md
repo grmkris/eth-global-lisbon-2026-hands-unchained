@@ -11,12 +11,30 @@ for checklists.
 | hub | `bun run hub` (dev :3001) / `bun run hub:prod` (built) | THE web app — lobby, drive, datasets, trainings; deployed to Railway |
 | agent | `bun run agent` | headless rig: python driver + outbound hub link, no UI, no listening port |
 
-Loopback rehearsal of production: `bun run hub` + `bun run rig:sim` (or
-`rig:sim:viewer` for a native MuJoCo window, `rig:real` for the arm).
+Loopback rehearsal of production: `bun run hub` + `bun run rig:sim`
+(`rig:real` for the arm). A sim rig is watched in the browser like any other —
+there is no native MuJoCo window.
+
 Every script here is also proxied from the repo root (`bun run --cwd apps/web`)
 — run them from either place. The `--cwd` matters: the sidecar `.data/`
 (owner key, tasks, attempts) is resolved from the process's cwd, so an agent
 started from the repo root would build a second, empty one.
+
+## Which rig script
+
+| Script | Hub | Leader arm |
+|---|---|---|
+| `rig:sim` | `http://localhost:3001` (needs `bun run hub`) | left free for `bun run teleop` |
+| `rig:sim:cloud` | the deployed hub (baked default) | left free for `bun run teleop` |
+| `rig:real` | `http://localhost:3001` | **claims** `LEADER_PORT` for rig-local "Teleop (leader arm)" |
+| `rig:real:cloud` | the deployed hub | left free for `bun run teleop` |
+
+Every value is an override, not a hardcode: `HUB_URL`, `RIG_NAME`,
+`FOLLOWER_PORT`, `LEADER_PORT` all win over the script's default
+(`RIG_NAME=her-arm bun run rig:sim:cloud`). The `:cloud` variants omit
+`LEADER_PORT` on purpose — a rig that opens the leader's serial port makes
+`bun run teleop` fail with "could not open the leader", and the remote-leader
+flow is the one that scales past one machine.
 Owner actions in the hub UI (camera setup, record, tasks, trainings) need the
 rig's owner key — printed by the agent at boot (`.data/owner.json`).
 
@@ -30,7 +48,7 @@ rig's owner key — printed by the agent at boot (`.data/owner.json`).
 - `FOLLOWER_PORT` / `LEADER_PORT` / `ROBOT_ID` — override `src/api/rig.ts` defaults
 - `HUB_LATENCY_MS` / `HUB_DROP_RATE` — hub-side impairment injection
 - `LAB_FRAME_MS` — (agent) camera push cadence in ms (default 80 = 12.5 fps)
-- `LAB_DRIVER_PYTHON` — driver interpreter override (mjpython for the viewer)
+- `LAB_DRIVER_PYTHON` — driver interpreter override (default `../driver/.venv/bin/python`)
 - `PORT` — hub listen port (Railway sets it; default 3000)
 
 ## Python driver

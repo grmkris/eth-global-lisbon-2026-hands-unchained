@@ -14,13 +14,14 @@
     "format": "biome format",
     "lint": "biome lint",
     "check": "biome check",
-    "rig:real": "HUB_URL=http://localhost:3001 RIG_NAME=kris-arm LAB_AUTOCONNECT=real FOLLOWER_PORT=/dev/tty.usbmodem5AE60832001 LEADER_PORT=/dev/tty.usbmodem5AE60538411 bun src/agent.ts",
     "hub": "vite dev --port 3001",
     "hub:prod": "bun dist/server/server.js",
     "agent": "bun src/agent.ts",
     "teleop": "../driver/.venv/bin/python -u ../driver/controller.py",
-    "rig:sim": "HUB_URL=http://localhost:3001 RIG_NAME=kris-sim LAB_AUTOCONNECT=sim LEADER_PORT=/dev/tty.usbmodem5AE60538411 bun src/agent.ts",
-    "rig:sim:viewer": "LAB_SIM_VIEWER=1 LAB_DRIVER_PYTHON=../driver/.venv/bin/mjpython HUB_URL=http://localhost:3001 RIG_NAME=kris-sim LAB_AUTOCONNECT=sim LEADER_PORT=/dev/tty.usbmodem5AE60538411 bun src/agent.ts"
+    "rig:sim": "HUB_URL=${HUB_URL:-http://localhost:3001} RIG_NAME=${RIG_NAME:-kris-sim} LAB_AUTOCONNECT=sim bun src/agent.ts",
+    "rig:sim:cloud": "RIG_NAME=${RIG_NAME:-kris-sim} LAB_AUTOCONNECT=sim bun src/agent.ts",
+    "rig:real": "HUB_URL=${HUB_URL:-http://localhost:3001} RIG_NAME=${RIG_NAME:-kris-arm} LAB_AUTOCONNECT=real FOLLOWER_PORT=${FOLLOWER_PORT:-/dev/tty.usbmodem5AE60832001} LEADER_PORT=${LEADER_PORT:-/dev/tty.usbmodem5AE60538411} bun src/agent.ts",
+    "rig:real:cloud": "RIG_NAME=${RIG_NAME:-kris-arm} LAB_AUTOCONNECT=real FOLLOWER_PORT=${FOLLOWER_PORT:-/dev/tty.usbmodem5AE60832001} bun src/agent.ts"
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-beta.101",

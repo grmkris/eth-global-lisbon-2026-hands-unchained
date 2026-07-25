@@ -10,7 +10,6 @@ practice and demo insurance.
 real lerobot Teleoperator because record_loop isinstance-checks its teleop.
 """
 
-import os
 import random
 import threading
 import time
@@ -132,9 +131,9 @@ class SimBackend:
         self._alive = True
         self.teleop = None  # optional real leader arm driving the sim
         threading.Thread(target=self._physics_loop, name="sim-physics", daemon=True).start()
+        # The scene is watched in the BROWSER, through the same rendered camera
+        # streams a real rig pushes — there is deliberately no native window.
         threading.Thread(target=self._render_loop, name="sim-render", daemon=True).start()
-        if os.environ.get("LAB_SIM_VIEWER") == "1":
-            threading.Thread(target=self._viewer_loop, name="sim-viewer", daemon=True).start()
         log("sim backend up (MuJoCo)")
 
     # ---------- unit conversion (lerobot: degrees, gripper 0..100) ----------
@@ -213,26 +212,6 @@ class SimBackend:
                         BRIGHTNESS[cam] = round(float(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).mean()), 1)
             n += 1
             time.sleep(1 / 15)
-
-    def _viewer_loop(self) -> None:
-        """Native MuJoCo window. macOS needs the process launched via mjpython —
-        see LAB_DRIVER_PYTHON in the run scripts."""
-        try:
-            import mujoco.viewer
-        except Exception as exc:  # noqa: BLE001
-            log(f"viewer unavailable: {exc}")
-            return
-        try:
-            with mujoco.viewer.launch_passive(
-                self.model, self.data, show_left_ui=False, show_right_ui=False
-            ) as viewer:
-                log("MuJoCo viewer window open")
-                while self._alive and viewer.is_running():
-                    with self.sim_lock:
-                        viewer.sync()
-                    time.sleep(1 / 30)
-        except Exception as exc:  # noqa: BLE001 — a dead window must not kill the sim
-            log(f"viewer closed: {exc}")
 
     # ---------- protocol commands ----------
 
