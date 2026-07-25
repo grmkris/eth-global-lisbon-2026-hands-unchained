@@ -216,7 +216,7 @@ def cmd_record_start(req: dict) -> dict:
     }
     robot, teleop_device, on_episode_start = backend.prepare_record(cfg)
     events = recorder.make_events()
-    if hasattr(teleop_device, "set_input"):
+    if hasattr(teleop_device, "set_input") or hasattr(teleop_device, "set_joints"):
         teleop_loop.set_record_source(teleop_device)  # teleop_input RPC reaches the recording source
 
     def worker() -> None:
@@ -245,6 +245,12 @@ def cmd_record_control(action: str) -> dict:
         events["rerecord_episode"] = True
         events["exit_early"] = True
     elif action == "finish":
+        events["stop_recording"] = True
+        events["exit_early"] = True
+    elif action == "discard":
+        # end the session WITHOUT saving the in-flight episode: the rerecord
+        # flag clears the buffer, stop ends the session before the reset pass
+        events["rerecord_episode"] = True
         events["stop_recording"] = True
         events["exit_early"] = True
     else:

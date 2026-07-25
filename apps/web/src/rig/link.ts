@@ -9,7 +9,8 @@
  */
 import { apiHandler } from "#/api/live";
 import { mjpegBase } from "#/api/services/driver-manager";
-import { isVerb, VERBS } from "#/hub/verbs";
+import { isVerb, VERBS, type Verb } from "#/hub/verbs";
+import { setHolder } from "#/rig/holder";
 
 const LINK_MS = 50; // 20 Hz control
 const FRAME_MS = 125; // 8 fps preview — the recording stays full-rate locally
@@ -30,6 +31,33 @@ const localApi = async (
 		return await res.json();
 	} catch {
 		return null;
+	}
+};
+
+/** Like localApi but keeps the failure text — relayed verbs must not fail
+ * silently (a wrong owner key or a rejected attempt needs to reach the UI). */
+const localApiVerbose = async (
+	path: string,
+	body: unknown,
+): Promise<{ ok: boolean; error: string | null }> => {
+	try {
+		const res = await apiHandler(
+			new Request(`http://rig.local${path}`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body),
+			}),
+		);
+		if (res.ok) return { ok: true, error: null };
+		const text = await res.text();
+		let message = text.slice(0, 200);
+		try {
+			const parsed = JSON.parse(text) as { message?: string; error?: string };
+			message = parsed.message ?? parsed.error ?? message;
+		} catch {}
+		return { ok: false, error: message };
+	} catch (err) {
+		return { ok: false, error: String(err).slice(0, 200) };
 	}
 };
 
@@ -61,17 +89,58 @@ export const startRigLink = (opts: {
 	let linkMs = 0;
 	let linkWarned = false;
 	let frameWarned = false;
+	let lastCommandResult: {
+		verb: string;
+		ok: boolean;
+		error: string | null;
+		at: number;
+	} | null = null;
+	// rev-echo: hub tells us what tasks rev it has; on mismatch we send all.
+	// Tasks are read on a slow cadence (sidecar file) and cached for the tick.
+	let hubTasksRev: string | null | undefined;
+	const tasksCache: { tasks: unknown[]; rev: string | null } = {
+		tasks: [],
+		rev: null,
+	};
+	const refreshTasks = async () => {
+		const tasks = (await localApi("/api/tasks")) as unknown[] | null;
+		if (tasks === null) return;
+		tasksCache.tasks = tasks;
+		// tiny stable content hash (djb2) — only used for change detection
+		const s = JSON.stringify(tasks);
+		let h = 5381;
+		for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+		tasksCache.rev = (h >>> 0).toString(16);
+	};
 
-	const runCommand = async (verb: string) => {
+	const runCommand = async (cmd: {
+		verb: string;
+		args?: Record<string, unknown>;
+		ownerKey?: string;
+		holder?: string | null;
+	}) => {
+		const { verb } = cmd;
 		if (!isVerb(verb)) {
 			console.error(`[rig-link] unknown command ${verb}`);
 			return;
 		}
-		const spec = VERBS[verb];
-		await localApi(spec.path, {
-			method: "POST",
-			...("body" in spec ? { body: JSON.stringify(spec.body) } : {}),
-		});
+		const spec = VERBS[verb as Verb];
+		const body = {
+			...spec.body,
+			...(spec.args
+				? Object.fromEntries(
+						spec.args
+							.filter((k) => cmd.args && k in cmd.args)
+							.map((k) => [k, (cmd.args as Record<string, unknown>)[k]]),
+					)
+				: {}),
+			...(spec.owner ? { ownerKey: cmd.ownerKey ?? "" } : {}),
+			// the hub stamps the lease holder — operator identity is not spoofable
+			...(spec.stampsHolder ? { operator: cmd.holder ?? "unknown" } : {}),
+		};
+		const result = await localApiVerbose(spec.path, body);
+		lastCommandResult = { verb, ...result, at: Date.now() };
+		if (!result.ok) console.error(`[rig-link] ${verb} failed: ${result.error}`);
 	};
 
 	let autoConnectTried = false;
@@ -82,7 +151,9 @@ export const startRigLink = (opts: {
 		if (autoConnect && !autoConnectTried && robot?.state === "disconnected") {
 			autoConnectTried = true; // one attempt — never fight a human disconnect
 			console.error(`[rig-link] auto-connecting backend=${autoConnect}`);
-			await runCommand(autoConnect === "sim" ? "connect_sim" : "connect_real");
+			await runCommand({
+				verb: autoConnect === "sim" ? "connect_sim" : "connect_real",
+			});
 			if (autoConnect === "real") {
 				const probed = (await localApi("/api/cameras/probe")) as Array<{
 					index: number;
@@ -95,7 +166,14 @@ export const startRigLink = (opts: {
 			}
 		}
 
+		// cached driver-event state — both are cheap in-memory reads
+		const record = await localApi("/api/record/status");
+		const attempt = await localApi("/api/attempts/state");
+
 		try {
+			// rev-echo: send the full array only when the hub's echo differs
+			// (fresh hub, task edit, redeploy) — steady state costs one string
+			const advertiseTasks = hubTasksRev !== tasksCache.rev;
 			const res = await fetch(`${base}/api/hub/link`, {
 				method: "POST",
 				headers: { "content-type": "application/json", ...auth },
@@ -107,7 +185,12 @@ export const startRigLink = (opts: {
 					joints: robot?.joints ?? {},
 					cams: previewing,
 					lastError: robot?.lastError ?? null,
+					record,
+					attempt,
+					lastCommandResult,
 					linkMs,
+					tasksRev: tasksCache.rev,
+					...(advertiseTasks ? { tasks: tasksCache.tasks } : {}),
 				}),
 			});
 			linkMs = Date.now() - started;
@@ -117,9 +200,18 @@ export const startRigLink = (opts: {
 					axes?: Record<string, number>;
 					joints?: Record<string, number>;
 				} | null;
-				commands: Array<{ verb: string }>;
+				commands: Array<{
+					verb: string;
+					args?: Record<string, unknown>;
+					ownerKey?: string;
+					holder?: string | null;
+				}>;
+				holder: string | null;
+				tasksRev?: string | null;
 			};
 			linkWarned = false;
+			setHolder(body.holder ?? null);
+			hubTasksRev = body.tasksRev ?? null;
 
 			if (body.input) {
 				await localApi("/api/robot/teleop/input", {
@@ -128,7 +220,7 @@ export const startRigLink = (opts: {
 				});
 			}
 			for (const cmd of body.commands ?? []) {
-				await runCommand(cmd.verb);
+				await runCommand(cmd);
 			}
 		} catch (err) {
 			if (!linkWarned) {
@@ -187,4 +279,5 @@ export const startRigLink = (opts: {
 	console.error(`[rig-link] ${rigName} -> ${base} (link ${LINK_MS}ms)`);
 	loop(link, LINK_MS);
 	loop(pushFrames, FRAME_MS);
+	loop(refreshTasks, 2_000); // sidecar read — slow cadence is plenty
 };

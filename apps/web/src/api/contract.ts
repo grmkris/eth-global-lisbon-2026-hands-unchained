@@ -293,6 +293,88 @@ const RecordGroup = HttpApiGroup.make("Record").add(
 	}),
 );
 
+/** Owner-key rejected (tasks are owner-managed; the key never leaves the rig). */
+export class ForbiddenError extends Schema.TaggedErrorClass<ForbiddenError>()(
+	"ForbiddenError",
+	{
+		message: Schema.String,
+	},
+) {}
+
+/** A task the rig owner wants crowdsourced — each successful attempt becomes
+ * one labeled training episode in `repoName`'s dataset. */
+export class TaskInfo extends Schema.Class<TaskInfo>("TaskInfo")(
+	Schema.Struct({
+		id: Schema.String,
+		title: Schema.String, // becomes the lerobot per-frame task label
+		instructions: Schema.String,
+		repoName: Schema.String, // name only — Recorder prefixes the HF user
+		episodeSeconds: Schema.Number,
+		resetSeconds: Schema.Number,
+		maxEpisodes: Schema.NullOr(Schema.Number),
+		active: Schema.Boolean,
+	}),
+) {}
+
+export class AttemptState extends Schema.Class<AttemptState>("AttemptState")(
+	Schema.Struct({
+		active: Schema.Boolean,
+		attemptId: Schema.NullOr(Schema.String),
+		taskId: Schema.NullOr(Schema.String),
+		taskTitle: Schema.NullOr(Schema.String),
+		operator: Schema.NullOr(Schema.String),
+		episodeSeconds: Schema.NullOr(Schema.Number),
+		startedAt: Schema.NullOr(Schema.String),
+	}),
+) {}
+
+export class AttemptLogRow extends Schema.Class<AttemptLogRow>("AttemptLogRow")(
+	Schema.Struct({
+		id: Schema.String,
+		taskId: Schema.String,
+		taskTitle: Schema.String,
+		repoId: Schema.String,
+		operator: Schema.String,
+		outcome: Schema.String, // success | discarded | timeout | failed | abandoned
+		startedAt: Schema.String,
+		endedAt: Schema.String,
+	}),
+) {}
+
+const TasksGroup = HttpApiGroup.make("Tasks").add(
+	HttpApiEndpoint.get("list", "/tasks", { success: Schema.Array(TaskInfo) }),
+	HttpApiEndpoint.post("upsert", "/tasks/upsert", {
+		payload: Schema.Struct({ ownerKey: Schema.String, task: TaskInfo }),
+		success: TaskInfo,
+		error: ForbiddenError,
+	}),
+	HttpApiEndpoint.post("delete", "/tasks/delete", {
+		payload: Schema.Struct({ ownerKey: Schema.String, id: Schema.String }),
+		success: Schema.Struct({ ok: Schema.Boolean }),
+		error: ForbiddenError,
+	}),
+);
+
+const AttemptsGroup = HttpApiGroup.make("Attempts").add(
+	HttpApiEndpoint.get("state", "/attempts/state", { success: AttemptState }),
+	HttpApiEndpoint.get("log", "/attempts/log", {
+		success: Schema.Array(AttemptLogRow),
+	}),
+	HttpApiEndpoint.post("start", "/attempts/start", {
+		payload: Schema.Struct({
+			taskId: Schema.String,
+			operator: Schema.String, // stamped by the hub from the lease holder
+		}),
+		success: AttemptState,
+		error: Schema.Union([DriverError, PreflightError]),
+	}),
+	HttpApiEndpoint.post("finish", "/attempts/finish", {
+		payload: Schema.Struct({ success: Schema.Boolean }),
+		success: AttemptState,
+		error: DriverError,
+	}),
+);
+
 export const LabApi = HttpApi.make("LabConsole")
 	.add(HealthGroup)
 	.add(DatasetsGroup)
@@ -300,4 +382,6 @@ export const LabApi = HttpApi.make("LabConsole")
 	.add(CamerasGroup)
 	.add(RobotGroup)
 	.add(RecordGroup)
+	.add(TasksGroup)
+	.add(AttemptsGroup)
 	.prefix("/api");

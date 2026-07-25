@@ -3,14 +3,17 @@
  * /api/cams/*). Deliberately a narrow verb set rather than a general tunnel:
  * a guest must not be able to reach /api/record/start on someone's machine.
  */
+import type { AttemptState, RecordStatus, TaskInfo } from "#/api/contract";
 import {
 	claimLease,
+	drainCommands,
 	getRig,
 	impair,
 	impairment,
 	isOnline,
 	leaseHolder,
 	listRigs,
+	MAX_PENDING,
 	type Rig,
 	releaseLease,
 	setFrame,
@@ -19,6 +22,9 @@ import {
 	upsertRig,
 } from "./store";
 import { isVerb, VERBS } from "./verbs";
+
+/** Hub NEVER logs request bodies — ownerKeys transit through them. */
+const MAX_ARGS_BYTES = 4096;
 
 export const json = (body: unknown, status = 200): Response =>
 	new Response(JSON.stringify(body), {
@@ -41,6 +47,10 @@ const rigSummary = (rig: Rig) => ({
 	cams: rig.cams,
 	joints: rig.joints,
 	lastError: rig.lastError,
+	record: rig.record,
+	attempt: rig.attempt,
+	tasks: rig.tasks,
+	lastCommandResult: rig.lastCommandResult,
 	holder: leaseHolder(rig),
 	linkMs: rig.linkMs,
 	lastSeen: rig.lastSeen,
@@ -99,6 +109,12 @@ export const handleHubRequest = async (
 			cams: ReadonlyArray<string>;
 			lastError?: string | null;
 			linkMs?: number;
+			record?: RecordStatus | null;
+			attempt?: AttemptState | null;
+			lastCommandResult?: Rig["lastCommandResult"];
+			/** rev-echo: full `tasks` rides along only when our echo mismatched */
+			tasksRev?: string | null;
+			tasks?: ReadonlyArray<TaskInfo>;
 		};
 		if (!body.name) return json({ error: "name required" }, 400);
 		const rig = upsertRig(body.name, {
@@ -108,10 +124,17 @@ export const handleHubRequest = async (
 			joints: body.joints ?? {},
 			cams: body.cams ?? [],
 			lastError: body.lastError ?? null,
+			record: body.record ?? null,
+			attempt: body.attempt ?? null,
+			lastCommandResult: body.lastCommandResult ?? null,
 			linkMs: body.linkMs ?? 0,
 		});
+		if (body.tasks !== undefined) {
+			rig.tasks = body.tasks;
+			rig.tasksRev = body.tasksRev ?? null;
+		}
 		await impair();
-		const commands = rig.pending.splice(0, rig.pending.length);
+		const commands = drainCommands(rig);
 		// Consume-once. The hub is a pipe, not a repeater: replaying the last
 		// axes would keep refreshing the driver's 0.5s deadman and the arm would
 		// run on after the operator stopped sending. Verified — it drifted 9°.
@@ -122,6 +145,8 @@ export const handleHubRequest = async (
 			input: fresh ? { axes: pending.axes, joints: pending.joints } : null,
 			commands,
 			holder: leaseHolder(rig),
+			// what the hub currently has — the rig re-advertises on mismatch
+			tasksRev: rig.tasksRev,
 		});
 	}
 
@@ -162,6 +187,8 @@ export const handleHubRequest = async (
 				joints?: Record<string, number>;
 				verb?: string;
 				force?: boolean;
+				args?: Record<string, unknown>;
+				ownerKey?: string;
 			};
 			const clientId = body.clientId;
 			if (!clientId) return json({ error: "clientId required" }, 400);
@@ -190,11 +217,34 @@ export const handleHubRequest = async (
 				const verb = body.verb ?? "";
 				if (!isVerb(verb))
 					return json({ error: `verb not allowed: ${verb}` }, 403);
-				// Safety verbs bypass the lease: anyone watching a rig misbehave
-				// must be able to stop it, holder or not.
-				if (VERBS[verb].safety !== true && leaseHolder(rig) !== clientId)
+				const spec = VERBS[verb];
+				// Gating tiers: safety = anyone; owner = ownerKey (validated by
+				// the RIG, not us — the key is opaque here and never logged);
+				// everything else = the lease holder.
+				if (spec.owner === true) {
+					if (!body.ownerKey) return json({ error: "ownerKey required" }, 403);
+				} else if (spec.safety !== true && leaseHolder(rig) !== clientId) {
 					return json({ error: "not the controller" }, 403);
-				rig.pending.push({ verb });
+				}
+				// args: allowlisted keys only, bounded size — a shallow pipe,
+				// real validation is the rig's typed API.
+				const args = body.args ?? {};
+				const allowed = new Set(spec.args ?? []);
+				for (const key of Object.keys(args))
+					if (!allowed.has(key))
+						return json({ error: `arg not allowed: ${key}` }, 403);
+				if (JSON.stringify(args).length > MAX_ARGS_BYTES)
+					return json({ error: "args too large" }, 413);
+				if (!isOnline(rig)) return json({ error: "rig offline" }, 409);
+				if (rig.pending.length >= MAX_PENDING)
+					return json({ error: "command queue full" }, 429);
+				rig.pending.push({
+					verb,
+					...(spec.args ? { args } : {}),
+					...(spec.owner ? { ownerKey: body.ownerKey } : {}),
+					holder: leaseHolder(rig),
+					queuedAt: Date.now(),
+				});
 				return json({ ok: true, queued: verb });
 			}
 		}

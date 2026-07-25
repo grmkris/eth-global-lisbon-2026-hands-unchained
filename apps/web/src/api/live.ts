@@ -9,6 +9,7 @@ import {
 import { HttpApiBuilder, HttpApiScalar } from "effect/unstable/httpapi";
 import { Checkpoints, HealthStatus, LabApi } from "./contract";
 import { RIG } from "./rig";
+import { Attempts } from "./services/attempts";
 import { Cameras } from "./services/cameras";
 import { DatasetCatalog } from "./services/dataset-catalog";
 import { DriverManager } from "./services/driver-manager";
@@ -16,6 +17,7 @@ import { HfHub } from "./services/hf-hub";
 import { Recorder } from "./services/record";
 import { RobotSvc } from "./services/robot";
 import { RunsRegistry } from "./services/runs-registry";
+import { TasksRegistry } from "./services/tasks-registry";
 
 const HealthLive = HttpApiBuilder.group(LabApi, "Health", (handlers) =>
 	handlers.handle("status", () =>
@@ -117,11 +119,39 @@ const RecordLive = HttpApiBuilder.group(LabApi, "Record", (handlers) =>
 		),
 );
 
-const ServicesLayer = Layer.mergeAll(
-	RunsRegistry.layer,
-	Recorder.layer,
-	RobotSvc.layer,
-).pipe(
+const TasksLive = HttpApiBuilder.group(LabApi, "Tasks", (handlers) =>
+	handlers
+		.handle("list", () => Effect.flatMap(TasksRegistry, (t) => t.list()))
+		.handle("upsert", ({ payload }) =>
+			Effect.flatMap(TasksRegistry, (t) =>
+				t.upsert(payload.ownerKey, payload.task),
+			),
+		)
+		.handle("delete", ({ payload }) =>
+			Effect.flatMap(TasksRegistry, (t) =>
+				t.remove(payload.ownerKey, payload.id),
+			),
+		),
+);
+
+const AttemptsLive = HttpApiBuilder.group(LabApi, "Attempts", (handlers) =>
+	handlers
+		.handle("state", () => Effect.flatMap(Attempts, (a) => a.state()))
+		.handle("log", () => Effect.flatMap(Attempts, (a) => a.log()))
+		.handle("start", ({ payload }) =>
+			Effect.flatMap(Attempts, (a) =>
+				a.start(payload.taskId, payload.operator),
+			),
+		)
+		.handle("finish", ({ payload }) =>
+			Effect.flatMap(Attempts, (a) => a.finish(payload.success)),
+		),
+);
+
+const ServicesLayer = Layer.mergeAll(RunsRegistry.layer, Attempts.layer).pipe(
+	Layer.provideMerge(
+		Layer.mergeAll(Recorder.layer, RobotSvc.layer, TasksRegistry.layer),
+	),
 	Layer.provideMerge(Layer.mergeAll(DatasetCatalog.layer, Cameras.layer)),
 	Layer.provideMerge(HfHub.layer),
 	Layer.provideMerge(DriverManager.layer),
@@ -136,6 +166,8 @@ const GroupsLayer = Layer.mergeAll(
 	CamerasLive,
 	RobotLive,
 	RecordLive,
+	TasksLive,
+	AttemptsLive,
 );
 
 const PlatformLayer = Layer.mergeAll(

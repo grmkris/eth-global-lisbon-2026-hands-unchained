@@ -37,9 +37,16 @@ def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None) -
         })
 
     if cfg.get("resume"):
+        # resume() refuses root=None (it would write into the shared Hub
+        # snapshot cache) — point it at the same local path create() used.
+        root = cfg.get("root")
+        if root is None:
+            from lerobot.utils.constants import HF_LEROBOT_HOME
+
+            root = str(HF_LEROBOT_HOME / cfg["repo_id"])
         dataset = LeRobotDataset.resume(
             cfg["repo_id"],
-            root=cfg.get("root"),
+            root=root,
             image_writer_processes=0,
             image_writer_threads=4 * n_cams if n_cams else 0,
         )
@@ -88,6 +95,8 @@ def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None) -
                 events["rerecord_episode"] = False
                 events["exit_early"] = False
                 dataset.clear_episode_buffer()
+                if events.get("stop_recording"):
+                    break  # discard: end now, don't sit through a reset pass
                 state("resetting", ep, saved)
                 record_loop(control_time_s=cfg["reset_time_s"], **common)
                 if events.get("stop_recording"):
@@ -111,6 +120,10 @@ def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None) -
         emit({"event": "error", "where": "record", "error": failed})
         raise
     finally:
+        try:
+            dataset.finalize()  # lerobot's own script does this; we must too
+        except Exception as exc:  # noqa: BLE001
+            log(f"recorder finalize: {exc}")
         for device, tag in ((robot, "robot"), (teleop, "teleop")):
             if device is None:
                 continue
