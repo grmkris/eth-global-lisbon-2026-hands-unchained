@@ -13,7 +13,13 @@
  * the wrong token. Delete this in favour of viem's when they fix it upstream —
  * do not keep both.
  */
-import { type Address, defineChain, encodePacked, keccak256, stringToBytes } from "viem";
+import {
+	type Address,
+	defineChain,
+	encodePacked,
+	keccak256,
+	stringToBytes,
+} from "viem";
 
 export const zgGalileo = defineChain({
 	id: 16602,
@@ -37,8 +43,10 @@ export const ZG_STALE_CHAIN_ID = 16601;
  * one SlotMarket would collide on a rig called "kris-arm" and hand each other's
  * operators the same queue.
  */
-export const rigIdOf = (rigName: string, namespace = "proof-of-hands"): `0x${string}` =>
-	keccak256(stringToBytes(`${namespace}|${rigName}`));
+export const rigIdOf = (
+	rigName: string,
+	namespace = "proof-of-hands",
+): `0x${string}` => keccak256(stringToBytes(`${namespace}|${rigName}`));
 
 /**
  * pinHash = keccak256(abi.encodePacked(operator, pin)) — must match
@@ -54,12 +62,16 @@ export const pinHashOf = (operator: Address, pin: string): `0x${string}` =>
 	// the result, but viem validates EIP-55 and would throw on an address whose
 	// checksum casing differs from whatever the caller happened to have
 	keccak256(
-		encodePacked(["address", "string"], [operator.toLowerCase() as Address, pin]),
+		encodePacked(
+			["address", "string"],
+			[operator.toLowerCase() as Address, pin],
+		),
 	);
 
 const explorer = zgGalileo.blockExplorers.default.url;
 export const explorerTx = (hash: string): string => `${explorer}/tx/${hash}`;
-export const explorerAddress = (address: string): string => `${explorer}/address/${address}`;
+export const explorerAddress = (address: string): string =>
+	`${explorer}/address/${address}`;
 
 export const shortAddress = (address: string): string =>
 	`${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -80,5 +92,7 @@ const KEY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 export const generateSlotKey = (length = MIN_PIN_LENGTH): string => {
 	const bytes = new Uint8Array(length);
 	crypto.getRandomValues(bytes);
-	return Array.from(bytes, (b) => KEY_ALPHABET[b % KEY_ALPHABET.length]).join("");
+	return Array.from(bytes, (b) => KEY_ALPHABET[b % KEY_ALPHABET.length]).join(
+		"",
+	);
 };
