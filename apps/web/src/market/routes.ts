@@ -4,7 +4,7 @@
  * server.ts before the generic /api allowlist, outside /api/hub (no hub
  * token needed — verification is its own auth).
  */
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { json } from "#/hub/routes";
 import { listRigs } from "#/hub/store";
 import {
@@ -155,22 +155,21 @@ export const handleMarketRequest = async (
 		if (session !== null)
 			return json(await describe(session.nullifier, session.address));
 
-		if (DEV_AUTOVERIFY) {
-			// local bring-up: mint a verified session on sight — the deny path
-			// is rehearsed by simply not setting MARKET_DEV_AUTOVERIFY
-			const nullifier = `dev-${randomBytes(8).toString("hex")}`;
-			const value = mintSessionValue(nullifier);
-			return new Response(JSON.stringify(await describe(nullifier)), {
-				headers: {
-					"content-type": "application/json",
-					"set-cookie": sessionSetCookie(value, url.protocol === "https:"),
-				},
-			});
-		}
+		/**
+		 * DEV_AUTOVERIFY used to mint a verified session RIGHT HERE, on a bare
+		 * GET. That predates the wallet binding and is now actively harmful: a
+		 * GET carries no address, so it minted a session that was verified and
+		 * UNBOUND — which sails through the drive gate and then fails at the
+		 * unlock with "verify again to bind your wallet", the one error the
+		 * shortcut exists to avoid.
+		 *
+		 * The bypass now lives on POST /verify, which does carry an address. All
+		 * this reports is that it is available, so the UI can offer the button.
+		 */
 		return json({
 			marketMode: true,
 			verified: false,
-			devAutoverify: false,
+			devAutoverify: DEV_AUTOVERIFY,
 			world: worldConfig,
 			stake: { ...stakeConfig, escrowEvmAddress: await escrowAddressOrNull() },
 		});
@@ -184,15 +183,59 @@ export const handleMarketRequest = async (
 			string,
 			unknown
 		>;
+		// Work out the address FIRST: it is pinned into the verification
+		// request, so World rejects a proof that was not made for it.
+		const claimed =
+			typeof body.address === "string" &&
+			/^0x[0-9a-fA-F]{40}$/.test(body.address)
+				? body.address.toLowerCase()
+				: null;
+
+		/**
+		 * The dev bypass, and the ONLY place it lives.
+		 *
+		 * Local UI work otherwise needs a phone and a QR scan on every page
+		 * load. This skips World entirely — but it still demands a wallet, and
+		 * still binds the session to it, so every gate downstream (the unlock's
+		 * operator check, the slot ledger, the payout) behaves exactly as it
+		 * does in production. A shortcut that produced a session real code
+		 * rejects is worse than no shortcut at all, which is what the old one
+		 * on GET /session was.
+		 *
+		 * Env-gated and off by default. NEVER set MARKET_DEV_AUTOVERIFY on a
+		 * deployed hub — it makes "prove you're human" a formality.
+		 */
+		if (DEV_AUTOVERIFY) {
+			if (claimed === null)
+				return json({ error: "connect a wallet first" }, 400);
+			// Deterministic in the address, so reconnecting the same wallet is
+			// the same person — a random nullifier per click would let one
+			// browser mint unlimited identities and make strike counts nonsense.
+			const nullifier = `dev-${createHash("sha256")
+				.update(claimed)
+				.digest("hex")
+				.slice(0, 24)}`;
+			console.error(
+				`[market] DEV_AUTOVERIFY: minted a session for ${claimed} with NO World proof`,
+			);
+			const value = mintSessionValue(nullifier, claimed);
+			return new Response(
+				JSON.stringify({
+					verified: true,
+					identityAttested: null,
+					boundAddress: claimed,
+				}),
+				{
+					headers: {
+						"content-type": "application/json",
+						"set-cookie": sessionSetCookie(value, url.protocol === "https:"),
+					},
+				},
+			);
+		}
+
 		try {
 			const { verifyWorldProof } = await import("#/market/world");
-			// Work out the address FIRST: it is pinned into the verification
-			// request, so World rejects a proof that was not made for it.
-			const claimed =
-				typeof body.address === "string" &&
-				/^0x[0-9a-fA-F]{40}$/.test(body.address)
-					? body.address.toLowerCase()
-					: null;
 			const result = await verifyWorldProof(body, claimed);
 			// Identity Check must actually attest the requested attributes.
 			// null = the credential didn't carry an attestation (proof-of-human,

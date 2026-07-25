@@ -150,3 +150,103 @@ Setup as in the intro; paste the owner key into the drive page's owner panel.
 
 Curl equivalents live in the git history of this checklist (B-gate, commit
 "tasks + attempts").
+
+## 6 — The market loop (World + slots + grading + payout)
+
+Everything above runs with `MARKET_MODE` unset. This section is the paid,
+gated, graded product. Sim rig is enough — the referee reads the recorded
+episode, and a MuJoCo episode is a real episode.
+
+### Env
+
+The market layer needs secrets that are deliberately not in git
+(`apps/web/.env.market`, gitignored). Without the two SlotMarket addresses
+`SLOTS.configured` is false, `/api/market/slots` answers **501**, and the whole
+booking/grading/payout surface silently does not render:
+
+```sh
+MARKET_MODE=1
+MARKET_SECRET=…                 # HMACs the session cookie
+GRADER=zg                       # 0G Compute; falls back to local on any error
+SLOT_REQUIRED=1                 # a slot is required to drive at all
+ZG_SLOT_MARKET_ADDRESS=0x0EeFee711Ed37dE9C0d892638F9d14ac9047a9D8
+HEDERA_SLOT_MARKET_ADDRESS=0x7f37B89DE964DFf7EE6EF6d2E3d58dAF42Ac6863
+```
+
+`set -a; source .env.market; set +a` in the HUB tab only — the rig and the
+leader are separate processes and need none of it.
+
+### Two toggles that exist for testing
+
+| Var | Effect |
+|-----|--------|
+| `MARKET_DEV_AUTOVERIFY=1` | a **Skip (dev)** button beside "Verify with World ID". Mints a session with no World proof — but still demands a connected wallet and still binds to it, so every gate downstream behaves as it will in production. Never set this on a deployed hub. |
+| `SLOT_AUTOSETTLE=0` | the hub stops settling finished slots. The operator's **Claim** button becomes the only way the money moves — which is the point: `settle` is permissionless, so the stake is not hostage to our uptime. |
+
+`MARKET_DEV_AUTOVERIFY` used to mint its session on a bare `GET /session`. That
+predates the wallet binding, and a GET carries no address — so it produced a
+session that was verified and UNBOUND, which passes the drive gate and then
+fails at the unlock with "verify again to bind your wallet". The bypass now
+lives on `POST /verify`, which does carry an address.
+
+### World ID without a phone
+
+We run in `staging` and always will — this app is never going to real World
+users. Staging credentials come from **`https://simulator.orb.engineer`** (use
+an identity like `/id/0x18d844e5`). It is not a mock of our code: the proof
+still goes to `developer.world.org/api/v4/verify`, and it is still rejected if
+its signal is not the wallet you connected with.
+
+`require_user_presence` is silently incompatible with the simulator — it wants
+a live selfie matched against a credential image. Leave `WORLD_REQUIRE_PRESENCE`
+unset.
+
+### Money
+
+Booking IS staking, so this needs real testnet funds in MetaMask: 0.05 OG on
+0G Galileo (16602, faucet `https://faucet.0g.ai`) or 0.5 HBAR on Hedera
+testnet (296, `https://portal.hedera.com/faucet`). Same rules either chain.
+
+If your wallet already knows a network called "0G Galileo" at chain id **16601**
+(viem shipped that id for a while), `switchChain` fails and the gate says so
+explicitly — rename or remove the stale entry.
+
+### The loop
+
+| # | Step | Expect |
+|---|------|--------|
+| 1 | Drive page on a rig nobody booked | the gate, not the jog pad: 1 connect wallet · 2 prove you're human · 3 book |
+| 2 | Connect → verify (simulator or **Skip (dev)**) | step 2 reads "verified · bound to your wallet" |
+| 3 | **Hard-refresh the page** | step 1 still shows your address, checked, **with no wallet popup** — it is re-read from the session, not from localStorage |
+| 4 | Connect a DIFFERENT MetaMask account | an explicit warning that you proved World ID on the other one; the arm only opens for the wallet that booked |
+| 5 | Book · 0.05 OG | one MetaMask signature. The clock does NOT start |
+| 6 | **Take control & start** | no second popup (the hub relays `startSlot`); 30:00 counting down |
+| 7 | Start an attempt, drive, ✓ Success | the row narrates itself: *reading your episode off the rig* → *0G referee deliberating* → *posting the verdict on chain* → the verdict, with the reason, the provider, the `chatID` and `sig ✓` |
+| 8 | Claim ✓ on an episode you did NOT do | fail + **strike**; the task progress does not advance and the bar shows "1 rejected" |
+| 9 | **I'm finished — end my slot** | `endEarly` pulls `endAt` to now. Not a forfeit: stake + credits still settle, and a verdict already in flight still lands |
+| 10 | Wait for settlement | "Paid to your wallet" with a **settle tx** link — on HashScan for a Hedera slot, ChainScan for a 0G one |
+| 11 | Owner panel → **Publish** | with any failed episode present the button reads "dropping failed episodes…" first; the Hub dataset is short by exactly those episodes and the local recording is untouched |
+
+### Booking ahead / the queue
+
+| # | Step | Expect |
+|---|------|--------|
+| 1 | Second browser + second wallet, on a rig you are driving | "Join the queue" — the contract always took this booking, nothing used to offer it |
+| 2 | After booking | "you're next · yours in about N min", counted from what is left of the live slot |
+| 3 | End the live slot early | the queue advances; the next operator takes control |
+| 4 | Book, never take control, with someone waiting behind you | after `noShowGrace` (90 s) the hub calls `skipHead` and refunds you in full. With an EMPTY queue behind you nothing happens — skipping exists to unblock a line, not to punish reading slowly |
+
+### Settling without the hub
+
+The hub normally settles within a second of the clock running out, so the
+Claim button is invisible on the happy path. To see it:
+
+```sh
+SLOT_AUTOSETTLE=0 bun run hub          # in addition to sourcing .env.market
+```
+
+Book, drive, end early, then wait out the grading window (`gradeGrace`, 150 s
+on the deployed contracts — the settler may bypass it, nobody else may). The
+panel offers **Claim N to my wallet**; one signature, and the stake plus every
+credit lands. That is the whole non-custodial claim, demonstrable rather than
+asserted.

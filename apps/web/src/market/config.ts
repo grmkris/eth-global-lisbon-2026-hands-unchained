@@ -40,6 +40,19 @@ export const BONUS_HBAR = Number(process.env.BONUS_HBAR ?? 0.5);
  * if the wallet flow fails during a live demo. Never advertised. */
 export const STAKE_MODE = process.env.STAKE_MODE ?? "wallet";
 
+/**
+ * The hub settles finished slots for the operator. Set `SLOT_AUTOSETTLE=0` to
+ * stop it doing so.
+ *
+ * Not a performance knob — a DEMONSTRATION one. The claim this design makes is
+ * that your stake is never hostage to our uptime: `settle` is permissionless
+ * once the grading window closes, so anyone can move the money and it can only
+ * move to you. With the hub settling within a second of the clock running out,
+ * that path is invisible and therefore unprovable. Turning this off makes the
+ * hub look broken on purpose, and the operator gets paid anyway.
+ */
+export const SLOT_AUTOSETTLE = process.env.SLOT_AUTOSETTLE !== "0";
+
 export const HEDERA = {
 	operatorId: process.env.HEDERA_OPERATOR_ID ?? "",
 	operatorKey: process.env.HEDERA_OPERATOR_KEY ?? "",

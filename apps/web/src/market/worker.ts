@@ -20,6 +20,7 @@ import {
 	BONUS_HBAR,
 	HEDERA,
 	marketEnabled,
+	SLOT_AUTOSETTLE,
 	SLOTS,
 	slotChain,
 	TEE_BRIDGE,
@@ -71,6 +72,12 @@ export const ensureWorker = (): void => {
 	};
 	g.__marketWorker = state;
 	ensureSlotMirror();
+	if (SLOTS.configured && !SLOT_AUTOSETTLE)
+		console.error(
+			"[market] SLOT_AUTOSETTLE=0 — the hub will NOT settle finished slots. " +
+				"Operators must claim from their own wallet (this is the escape " +
+				"hatch being demonstrated, not a fault).",
+		);
 	if (HEDERA.configured)
 		void import("#/market/hedera").then((h) =>
 			h.rehydrateFromMirror().catch((e) => {
@@ -180,6 +187,9 @@ const endSlotOnRig = (
  */
 const settleDueSlots = async (): Promise<void> => {
 	if (!SLOTS.configured) return;
+	// SLOT_AUTOSETTLE=0: stand down and let the operator settle themselves. The
+	// money is already theirs — this only decides who pays the gas to move it.
+	if (!SLOT_AUTOSETTLE) return;
 	for (const rig of listRigs()) {
 		for (const head of allHeads(rig.name)) {
 			const settleable =
