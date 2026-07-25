@@ -64,6 +64,8 @@ export const ZG = {
 export const WORLD = {
 	appId: process.env.WORLD_APP_ID ?? "",
 	rpId: process.env.WORLD_RP_ID ?? "",
+	/** RP ECDSA signing key (hex) from the Developer Portal — signs rp_context */
+	rpKey: process.env.WORLD_RP_KEY ?? "",
 	apiKey: process.env.WORLD_API_KEY ?? "",
 	action: process.env.WORLD_ACTION ?? "drive-a-rig",
 	/** identity-check (min age 18 + liveness) | proof-of-human (fallback if
