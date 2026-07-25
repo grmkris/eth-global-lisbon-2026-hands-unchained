@@ -30,7 +30,7 @@ import { marketEnabled, SLOTS } from "#/market/config";
 import { startSampler } from "#/market/sampler";
 import { readSession } from "#/market/session";
 import { readSlotToken } from "#/market/slot-session";
-import { liveSlot, noteSlotClient } from "#/market/slots";
+import { liveSlot, noteSlotClient, pendingSlot } from "#/market/slots";
 import { closeRow, getBond, noteClient, openRow } from "#/market/store";
 import { ensureWorker } from "#/market/worker";
 
@@ -56,6 +56,14 @@ const slotGate = (
 
 	const live = liveSlot(rigName);
 	if (live === null) {
+		// Booked but never unlocked: the slot exists, the clock has not started,
+		// and telling them to book again would send them to buy a second one.
+		const pending = pendingSlot(rigName);
+		if (pending !== null)
+			return json(
+				{ error: "unlock your slot with your key", slotId: pending.slotId },
+				402,
+			);
 		// Nobody has booked this rig. SLOT_REQUIRED decides whether that means
 		// "free to drive" (the platform as it always was) or "book first".
 		if (SLOTS.required)
