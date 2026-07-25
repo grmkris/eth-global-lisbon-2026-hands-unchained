@@ -25,6 +25,7 @@ import { TaskPanel } from "#/components/task-panel";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
+import { VerifyGate } from "#/components/verify-gate";
 import { apiErrorMessage } from "#/lib/errors";
 import {
 	claimRig,
@@ -37,6 +38,7 @@ import {
 	sendRigCommand,
 	sendRigInput,
 } from "#/lib/hub-api";
+import { marketSessionQuery } from "#/market/market-api";
 
 export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
 
@@ -62,10 +64,14 @@ function DrivePage() {
 	const { rig: rigName } = Route.useParams();
 	const rig = useQuery(rigQuery(rigName));
 	const leaders = useQuery(leadersQuery);
+	const market = useQuery(marketSessionQuery);
 	const [rtt, setRtt] = useState<number | null>(null);
 
 	const holder = rig.data?.holder ?? null;
 	const iAmDriving = holder === clientId;
+	// market on + this browser unverified -> the hub will 402 every claim
+	const needsVerify =
+		market.data?.marketMode === true && market.data.verified === false;
 
 	// leader agents registered on the hub (controller.py on operator machines).
 	// A leader never holds the lease — it is a bound input device of a browser
@@ -141,11 +147,17 @@ function DrivePage() {
 			toast.error(
 				apiErrorMessage(e) === "Conflict"
 					? "someone else took the rig first"
-					: apiErrorMessage(e),
+					: apiErrorMessage(e) === "verification required"
+						? "verify your World ID above to take control"
+						: apiErrorMessage(e),
 			),
 	});
 	/** Ask before stealing a live holder's rig — friends-tier, same as before. */
 	const pickSource = (choice: DriveChoice) => {
+		if (needsVerify) {
+			toast.error("verify your World ID above to take control");
+			return;
+		}
 		if (
 			holder &&
 			holder !== clientId &&
@@ -188,17 +200,19 @@ function DrivePage() {
 	const attemptBlockedReason =
 		rig.data === undefined || !rig.data.online
 			? "the rig is offline"
-			: armState === "disconnected"
-				? "the arm is not connected"
-				: rig.data.backend === "real" &&
-						(rig.data.camMapping?.workspace === null ||
-							rig.data.camMapping?.wrist === null)
-					? "cameras not confirmed — the rig owner must assign workspace/wrist"
-					: !inTeleop || sink === null
-						? "pick how you'll drive first"
-						: !iAmDriving
-							? "someone else is driving this rig"
-							: null;
+			: needsVerify
+				? "verify your World ID to drive"
+				: armState === "disconnected"
+					? "the arm is not connected"
+					: rig.data.backend === "real" &&
+							(rig.data.camMapping?.workspace === null ||
+								rig.data.camMapping?.wrist === null)
+						? "cameras not confirmed — the rig owner must assign workspace/wrist"
+						: !inTeleop || sink === null
+							? "pick how you'll drive first"
+							: !iAmDriving
+								? "someone else is driving this rig"
+								: null;
 
 	const myAttempt =
 		rig.data?.attempt?.active === true &&
@@ -319,6 +333,12 @@ function DrivePage() {
 					),
 				)}
 			</div>
+
+			{needsVerify && market.data && (
+				<div className="mt-4">
+					<VerifyGate session={market.data} />
+				</div>
+			)}
 
 			{data && (
 				<div className="mt-4 flex flex-col gap-4">

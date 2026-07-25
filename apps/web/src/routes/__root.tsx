@@ -52,6 +52,7 @@ export const Route = createRootRoute({
 // One app, one nav. Hardware lives behind each rig's drive page.
 const NAV = [
 	{ to: "/lobby", label: "Lobby" },
+	{ to: "/market", label: "Market" },
 	{ to: "/datasets", label: "Datasets" },
 	{ to: "/trainings", label: "Trainings" },
 ] as const;

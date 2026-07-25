@@ -8,3 +8,7 @@ export const HUB_TOKEN_COOKIE = "lab_hub_token";
 /** The deployed hub — the zero-config default for agents and leader agents.
  * Mirrored in apps/driver/controller.py (python cannot import this). */
 export const DEFAULT_HUB = "https://web-production-b5106.up.railway.app";
+
+/** Verified-operator session (market layer). HttpOnly — written only by the
+ * server on a successful World ID verification, read by market/session.ts. */
+export const MARKET_SESSION_COOKIE = "pm_session";

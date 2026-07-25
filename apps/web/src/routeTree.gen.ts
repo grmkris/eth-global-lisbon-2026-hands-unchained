@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DatasetsRouteImport } from './routes/datasets'
 import { Route as LobbyRouteImport } from './routes/lobby'
+import { Route as MarketRouteImport } from './routes/market'
 import { Route as DriveRigRouteImport } from './routes/drive.$rig'
 import { Route as TrainingsIndexRouteImport } from './routes/trainings.index'
 import { Route as TrainingsRunIdRouteImport } from './routes/trainings.$runId'
@@ -31,6 +32,11 @@ const DatasetsRoute = DatasetsRouteImport.update({
 const LobbyRoute = LobbyRouteImport.update({
   id: '/lobby',
   path: '/lobby',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketRoute = MarketRouteImport.update({
+  id: '/market',
+  path: '/market',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DriveRigRoute = DriveRigRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/datasets': typeof DatasetsRoute
   '/lobby': typeof LobbyRoute
+  '/market': typeof MarketRoute
   '/drive/$rig': typeof DriveRigRoute
   '/trainings/$runId': typeof TrainingsRunIdRoute
   '/trainings/new': typeof TrainingsNewRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/datasets': typeof DatasetsRoute
   '/lobby': typeof LobbyRoute
+  '/market': typeof MarketRoute
   '/drive/$rig': typeof DriveRigRoute
   '/trainings/$runId': typeof TrainingsRunIdRoute
   '/trainings/new': typeof TrainingsNewRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/datasets': typeof DatasetsRoute
   '/lobby': typeof LobbyRoute
+  '/market': typeof MarketRoute
   '/drive/$rig': typeof DriveRigRoute
   '/trainings/$runId': typeof TrainingsRunIdRoute
   '/trainings/new': typeof TrainingsNewRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/datasets'
     | '/lobby'
+    | '/market'
     | '/drive/$rig'
     | '/trainings/$runId'
     | '/trainings/new'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/datasets'
     | '/lobby'
+    | '/market'
     | '/drive/$rig'
     | '/trainings/$runId'
     | '/trainings/new'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/datasets'
     | '/lobby'
+    | '/market'
     | '/drive/$rig'
     | '/trainings/$runId'
     | '/trainings/new'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DatasetsRoute: typeof DatasetsRoute
   LobbyRoute: typeof LobbyRoute
+  MarketRoute: typeof MarketRoute
   DriveRigRoute: typeof DriveRigRoute
   TrainingsRunIdRoute: typeof TrainingsRunIdRoute
   TrainingsNewRoute: typeof TrainingsNewRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/lobby'
       fullPath: '/lobby'
       preLoaderRoute: typeof LobbyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/market': {
+      id: '/market'
+      path: '/market'
+      fullPath: '/market'
+      preLoaderRoute: typeof MarketRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drive/$rig': {
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DatasetsRoute: DatasetsRoute,
   LobbyRoute: LobbyRoute,
+  MarketRoute: MarketRoute,
   DriveRigRoute: DriveRigRoute,
   TrainingsRunIdRoute: TrainingsRunIdRoute,
   TrainingsNewRoute: TrainingsNewRoute,

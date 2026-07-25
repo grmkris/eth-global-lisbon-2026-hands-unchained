@@ -7,6 +7,9 @@ import { apiHandler } from "#/api/live";
 import { hubAuthorized } from "#/hub/auth";
 import { handleHubRequest, json } from "#/hub/routes";
 import { type WsData, websocketHandlers } from "#/hub/ws";
+import { marketEnabled } from "#/market/config";
+import { marketIntercept } from "#/market/interceptor";
+import { handleMarketRequest } from "#/market/routes";
 
 const startFetch = createStartHandler(defaultStreamHandler);
 
@@ -61,12 +64,24 @@ export default {
 			return json({ error: "websocket upgrade unavailable" }, 400);
 		}
 
-		// Hub relay — raw routes beside the typed contract.
+		// Hub relay — raw routes beside the typed contract. The market layer
+		// (MARKET_MODE=1) gates lease acquisition and observes attempt verbs
+		// here; disabled, it is a single boolean check.
 		if (url.pathname.startsWith("/api/hub/")) {
 			if (!hubAuthorized(request, url))
 				return json({ error: "unauthorized" }, 401);
+			if (marketEnabled()) {
+				const gate = await marketIntercept(request, url);
+				if (gate !== "pass") return gate;
+			}
 			return handleHubRequest(request, url);
 		}
+
+		// Market layer: session/verify/ledger/stats — public, own auth story
+		// (World ID verification), reachable even when disabled so the UI can
+		// ask one question and render as today.
+		if (url.pathname.startsWith("/api/market/"))
+			return handleMarketRequest(request, url);
 
 		if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
 			if (!hubServes(url.pathname, request.method))
