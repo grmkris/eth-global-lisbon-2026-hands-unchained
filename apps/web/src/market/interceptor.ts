@@ -4,7 +4,7 @@
  *
  * 1. GATE `/claim`: taking a rig requires a verified human (402 "verification
  *    required") AND — when slots are configured — a live slot on THIS rig that
- *    you have unlocked with your key. Honest deny paths, one per missing thing.
+ *    this browser holds the token for. Honest deny paths, one per missing thing.
  * 2. NO STEALING. `force: true` is refused while someone else's slot is live.
  *    Without this any verified operator could yank the arm mid-episode and the
  *    slot would mean nothing.
@@ -56,12 +56,17 @@ const slotGate = (
 
 	const live = liveSlot(rigName);
 	if (live === null) {
-		// Booked but never unlocked: the slot exists, the clock has not started,
+		// Booked but never started: the slot exists, the clock has not started,
 		// and telling them to book again would send them to buy a second one.
+		// Staking normally starts it in the same breath, so reaching here means
+		// the relay did not land — say what to press, not what to re-buy.
 		const pending = pendingSlot(rigName);
 		if (pending !== null)
 			return json(
-				{ error: "unlock your slot with your key", slotId: pending.slotId },
+				{
+					error: "press Take control to start your slot",
+					slotId: pending.slotId,
+				},
 				402,
 			);
 		// Nobody has booked this rig. SLOT_REQUIRED decides whether that means
@@ -85,7 +90,9 @@ const slotGate = (
 	if (token === null || token.slotId !== live.slotId)
 		return json(
 			{
-				error: "unlock your slot with your key",
+				// A running slot this browser holds no token for: either it is
+				// someone else's, or it is yours on another device.
+				error: "this slot is open on another browser — press This is mine",
 				slotId: live.slotId,
 				endAt: live.endAt,
 			},

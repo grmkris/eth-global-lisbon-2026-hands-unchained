@@ -119,6 +119,13 @@ export const bookSlot = async (input: {
 	stakeOg: number;
 	contract: `0x${string}`;
 	chainKey: string;
+	/**
+	 * Fired once the operator has approved in their wallet and the transaction
+	 * is in flight. Those are two very different waits — "we are waiting for a
+	 * human" and "we are waiting for a chain" — and the caller narrates them
+	 * separately, so the boundary has to be observable from out here.
+	 */
+	onSigned?: (hash: `0x${string}`) => void;
 }): Promise<{ hash: `0x${string}`; account: `0x${string}` }> => {
 	const chain = viemChain(input.chainKey);
 	const wc = client(chain);
@@ -132,6 +139,21 @@ export const bookSlot = async (input: {
 		args: [rigIdOf(input.rig, input.namespace), walletCommitment(account)],
 		value: parseEther(String(input.stakeOg)),
 	});
+	input.onSigned?.(hash);
+	/**
+	 * WAIT FOR IT TO BE REAL.
+	 *
+	 * `writeContract` resolves when the transaction is accepted into the
+	 * mempool, not when it is mined — so returning here handed the caller a
+	 * hash for a booking the chain could not see yet. Every read that followed
+	 * raced it: `noteBooked` refreshed a rig whose queue had not changed, and
+	 * the UI only recovered because a 5-second poll eventually caught up.
+	 *
+	 * Survivable while booking was the end of the interaction. Not survivable
+	 * once anything is chained onto it — relaying `startSlot` against a slot
+	 * that does not exist yet reverts.
+	 */
+	await wc.waitForTransactionReceipt({ hash });
 	return { hash, account };
 };
 

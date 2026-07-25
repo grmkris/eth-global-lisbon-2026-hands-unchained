@@ -71,11 +71,11 @@ export const useSlot = (
 		: !verified
 			? "verify your World ID to drive"
 			: needsBooking
-				? "book a slot to drive this rig"
+				? "stake to drive this rig"
 				: needsUnlock
 					? live !== null
-						? "someone has this rig booked — enter your key if it's you"
-						: "enter your slot key to start your 30 minutes"
+						? "someone else is driving this rig right now"
+						: "press Take control to start your 30 minutes"
 					: null;
 
 	return {
