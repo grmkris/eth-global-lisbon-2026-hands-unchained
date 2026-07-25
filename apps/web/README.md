@@ -45,9 +45,11 @@ rig's owner key — printed by the agent at boot (`.data/owner.json`).
 - `LAB_AUTOCONNECT` — `sim` | `real`: bring the backend up at boot
 - `HUB_TOKEN` — hub shared secret (unset = open)
 - `OWNER_KEY` — (agent) pin the rig owner key instead of using the generated
-  `.data/owner.json`. Never written to disk. `rig:sim*` set `demo`; the
-  real-arm scripts deliberately do not — with `HUB_TOKEN` unset this key is
-  the only thing gating owner verbs on a physical arm
+  `.data/owner.json`. Never written to disk. **All `rig:*` scripts default it
+  to `demo`** so the key you have pasted keeps working across restarts;
+  override it (`OWNER_KEY=<secret> bun run rig:real:cloud`) for anything but a
+  demo, because with `HUB_TOKEN` unset this key is the only thing gating owner
+  verbs on a physical arm
 - `HF_TOKEN` — (hub) HF API token fallback when no `~/.cache/huggingface/token`
 - `FOLLOWER_PORT` / `LEADER_PORT` / `ROBOT_ID` — override `src/api/rig.ts` defaults
 - `HUB_LATENCY_MS` / `HUB_DROP_RATE` — hub-side impairment injection

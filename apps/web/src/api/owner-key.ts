@@ -10,9 +10,14 @@
  * string out of the terminal every restart. It is deliberately NOT written to
  * disk: an env key is for the life of that process only, and must not
  * silently become the persisted key of a rig started later without it.
- * The sim launch scripts set a fixed one; the real-arm scripts do not, because
- * on a hub with no HUB_TOKEN this key is the only thing standing between a
- * passer-by and someone's physical arm.
+ *
+ * ALL launch scripts (sim and real) now default it to `demo`, chosen for demo
+ * ergonomics: one key you already have pasted, surviving every rig restart.
+ * Know what that costs — with `HUB_TOKEN` unset this key is the only thing
+ * gating owner verbs, so on a REAL arm a guessable default means anyone with
+ * the hub URL can define tasks and record with someone's hardware. Override it
+ * (`OWNER_KEY=<secret> bun run rig:real:cloud`) for anything but a demo, or
+ * unset it to fall back to the generated per-rig key.
  *
  * Plain module (not an Effect service) so both the Effect services and the
  * non-Effect rig link can use it.
