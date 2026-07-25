@@ -16,6 +16,16 @@ export const slotMarketAbi = [
 				internalType: "address",
 			},
 			{
+				name: "_registry",
+				type: "address",
+				internalType: "address",
+			},
+			{
+				name: "_provider",
+				type: "address",
+				internalType: "address",
+			},
+			{
 				name: "_type",
 				type: "string",
 				internalType: "string",
@@ -482,6 +492,13 @@ export const slotMarketAbi = [
 	},
 	{
 		type: "function",
+		name: "refreshSigner",
+		inputs: [],
+		outputs: [],
+		stateMutability: "nonpayable",
+	},
+	{
+		type: "function",
 		name: "rewardPerEpisode",
 		inputs: [],
 		outputs: [
@@ -585,6 +602,32 @@ export const slotMarketAbi = [
 	{
 		type: "function",
 		name: "settler",
+		inputs: [],
+		outputs: [
+			{
+				name: "",
+				type: "address",
+				internalType: "address",
+			},
+		],
+		stateMutability: "view",
+	},
+	{
+		type: "function",
+		name: "signerProvider",
+		inputs: [],
+		outputs: [
+			{
+				name: "",
+				type: "address",
+				internalType: "address",
+			},
+		],
+		stateMutability: "view",
+	},
+	{
+		type: "function",
+		name: "signerRegistry",
 		inputs: [],
 		outputs: [
 			{
@@ -952,6 +995,25 @@ export const slotMarketAbi = [
 				name: "settler",
 				type: "address",
 				indexed: false,
+				internalType: "address",
+			},
+		],
+		anonymous: false,
+	},
+	{
+		type: "event",
+		name: "SignerRefreshed",
+		inputs: [
+			{
+				name: "from",
+				type: "address",
+				indexed: true,
+				internalType: "address",
+			},
+			{
+				name: "to",
+				type: "address",
+				indexed: true,
 				internalType: "address",
 			},
 		],
