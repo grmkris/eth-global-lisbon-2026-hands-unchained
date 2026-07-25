@@ -96,19 +96,35 @@ others) must close, one per sponsor:
 | A $0.50 work unit every 20 s fits no invoice or bank rail | **Hedera**: HBAR bond + per-episode bonus, sub-cent fees, HCS audit trail. |
 
 ```
-verify (World ID, 18+ & live)  →  lease granted
-  ↓ first attempt                 bond 0.5 ℏ  operator → escrow
-drive · attempt · claim ✓/✗
+verify (World ID, 18+ & live)   →  session
+  ↓ stake 0.5 ℏ                    THEIR wallet → escrow   (MetaMask, they sign it)
+lease granted · drive · attempt · claim ✓/✗
   ↓ hub-observed telemetry (motion, gripper, episode-saved — unforgeable)
 0G Compute referee  →  {score, pass, teeVerified}
-  ↓ pass                          bonus 0.5 ℏ  treasury → operator   (autonomous)
-  ↓ fail after claiming success   bond SLASHED escrow  → treasury
+  ↓ pass                           stake back + 0.5 ℏ bonus, ONE tx, to their wallet
+  ↓ fail after claiming success    stake SLASHED to treasury
 anchor: HCS digest · 0G Storage root · EpisodeRegistry event
+     · 0G's TEE signature re-verified BY A HEDERA CONTRACT
 ```
 
-Every payment is submitted by the settlement worker on the referee's verdict —
-no human clicks pay. The `/market` dashboard shows each attempt with its
-grade, TEE badge, payout link and evidence frame.
+The operator holds their own keys — they stake from MetaMask and are paid
+back to the same address; the hub never derives or holds an operator key.
+Every payment is submitted by the settlement worker on the referee's
+verdict, with no human clicking pay.
+
+**The two chains share a cryptographic link, not our word for it.** 0G's
+broker signs each inference response inside the enclave with plain EIP-191,
+so [`contracts/TeeAttestation.sol`](contracts/TeeAttestation.sol) — deployed
+on **Hedera** — re-derives the digest and `ecrecover`s it against the signer
+address 0G's own registry publishes on Galileo. Our backend carries the
+bytes across and cannot forge them; feed the contract a tampered response
+and it reverts. The single cross-chain assumption is that pinned signer
+address, which the deploy script reads live from 0G rather than hardcoding.
+
+Stated plainly, because it matters: this proves the grading output came out
+of 0G's TEE. It does **not** prove what was asked (0G signs a hash of the
+broker-rewritten request, which can't be reproduced off-chain), and our
+backend still chooses which graded attempt to submit.
 
 **Per-sponsor detail:** [WORLD](docs/market/WORLD.md) (gate + Identity Check
 testing docs) · [HEDERA](docs/market/HEDERA.md) (payment flow mechanics) ·
@@ -119,8 +135,11 @@ Live testnet artifacts:
 | What | Where |
 |---|---|
 | HCS provenance topic | [`0.0.9746374`](https://hashscan.io/testnet/topic/0.0.9746374) |
+| **TeeAttestation** (Hedera testnet) — verifies 0G's TEE signature | [`0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3`](https://hashscan.io/testnet/contract/0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3) |
 | EpisodeRegistry (0G Galileo, 16602) | [`0x80669DE19A96F0004adbC3C81c528Ef1abB9a494`](https://chainscan-galileo.0g.ai/address/0x80669DE19A96F0004adbC3C81c528Ef1abB9a494) |
-| Example autonomous payout | [`0.0.9700388-1784993892-227625527`](https://hashscan.io/testnet/transaction/0.0.9700388-1784993892-227625527) |
+| Stake escrow (holds operator stakes) | [`0.0.9746375`](https://hashscan.io/testnet/account/0.0.9746375) |
+| Example autonomous payout | [`0.0.9700388-1785002413-836244743`](https://hashscan.io/testnet/transaction/0.0.9700388-1785002413-836244743) |
+| Example on-chain TEE verification | [`0xfeb0ea1d…acdbea`](https://hashscan.io/testnet/transaction/0xfeb0ea1d21629cf4b41336968ee7969b30a9d9c3c3fda577c8377e7659acdbea) |
 
 Off by default: with `MARKET_MODE` unset the platform behaves exactly as the
 sections above describe — no gate, no chain, no market.

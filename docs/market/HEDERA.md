@@ -7,26 +7,55 @@ Transfer + HCS), zero Solidity on Hedera.
 
 ## Payment flow mechanics (read this section, judges)
 
-Every verified human operator gets a **derived custodial testnet account**:
-the hub computes `HMAC-SHA256(MARKET_SECRET, worldIdNullifier)` → ECDSA key →
-recovers the account id from the mirror node by EVM-address alias, creating
-it with `AccountCreateTransaction().setECDSAKeyWithAlias(pub)
-.setInitialBalance(new Hbar(1))` on first sight. No key is ever stored; the
-hub is stateless across redeploys. (Custody is the weekend shortcut — stated
-openly; threshold-key escrow is the roadmap.)
+**The operator holds their own keys.** They connect MetaMask on Hedera
+testnet (chain 296 — viem ships the chain definition), fund it from the
+[faucet](https://portal.hedera.com/faucet), and sign the stake themselves.
+The hub never derives, holds or sees an operator key; it only verifies the
+transaction they already signed.
 
-Per driving session on a rig:
+Per graded attempt:
 
 | Step | Transfer | Trigger |
 |---|---|---|
-| **Bond lock** | operator → escrow, `BOND_HBAR` (0.5) | first `attempt_start` — skin in the game before actuating hardware |
-| **Bonus** | treasury → operator, `BONUS_HBAR` (0.5) | the settlement worker, **autonomously**, the moment the 0G referee passes an episode |
-| **Release** | escrow → operator | operator walks away with no fraud verdict |
+| **Stake** | operator's wallet → escrow, `BOND_HBAR` (0.5) | the operator signs it in MetaMask; the hub verifies the tx hash against the mirror node before granting the lease |
+| **Pass** | escrow + treasury → operator's wallet, **one atomic tx** (stake back + `BONUS_HBAR`) | the settlement worker, **autonomously**, on the 0G referee's verdict |
 | **Slash** | escrow → treasury | operator **claimed success** but the TEE referee failed the episode |
+| **Honest discard** | escrow → operator's wallet, no bonus | operator discarded or abandoned — only graded work pays |
 
 The decision-maker for every transfer is the grading agent
 (`apps/web/src/market/worker.ts`, a 1 Hz state machine) acting on the 0G
-Compute verdict — an agent paying a human for verified work.
+Compute verdict — an agent paying a human for verified work. Settlement
+fires on the verdict, not a timer.
+
+**Verification details that matter** (each was a real trap):
+- A stake tx hash may fund exactly one bond, or one payment could be replayed
+  into unlimited attempts.
+- The sender is **not** the transaction payer: for `ETHEREUMTRANSACTION` the
+  `transaction_id` belongs to the JSON-RPC relay's account. We read `.from`
+  from `/api/v1/contracts/results/{hash}` and normalise "long-zero" addresses
+  to the operator's real alias so they see their own wallet.
+- Mirror-node amounts are **tinybar** while MetaMask spoke **wei** — a silent
+  10^10 error if mixed.
+- The escrow account must already exist at its EVM alias, or the first staker
+  pays ~661k gas for hollow-account creation instead of ~22.8k.
+
+## The cross-chain link (this is the interesting part)
+
+The grading happens on 0G; the money is on Hedera. Rather than trusting our
+backend to relay the verdict, **a Hedera contract verifies 0G's TEE
+signature itself**: `contracts/TeeAttestation.sol`, deployed at
+[`0xE6ad861D…673CC3`](https://hashscan.io/testnet/contract/0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3).
+
+0G's broker signs every inference response inside the enclave with plain
+EIP-191 over `"<reqSha256>:<respSha256>:<type>:<identity>:<tlsFingerprint>"`,
+so the contract rebuilds that string from the raw response bytes, derives the
+digest and `ecrecover`s it. Hedera cannot read 0G's registry, so the signer
+address is pinned at deploy — but `scripts/deploy-tee-attestation.ts` reads
+it **live from 0G's InferenceServing contract on Galileo**, so the constant
+is auditable in seconds and is not a per-verdict oracle.
+
+Feed it a tampered response body and it reverts. That is what makes it real
+rather than decorative.
 
 ## HCS audit trail (bonus criterion)
 
