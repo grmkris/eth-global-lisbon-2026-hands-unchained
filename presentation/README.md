@@ -26,10 +26,38 @@ A slot's `src` is a *fallback*: dragging a real photo onto the slot in Claude
 Design still overrides it. So when we have actual bench photos of the rig,
 drop them in — no code change needed, and these stand in until then.
 
+## The logo
+
+`logo.svg` is the mark: one hand, its right half wearing a teleoperation
+exoskeleton. That is not a metaphor — the frame over the fingers is the rig and
+the pivots are the joints an operator drives.
+
+It started as generated raster (`logo-concepts/split-4.jpg`) and was traced to
+vector with `trace-logo.py`, which turns the black strokes into filled outlines
+so the mark takes `fill: currentColor` and tints itself like everything else in
+the blueprint system. The deck draws it at **84x84** in the slide corner and
+**200x200** on the cover; it is legible at both, but it muds below ~40px, so a
+favicon would want a reduced cut rather than this file shrunk.
+
+```sh
+python3 presentation/trace-logo.py split-4 --smooth 1.3 --tolerance 0.8 --width 900
+```
+
+`--width` is the real quality/size dial: 900 gives 8 KB and is visually
+identical to 16 KB at 1200; below ~700 the outline starts to wobble and the
+joint circles go polygonal. Requires `potrace` (and `rsvg-convert` if you want
+to render the result locally to check it).
+
+**The mark is inlined on all twelve slides, not referenced.** Do not "optimise"
+that into a `<symbol>` + `<use>` pair: `deck-stage` treats its direct children
+as slides, so a `<defs>`/`<symbol>` block placed there renders as an extra blank
+slide at position 1. Twelve copies of an 8 KB path is the deliberate trade.
+
 ## Regenerating
 
-Photos are generated with Gemini `gemini-3-pro-image`. Prompts live in
-`gen-images.ts` and are the interesting part: they pin down what an SO-101
+Photos and logo concepts both go through `gemini.ts` (Gemini
+`gemini-3-pro-image`, no SDK). Prompts live in `gen-images.ts` and
+`gen-logo.ts` and are the interesting part: they pin down what an SO-101
 actually looks like (3D-printed PLA brackets, Feetech STS3215 servos,
 daisy-chained 3-pin cables) so the arm doesn't come back as a generic
 industrial robot, and they ban all in-frame text because the deck's `.duotone`
@@ -40,7 +68,17 @@ GEMINI_API_KEY=… bun run presentation/gen-images.ts          # missing only
 GEMINI_API_KEY=… bun run presentation/gen-images.ts --force  # all
 GEMINI_API_KEY=… bun run presentation/gen-images.ts --only=photo-rig
 python3 presentation/optimize.py                             # originals/ → images/
+
+GEMINI_API_KEY=… bun run presentation/gen-logo.ts             # seven logo concepts
+GEMINI_API_KEY=… bun run presentation/gen-logo.ts --only=split --variants=4
 ```
+
+For logo concepts, prefer giving a concept explicit `takes[]` in `gen-logo.ts`
+over re-rolling the same prompt with `--variants` — spelling each take out is
+what produced four genuinely different split-hand answers after the first
+attempt failed. That first failure is instructive and the prompt still carries
+the fix: the outline stopped at the seam, so the mechanical half had no palm and
+its fingers came back as detached floating rods.
 
 - `originals/` — full 2K frames as generated (keep: useful for the video).
 - `images/` — downscaled to 2× each slot's box, ~200–900 KB. These are what

@@ -18,15 +18,10 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const MODEL = "gemini-3-pro-image";
+import { type AspectRatio, EXT, generateImage } from "./gemini";
+
 /** Full-resolution frames land here; optimize.py downscales them into images/. */
 const OUT_DIR = path.join(import.meta.dir, "originals");
-
-const API_KEY = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-if (API_KEY === undefined || API_KEY === "") {
-  console.error("GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY) is required");
-  process.exit(1);
-}
 
 /** Shared house style — the deck is a blueprint, so the photos are documentary. */
 const STYLE = `
@@ -67,7 +62,7 @@ type Shot = {
   readonly slide: string;
   /** Slot box in stage px — the aspect ratio is picked to cover it. */
   readonly box: string;
-  readonly aspectRatio: "1:1" | "3:4" | "4:3" | "4:5" | "5:4" | "16:9" | "9:16";
+  readonly aspectRatio: AspectRatio;
   readonly prompt: string;
 };
 
@@ -150,58 +145,6 @@ const args = Bun.argv.slice(2);
 const force = args.includes("--force");
 const onlyArg = args.find((a) => a.startsWith("--only="))?.split("=")[1];
 
-type InlineData = { readonly data: string; readonly mimeType?: string };
-type Part = { readonly inlineData?: InlineData; readonly text?: string };
-type GenerateResponse = {
-  readonly candidates?: readonly { readonly content?: { readonly parts?: readonly Part[] } }[];
-  readonly error?: { readonly message?: string };
-  readonly promptFeedback?: { readonly blockReason?: string };
-};
-
-const EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
-
-/** One generateContent call; returns the first inline image part. */
-const generate = async (shot: Shot): Promise<{ bytes: Buffer; mimeType: string }> => {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-    {
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: shot.prompt }], role: "user" }],
-        generationConfig: {
-          imageConfig: { aspectRatio: shot.aspectRatio, imageSize: "2K" },
-          responseModalities: ["TEXT", "IMAGE"],
-        },
-      }),
-      headers: { "content-type": "application/json", "x-goog-api-key": API_KEY },
-      method: "POST",
-    }
-  );
-
-  const body = (await res.json()) as GenerateResponse;
-  if (!res.ok || body.error !== undefined) {
-    throw new Error(`${res.status}: ${body.error?.message ?? "unknown error"}`);
-  }
-  if (body.promptFeedback?.blockReason !== undefined) {
-    throw new Error(`blocked: ${body.promptFeedback.blockReason}`);
-  }
-
-  const parts = body.candidates?.[0]?.content?.parts ?? [];
-  const image = parts.find((p) => p.inlineData !== undefined)?.inlineData;
-  if (image === undefined) {
-    const said = parts.map((p) => p.text ?? "").join(" ").slice(0, 300);
-    throw new Error(`no image part returned${said === "" ? "" : ` — model said: ${said}`}`);
-  }
-
-  return {
-    bytes: Buffer.from(image.data, "base64"),
-    mimeType: image.mimeType ?? "image/png",
-  };
-};
-
 await mkdir(OUT_DIR, { recursive: true });
 
 let failures = 0;
@@ -218,7 +161,7 @@ for (const shot of SHOTS) {
 
   console.log(`→ ${shot.id} — ${shot.slide} — ${shot.aspectRatio} for ${shot.box}`);
   try {
-    const { bytes, mimeType } = await generate(shot);
+    const { bytes, mimeType } = await generateImage(shot.prompt, shot.aspectRatio);
     const out = path.join(OUT_DIR, `${shot.id}.${EXT[mimeType] ?? "png"}`);
     await writeFile(out, bytes);
     console.log(`  ✓ ${path.relative(process.cwd(), out)} — ${Math.round(bytes.length / 1024)} KB`);
