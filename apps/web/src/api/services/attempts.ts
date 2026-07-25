@@ -234,7 +234,15 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 							numEpisodes: 1,
 							episodeS: task.episodeSeconds,
 							resetS: task.resetSeconds,
-							resume: existing?.isLocal ?? false,
+							// Resume only a dataset that actually has an EPISODE in it.
+							// A crashed session leaves a local dir with orphan frames and
+							// total_episodes=0; `isLocal` alone then chose resume, and
+							// lerobot's resume() fetches refs from the HF Hub, which 404s
+							// for a repo that was never pushed. That poisoned the task
+							// permanently — every later attempt died in record start.
+							resume:
+								(existing?.isLocal ?? false) &&
+								(existing?.totalEpisodes ?? 0) > 0,
 							source: priorSource,
 						});
 						current = {

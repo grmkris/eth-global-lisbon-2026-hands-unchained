@@ -18,6 +18,15 @@ const PYTHON =
 		: `${os.homedir()}/.local/share/uv/tools/lelab/bin/python`);
 const DRIVER_SCRIPT = `${DRIVER_DIR}/driver.py`;
 
+/** Publish-to-HF-Hub progress. Lives here, not on the hub: the dataset and the
+ * HF token are both on the rig owner's machine. */
+export interface PushState {
+	phase: "idle" | "uploading" | "done" | "failed";
+	repoId: string | null;
+	url: string | null;
+	error: string | null;
+}
+
 export interface RecordState {
 	active: boolean;
 	phase: string;
@@ -61,6 +70,12 @@ class DriverProc {
 		total: 0,
 		repoId: null,
 		source: null,
+	};
+	pushState: PushState = {
+		phase: "idle",
+		repoId: null,
+		url: null,
+		error: null,
 	};
 	private readyPromise: Promise<void> | null = null;
 
@@ -142,6 +157,17 @@ class DriverProc {
 					// disconnect, estop, prepare_record, after_record) — presence-gated
 					// because teleop_loop emits robot_state without it.
 					if (msg.leader !== undefined) this.hasLeader = msg.leader === true;
+				} else if (msg.event === "push_state") {
+					this.pushState = {
+						phase: String(msg.phase) as PushState["phase"],
+						repoId: msg.repoId ? String(msg.repoId) : null,
+						url: msg.url ? String(msg.url) : null,
+						error: msg.error ? String(msg.error) : null,
+					};
+					if (this.pushState.phase === "failed")
+						console.error(
+							`[driver-manager] push failed: ${this.pushState.error}`,
+						);
 				} else if (msg.event === "record_state") {
 					const phase = String(msg.phase);
 					this.recordState = {
@@ -235,6 +261,7 @@ export interface DriverManagerShape {
 		lastError: string | null;
 	}>;
 	readonly record: () => Effect.Effect<RecordState>;
+	readonly push: () => Effect.Effect<PushState>;
 }
 
 export class DriverManager extends Context.Service<
@@ -259,5 +286,6 @@ export class DriverManager extends Context.Service<
 				lastError: driverProc.lastError,
 			})),
 		record: () => Effect.sync(() => ({ ...driverProc.recordState })),
+		push: () => Effect.sync(() => ({ ...driverProc.pushState })),
 	});
 }

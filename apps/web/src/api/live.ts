@@ -36,6 +36,14 @@ const DatasetsLive = HttpApiBuilder.group(LabApi, "Datasets", (handlers) =>
 			Effect.flatMap(DatasetCatalog, (catalog) =>
 				catalog.episodes(query.repoId),
 			),
+		)
+		.handle("pushStatus", () =>
+			Effect.flatMap(DatasetCatalog, (catalog) => catalog.pushStatus()),
+		)
+		.handle("push", ({ payload }) =>
+			Effect.flatMap(DatasetCatalog, (catalog) =>
+				catalog.push(payload.repoName, payload.private ?? false),
+			).pipe(Effect.mapError((e) => new DriverError({ message: e.message }))),
 		),
 );
 

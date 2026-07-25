@@ -54,6 +54,27 @@ export class DatasetEpisodes extends Schema.Class<DatasetEpisodes>(
 	}),
 ) {}
 
+/** Driver/hardware failure surfaced with its actionable message (port busy hints etc).
+ * Declared here, above the first group that references it: the groups are built
+ * at module init, so a later class declaration would be a TDZ error. */
+export class DriverError extends Schema.TaggedErrorClass<DriverError>()(
+	"DriverError",
+	{
+		message: Schema.String,
+	},
+) {}
+
+/** Publish-to-Hub progress. The dataset and the HF token live on the RIG, so
+ * this is rig state relayed through telemetry — the hub holds no credentials. */
+export class PushStatus extends Schema.Class<PushStatus>("PushStatus")(
+	Schema.Struct({
+		phase: Schema.Literals(["idle", "uploading", "done", "failed"]),
+		repoId: Schema.NullOr(Schema.String),
+		url: Schema.NullOr(Schema.String),
+		error: Schema.NullOr(Schema.String),
+	}),
+) {}
+
 const DatasetsGroup = HttpApiGroup.make("Datasets").add(
 	HttpApiEndpoint.get("list", "/datasets", {
 		success: Schema.Array(DatasetInfo),
@@ -61,6 +82,18 @@ const DatasetsGroup = HttpApiGroup.make("Datasets").add(
 	HttpApiEndpoint.get("episodes", "/datasets/episodes", {
 		query: Schema.Struct({ repoId: Schema.String }),
 		success: DatasetEpisodes,
+	}),
+	HttpApiEndpoint.get("pushStatus", "/datasets/push-status", {
+		success: PushStatus,
+	}),
+	HttpApiEndpoint.post("push", "/datasets/push", {
+		payload: Schema.Struct({
+			/** name only — the rig prefixes its own HF user, exactly like tasks */
+			repoName: Schema.String,
+			private: Schema.optional(Schema.Boolean),
+		}),
+		success: PushStatus,
+		error: DriverError,
 	}),
 );
 
@@ -119,14 +152,6 @@ export class Checkpoints extends Schema.Class<Checkpoints>("Checkpoints")(
 		hubModelId: Schema.String,
 		steps: Schema.Array(Schema.String),
 	}),
-) {}
-
-/** Driver/hardware failure surfaced with its actionable message (port busy hints etc). */
-export class DriverError extends Schema.TaggedErrorClass<DriverError>()(
-	"DriverError",
-	{
-		message: Schema.String,
-	},
 ) {}
 
 /** Setup problem the user can fix (not a hardware fault) — lists the failed gates. */

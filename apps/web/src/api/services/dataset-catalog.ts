@@ -6,7 +6,14 @@ import {
 	asyncBufferFromUrl,
 	parquetReadObjects,
 } from "hyparquet";
-import { DatasetEpisodes, DatasetInfo, EpisodeInfo } from "#/api/contract";
+import {
+	DatasetEpisodes,
+	DatasetInfo,
+	EpisodeInfo,
+	PushStatus,
+} from "#/api/contract";
+import { RIG } from "#/api/rig";
+import { DriverManager } from "./driver-manager";
 import { HfHub } from "./hf-hub";
 
 const LEROBOT_CACHE = `${os.homedir()}/.cache/huggingface/lerobot`;
@@ -26,6 +33,13 @@ export interface DatasetCatalogShape {
 	readonly episodes: (repoId: string) => Effect.Effect<DatasetEpisodes>;
 	/** Mark a repo as sim-recorded (sidecar; this module is the only owner of that file). */
 	readonly tagSim: (repoId: string) => Effect.Effect<void>;
+	/** Publish a locally-recorded dataset to the HF Hub. Returns as soon as the
+	 * upload STARTS — poll `pushStatus` for the outcome and the URL. */
+	readonly push: (
+		repoName: string,
+		isPrivate: boolean,
+	) => Effect.Effect<PushStatus, Error>;
+	readonly pushStatus: () => Effect.Effect<PushStatus>;
 }
 
 export class DatasetCatalog extends Context.Service<
@@ -37,6 +51,7 @@ export class DatasetCatalog extends Context.Service<
 		Effect.gen(function* () {
 			const fs = yield* FileSystem.FileSystem;
 			const hub = yield* HfHub;
+			const driver = yield* DriverManager;
 
 			const readMeta = (owner: string, name: string) =>
 				fs
@@ -270,6 +285,29 @@ export class DatasetCatalog extends Context.Service<
 							(b.hubLastModified ?? "").localeCompare(a.hubLastModified ?? ""),
 						);
 					}),
+
+				pushStatus: () =>
+					driver.push().pipe(Effect.map((s) => new PushStatus(s))),
+
+				// repoName, never a full repoId: the rig owns its own HF namespace,
+				// exactly like tasks. An operator cannot aim a push at someone else's.
+				push: (repoName, isPrivate) =>
+					driver
+						.rpc<{ started: boolean; repoId: string }>("dataset_push", {
+							repo_id: `${RIG.hfUser}/${repoName}`,
+							private: isPrivate,
+						})
+						.pipe(
+							Effect.map(
+								(r) =>
+									new PushStatus({
+										phase: "uploading",
+										repoId: r.repoId,
+										url: null,
+										error: null,
+									}),
+							),
+						),
 			};
 		}),
 	);

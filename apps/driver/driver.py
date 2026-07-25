@@ -16,8 +16,10 @@ Commands:
   record_start {repo_id, task, num_episodes, episode_time_s, reset_time_s,
                 fps, resume, cameras}                     (needs connect first)
   record_control {action: keep | rerecord | finish}
+  dataset_push {repo_id, private}, dataset_push_status    (publish to HF Hub)
 
-Events: ready, brightness, joints, robot_state, record_state, episode_saved, error.
+Events: ready, brightness, joints, robot_state, record_state, episode_saved,
+        push_state, error.
 """
 
 import argparse
@@ -274,6 +276,60 @@ def cmd_record_control(action: str) -> dict:
     return {"action": action}
 
 
+# ---------- dataset publish ----------
+# The dataset lives HERE, on the rig owner's machine, and so does the HF token.
+# The hub never sees either — it only relays the owner's "push" verb. Runs on a
+# worker thread and reports through events for the same reason record_start
+# does: a 26MB upload blows the console's 30s RPC timeout.
+
+PUSHING: dict = {"thread": None, "state": {"phase": "idle", "repoId": None, "url": None, "error": None}}
+
+
+def push_state(phase: str, repo_id: str, url: str | None = None, error: str | None = None) -> None:
+    PUSHING["state"] = {"phase": phase, "repoId": repo_id, "url": url, "error": error}
+    emit({"event": "push_state", **PUSHING["state"]})
+
+
+def cmd_dataset_push(req: dict) -> dict:
+    repo_id = req.get("repo_id") or ""
+    if not repo_id:
+        raise ValueError("repo_id required")
+    if PUSHING["thread"] is not None and PUSHING["thread"].is_alive():
+        raise ValueError("a dataset push is already running")
+    # Uploading a dataset that the recorder is still writing into would ship a
+    # half-written episode — refuse rather than publish a corrupt snapshot.
+    if RECORDING["thread"] is not None and RECORDING["thread"].is_alive():
+        raise ValueError("recording active — finish the session before publishing")
+
+    def worker() -> None:
+        try:
+            push_state("uploading", repo_id)
+            from lerobot.datasets import LeRobotDataset
+            from lerobot.utils.constants import HF_LEROBOT_HOME
+
+            root = HF_LEROBOT_HOME / repo_id
+            if not root.exists():
+                raise ValueError(f"no local dataset at {root} — record an episode first")
+            dataset = LeRobotDataset(repo_id, root=str(root))
+            log(f"pushing {repo_id} ({dataset.meta.total_episodes} episodes) to the Hub")
+            dataset.push_to_hub(
+                private=bool(req.get("private", False)),
+                tags=["robotics", "so101", "teleoperation", "proof-of-hands"],
+            )
+            push_state("done", repo_id, url=f"https://huggingface.co/datasets/{repo_id}")
+            log(f"pushed {repo_id}")
+        except Exception as exc:  # noqa: BLE001 — surfaced to the owner via push_state
+            # HF's auth failures are long and multi-line; keep the first line,
+            # which is the part that tells the owner what to fix.
+            message = str(exc).strip().splitlines()[0][:300] if str(exc).strip() else repr(exc)
+            push_state("failed", repo_id, error=message)
+            log(f"push failed for {repo_id}: {message}")
+
+    PUSHING["thread"] = threading.Thread(target=worker, name="dataset-push", daemon=True)
+    PUSHING["thread"].start()
+    return {"started": True, "repoId": repo_id}
+
+
 # ---------- housekeeping threads ----------
 
 def status_reporter() -> None:
@@ -367,6 +423,10 @@ def main() -> None:
                 result = cmd_record_start(req)
             elif cmd == "record_control":
                 result = cmd_record_control(req.get("action", ""))
+            elif cmd == "dataset_push":
+                result = cmd_dataset_push(req)
+            elif cmd == "dataset_push_status":
+                result = PUSHING["state"]
             else:
                 raise ValueError(f"unknown cmd: {cmd}")
             emit({"id": rid, "ok": True, "result": result})

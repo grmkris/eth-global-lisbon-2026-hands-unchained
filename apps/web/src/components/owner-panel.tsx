@@ -1,12 +1,91 @@
-import { ChevronDown, ChevronRight, KeyRound, Trash2 } from "lucide-react";
+import {
+	ChevronDown,
+	ChevronRight,
+	ExternalLink,
+	KeyRound,
+	Trash2,
+	UploadCloud,
+} from "lucide-react";
 import { useState } from "react";
+import type { TaskInfo } from "#/api/contract";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { Spinner } from "#/components/ui/spinner";
 import { Textarea } from "#/components/ui/textarea";
 import { ownerKeyStore, type RigSummary } from "#/lib/hub-api";
+
+/**
+ * Publish one task's dataset to the HF Hub, and show where it landed.
+ *
+ * The upload runs on the RIG (that is where the episodes and the HF token are)
+ * so this is a fire-and-watch button: the verb starts it, and `rig.push`
+ * telemetry carries the phase, the resulting URL, and any failure back. Only
+ * one push runs at a time rig-wide, hence gating every task's button on it.
+ */
+function PublishTask({
+	task,
+	push,
+	busy,
+	ownerKey,
+	onPush,
+}: {
+	task: TaskInfo;
+	push: RigSummary["push"];
+	busy: boolean;
+	ownerKey: string;
+	onPush: (ownerKey: string, repoName: string) => void;
+}) {
+	const collected = task.episodesDone ?? 0;
+	// telemetry is rig-wide; only claim it for the task whose repo it names
+	const mine = push && push.repoId?.endsWith(`/${task.repoName}`) ? push : null;
+	const uploading = push?.phase === "uploading";
+
+	if (mine?.phase === "done" && mine.url)
+		return (
+			<a
+				href={mine.url}
+				target="_blank"
+				rel="noreferrer"
+				className="inline-flex items-center gap-1 text-xs underline underline-offset-2"
+			>
+				<ExternalLink className="size-3" />
+				on the Hub
+			</a>
+		);
+
+	return (
+		<div className="flex items-center gap-1">
+			<Button
+				size="sm"
+				variant="outline"
+				onClick={() => onPush(ownerKey, task.repoName)}
+				// nothing recorded yet = nothing to publish; the rig would only
+				// answer "no local dataset — record an episode first"
+				disabled={!ownerKey || busy || uploading || collected === 0}
+				title={
+					collected === 0
+						? "no episodes recorded yet"
+						: `publish ${task.repoName} to the HF Hub`
+				}
+			>
+				{mine?.phase === "uploading" ? (
+					<Spinner className="size-3" />
+				) : (
+					<UploadCloud />
+				)}
+				{mine?.phase === "uploading" ? "publishing…" : "Publish"}
+			</Button>
+			{mine?.phase === "failed" && (
+				<span className="text-destructive text-xs" title={mine.error ?? ""}>
+					push failed
+				</span>
+			)}
+		</div>
+	);
+}
 
 /**
  * Rig-owner controls: define/edit the tasks operators can attempt. The key is
@@ -17,9 +96,10 @@ export function OwnerPanel(props: {
 	rig: RigSummary;
 	onUpsert: (ownerKey: string, task: Record<string, unknown>) => void;
 	onDelete: (ownerKey: string, id: string) => void;
+	onPush: (ownerKey: string, repoName: string) => void;
 	busy: boolean;
 }) {
-	const { rig, onUpsert, onDelete, busy } = props;
+	const { rig, onUpsert, onDelete, onPush, busy } = props;
 	const [open, setOpen] = useState(false);
 	const [key, setKey] = useState(() => ownerKeyStore.get(rig.name));
 	const [editingId, setEditingId] = useState<string>("");
@@ -111,11 +191,21 @@ export function OwnerPanel(props: {
 										>
 											{t.title}
 										</button>
+										<span className="font-mono text-xs text-muted-foreground">
+											{t.episodesDone ?? 0} ep
+										</span>
 										{!t.active && (
 											<span className="text-xs text-muted-foreground">
 												(inactive)
 											</span>
 										)}
+										<PublishTask
+											task={t}
+											push={rig.push}
+											busy={busy}
+											ownerKey={key}
+											onPush={onPush}
+										/>
 										<Button
 											size="icon-sm"
 											variant="ghost"
