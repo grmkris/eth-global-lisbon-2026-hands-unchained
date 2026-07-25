@@ -44,9 +44,22 @@ const init = async (): Promise<ZgState> => {
 		console.error(
 			`[market] 0g ledger ok (${JSON.stringify(ledger.totalBalance ?? "?")})`,
 		);
-	} catch {
-		console.error("[market] 0g ledger missing — addLedger(3) (needs ~3 OG)…");
-		await broker.ledger.addLedger(3);
+	} catch (getLedgerErr) {
+		// getLedger also throws on transient RPC flakes; addLedger on an
+		// existing ledger reverts. Whatever happened, what matters is whether
+		// a ledger exists AFTERWARDS — recheck instead of parsing errors.
+		console.error(
+			`[market] 0g getLedger failed (${(getLedgerErr as Error)?.message?.slice(0, 120)}) — trying addLedger(3)…`,
+		);
+		try {
+			await broker.ledger.addLedger(3);
+		} catch (addErr) {
+			console.error(
+				`[market] 0g addLedger failed (${(addErr as Error)?.message?.slice(0, 120)}) — rechecking ledger…`,
+			);
+			await broker.ledger.getLedger(); // throws only if truly no ledger
+			console.error("[market] 0g ledger exists after all — continuing");
+		}
 	}
 	return { broker, acknowledged: new Set<string>() };
 };

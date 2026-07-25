@@ -18,7 +18,9 @@ export interface Grade {
 	proof: Record<string, unknown> | null;
 }
 
-const GRADE_TIMEOUT_MS = 30_000;
+/** Real 0G verdicts have taken ~60s on testnet — budget generously; the
+ * worker is async and the demo narrates "the referee is deliberating". */
+const GRADE_TIMEOUT_MS = 90_000;
 
 export const grade = async (row: LedgerRow): Promise<Grade> => {
 	// A "success" claim with no saved episode is fraud-shaped regardless of

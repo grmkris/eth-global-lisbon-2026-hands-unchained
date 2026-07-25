@@ -24,8 +24,10 @@ import {
 
 /** Lease evaporated + rig-side attempt gone this long -> abandoned. */
 const ABANDON_MS = 35_000;
-/** Wait after attempt_finish before grading — the episode save lands late. */
-const GRADE_GRACE_MS = 5_000;
+/** Worst-case wait after attempt_finish before grading a success claim —
+ * the episode save lands late (video encoding; ~2s on sim, more on real).
+ * The fast path grades the moment the sampler sees the save. */
+const GRADE_GRACE_MS = 15_000;
 /** Bond released after the operator has been gone this long with no open row. */
 const BOND_IDLE_MS = 60_000;
 
@@ -79,9 +81,16 @@ const abandonStaleRows = (): void => {
 
 const advance = async (row: LedgerRow): Promise<void> => {
 	if (row.status === "closed") {
-		// grace window: the rig saves the episode 1-2s AFTER attempt_finish;
-		// the sampler keeps watching record.saved until we grade
-		if (row.closedAt !== null && Date.now() - row.closedAt < GRADE_GRACE_MS)
+		// A success claim waits for the rig's episode save (the sampler keeps
+		// watching record.saved through this window): grade the moment it
+		// lands, or after GRADE_GRACE_MS worst-case. Discard/abandon grade
+		// immediately — there is nothing to wait for.
+		if (
+			row.claimed === "success" &&
+			row.telemetry.episodeSaved !== true &&
+			row.closedAt !== null &&
+			Date.now() - row.closedAt < GRADE_GRACE_MS
+		)
 			return;
 		stopSampler(row.id);
 		row.grade = await grade(row);
