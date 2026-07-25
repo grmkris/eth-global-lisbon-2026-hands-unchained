@@ -133,8 +133,8 @@ export function StakeGate({ session }: { session: MarketSessionInfo }) {
 				</div>
 				<p className="text-sm text-muted-foreground">
 					This is a real robot arm. To drive it you prove you're a unique adult
-					human, then stake {stake?.bondHbar ?? 0.5} ℏ of your own HBAR. Do the
-					task well and a TEE referee returns your stake plus{" "}
+					human (18+), then stake {stake?.bondHbar ?? 0.5} ℏ of your own HBAR.
+					Do the task well and a TEE referee returns your stake plus{" "}
 					{stake?.bonusHbar ?? 0.5} ℏ. Claim success you didn't earn and the
 					stake is slashed.
 				</p>
@@ -163,7 +163,8 @@ export function StakeGate({ session }: { session: MarketSessionInfo }) {
 										// biome-ignore lint/suspicious/noExplicitAny: env is a runtime string from the hub
 										environment={world.env as any}
 										allow_legacy_proofs={false}
-										require_user_presence={true}
+										// a simulator has no camera to prove liveness with
+										require_user_presence={world.requirePresence === true}
 										handleVerify={async (result) => {
 											await verifyWorldProof(
 												result as unknown as Record<string, unknown>,

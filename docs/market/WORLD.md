@@ -2,10 +2,12 @@
 
 **Track:** Identity Check Beta Test. **Why the attribute is necessary:**
 operators remotely actuate a **physical robot arm**. That is machinery
-operation with real liability — the market gates execution rights on (a)
-**minimum_age: 18** (legal capacity to operate machinery and to be paid for
-work) and (b) **require_user_presence** (a live human is at the controls
-right now, not a replayed credential driving hardware). This is an
+operation with real liability — the market gates execution rights on
+**minimum_age: 18**: legal capacity to operate machinery and to be paid for
+work. (`require_user_presence` is wired behind `WORLD_REQUIRE_PRESENCE` but
+is OFF: presence matches a fresh selfie against the credential's stored
+image, which a simulator cannot produce. We do not claim a liveness check we
+did not get.) This is an
 eligibility/abuse-prevention signal, not a login: an unverified browser can
 watch every camera feed freely — it just cannot take the lease (HTTP 402)
 or start paid attempts.
@@ -19,9 +21,9 @@ store to leak.
 ## Integration
 
 - Widget: `IDKitRequestWidget` (`@worldcoin/idkit@4.2.1`) in
-  `apps/web/src/components/verify-gate.tsx`, preset
+  `apps/web/src/components/stake-gate.tsx`, preset
   `identityCheck({ attributes: [{ type: "minimum_age", value: 18 }] })`,
-  `require_user_presence: true`, `allow_legacy_proofs: false`.
+  `allow_legacy_proofs: false`, `environment` from `WORLD_ENV` (staging).
 - rp_context: backend-signed per request (`signRequest` from
   `@worldcoin/idkit-core/signing`, TTL 300 s) — `GET /api/market/rp-context`.
 - Verify: `POST /api/market/verify` forwards the result to
@@ -58,6 +60,13 @@ store to leak.
 6. **Identity Check preview gating:** "contact us" is a real speed bump in a
    36-hour hackathon; a self-serve sandbox flag on hackathon app ids would
    remove it.
+7. **`require_user_presence` is silently incompatible with the simulator.**
+   It fails with `user_presence_failed` ("World App couldn't confirm your
+   presence"), which reads like a device or network fault rather than "this
+   environment has no camera and no enrolled face to match against". The
+   docs describe presence as a request-level flag without noting that it
+   cannot be satisfied outside production — an env-aware warning, or a
+   distinct error code, would have saved a confusing debugging round.
 
 ### User feedback (booth testing)
 
@@ -67,7 +76,6 @@ store to leak.
     NOT shared (name/document)? quote answers
   - consent friction: did anyone balk at the age attestation for a robot
     demo? drop-off count
-  - liveness (require_user_presence) UX: retries needed?
   - device coverage: iOS/Android, World App versions
 -->
 
@@ -75,7 +83,7 @@ store to leak.
 
 1. Incognito browser tries to take the rig → **402, arm stays locked** (the
    deny path is the feature).
-2. Judge verifies on their own phone (18+, liveness) → lease granted →
-   drives a real SO-101.
-3. The same nullifier that unlocked the arm derives the Hedera account their
-   HBAR lands on — identity → labor → payment, one chain of custody.
+2. Judge verifies (18+) → lease granted.
+3. They stake 0.5 ℏ from their own wallet, drive a real SO-101, and the
+   TEE referee decides whether that stake comes back with a bonus —
+   identity → labor → payment, one chain of custody.

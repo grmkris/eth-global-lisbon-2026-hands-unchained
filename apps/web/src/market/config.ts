@@ -105,6 +105,11 @@ export const WORLD = {
 	 * app_id/rp_id/key work either way. Asserted server-side on verify:
 	 * without that check a simulator proof could mint a production session. */
 	env: process.env.WORLD_ENV ?? "staging",
+	/** Ask World ID for a fresh liveness capture (a live selfie matched
+	 * against the credential's image). OFF by default because a simulator
+	 * has no camera and no enrolled face to match — it fails every time with
+	 * `user_presence_failed`. Only turn on against a real World App. */
+	requirePresence: process.env.WORLD_REQUIRE_PRESENCE === "1",
 	get configured(): boolean {
 		return this.appId !== "" && this.rpId !== "";
 	},

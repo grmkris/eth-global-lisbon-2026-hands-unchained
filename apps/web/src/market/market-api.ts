@@ -33,6 +33,7 @@ export interface MarketSessionInfo {
 		action: string;
 		preset: string;
 		env: string;
+		requirePresence?: boolean;
 	} | null;
 	stake?: MarketStakeInfo;
 }

@@ -86,6 +86,7 @@ export const handleMarketRequest = async (
 				action: WORLD.action,
 				preset: WORLD.preset,
 				env: WORLD.env,
+				requirePresence: WORLD.requirePresence,
 			}
 		: null;
 	const stakeConfig = {
