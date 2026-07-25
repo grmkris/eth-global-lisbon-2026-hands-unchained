@@ -333,6 +333,10 @@ export class TaskInfo extends Schema.Class<TaskInfo>("TaskInfo")(
 		resetSeconds: Schema.Number,
 		maxEpisodes: Schema.NullOr(Schema.Number),
 		active: Schema.Boolean,
+		/** DERIVED, not stored: episodes already in the task's dataset
+		 * (lerobot meta `total_episodes`; null = dataset not created yet).
+		 * Filled by TasksRegistry.list() so the UI can show 13/20. */
+		episodesDone: Schema.optional(Schema.NullOr(Schema.Number)),
 	}),
 ) {}
 

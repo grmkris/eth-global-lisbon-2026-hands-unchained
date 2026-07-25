@@ -9,12 +9,15 @@
  * Lost key = delete .data/owner.json and restart (tasks survive).
  */
 import * as crypto from "node:crypto";
+import * as os from "node:os";
 import { Context, Effect, FileSystem, Layer } from "effect";
 import { ForbiddenError, TaskInfo } from "#/api/contract";
 import { isOwnerKey } from "#/api/owner-key";
+import { RIG } from "#/api/rig";
 
 const DATA_DIR = `${process.cwd()}/.data`;
 const TASKS_FILE = `${DATA_DIR}/tasks.json`;
+const LEROBOT_CACHE = `${os.homedir()}/.cache/huggingface/lerobot`;
 
 // Advertised over a 20Hz link — keep the payload bounded.
 const MAX_TASKS = 16;
@@ -35,6 +38,17 @@ export interface TasksRegistryShape {
 
 const clamp = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s);
 
+/** total_episodes out of a lerobot meta file, or null for anything unexpected
+ * (missing file, half-written JSON) — progress must never fail a task list. */
+const totalEpisodes = (raw: string): number | null => {
+	try {
+		const info = JSON.parse(raw) as { total_episodes?: unknown };
+		return typeof info.total_episodes === "number" ? info.total_episodes : null;
+	} catch {
+		return null;
+	}
+};
+
 export class TasksRegistry extends Context.Service<
 	TasksRegistry,
 	TasksRegistryShape
@@ -53,10 +67,35 @@ export class TasksRegistry extends Context.Service<
 
 			const load = fs.readFileString(TASKS_FILE).pipe(
 				Effect.map((raw) =>
-					(JSON.parse(raw) as Array<TaskInfo>).map((t) => new TaskInfo(t)),
+					(JSON.parse(raw) as Array<TaskInfo>).map(
+						// episodesDone is derived — never trust/keep what's on disk
+						(t) => new TaskInfo({ ...t, episodesDone: null }),
+					),
 				),
 				Effect.orElseSucceed(() => [] as Array<TaskInfo>),
 			);
+
+			/** Progress = episodes already in the task's dataset. Same source the
+			 * attempt quota check uses (`attempts.ts`), surfaced so operators see
+			 * 13/20 and the UI can auto-continue. One small JSON read per task —
+			 * cheap enough for the rig's 2 s task refresh. */
+			const withProgress = (tasks: ReadonlyArray<TaskInfo>) =>
+				Effect.all(
+					tasks.map((task) =>
+						fs
+							.readFileString(
+								`${LEROBOT_CACHE}/${RIG.hfUser}/${task.repoName}/meta/info.json`,
+							)
+							.pipe(
+								Effect.map(totalEpisodes),
+								Effect.orElseSucceed(() => null), // no dataset yet
+								Effect.map(
+									(done) => new TaskInfo({ ...task, episodesDone: done }),
+								),
+							),
+					),
+					{ concurrency: 4 },
+				);
 
 			const save = (tasks: ReadonlyArray<TaskInfo>) =>
 				fs
@@ -69,13 +108,14 @@ export class TasksRegistry extends Context.Service<
 					);
 
 			return {
-				list: () => load,
+				list: () => load.pipe(Effect.flatMap(withProgress)),
 				upsert: (key, task) =>
 					checkKey(key).pipe(
 						Effect.andThen(load),
 						Effect.flatMap((tasks) => {
 							const cleaned = new TaskInfo({
 								...task,
+								episodesDone: null, // derived on read, never persisted
 								id: task.id || crypto.randomUUID().slice(0, 8),
 								title: clamp(task.title, MAX_TITLE),
 								instructions: clamp(task.instructions, MAX_INSTRUCTIONS),
