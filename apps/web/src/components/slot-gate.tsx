@@ -391,7 +391,7 @@ export function SlotGate({
 
 				<Step
 					n={3}
-					title={`Book ${minutes} minutes · ${stakeOg} OG`}
+					title={`Book ${minutes} minutes · ${stakeOg} ${token}`}
 					done={needsUnlock}
 				>
 					{slots === null ? (

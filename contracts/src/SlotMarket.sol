@@ -283,9 +283,19 @@ contract SlotMarket is TeeVerifier {
         Slot storage s = slots[slotId];
         require(s.status == Status.Booked, "slot not bookable");
         require(msg.sender == s.operator || msg.sender == settler, "not yours to start");
-        // self-healing: a predecessor that expired and was never settled must
-        // not strand a live operator who is standing at the rig
-        _sweep(s.rigId);
+        // Self-healing: a PREDECESSOR that expired and was never settled must
+        // not strand a live operator who is standing at the rig.
+        //
+        // Guarded, because an unguarded sweep strands that same operator. If
+        // you are already the head, _sweep's Booked branch fires on YOUR slot:
+        // past noShowGrace it skips you as a no-show, the require below then
+        // fails, and the whole transaction reverts — leaving you the head,
+        // still Booked, and unable to ever start. The window to walk up was 90
+        // seconds from booking, on a product whose entire promise is "the clock
+        // starts when you take control, not when you paid".
+        //
+        // There is nothing to clear when the queue is already yours.
+        if (_head(s.rigId) != slotId) _sweep(s.rigId);
         require(_head(s.rigId) == slotId, "not at the head of the queue");
         s.startedAt = uint40(block.timestamp);
         s.endAt = uint40(block.timestamp + slotDuration);

@@ -108,3 +108,14 @@ export const explorerAddressFor = (
 
 export const shortAddress = (address: string): string =>
 	`${address.slice(0, 6)}…${address.slice(-4)}`;
+
+/**
+ * What this chain's money is CALLED.
+ *
+ * The DTO carries amounts in whole tokens and a chain key, never a symbol, and
+ * several places used to print a hardcoded "OG" beside them — so a 0.5 HBAR
+ * stake on Hedera rendered as "0.5 OG". Wrong by a factor of whatever the two
+ * are worth, and wrong in the one part of the UI that is about money.
+ */
+export const tokenFor = (chainKey: string | null): string =>
+	chainKey === "hedera" ? "HBAR" : "OG";

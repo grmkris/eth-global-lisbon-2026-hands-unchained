@@ -91,8 +91,23 @@ export function WorldStep({
 	if (session.verified && bound)
 		return (
 			<span className="text-sm text-muted-foreground">
-				verified{session.nullifier ? ` · ${session.nullifier}` : ""} · bound to
-				your wallet
+				verified
+				{/* LABELLED, because a truncated nullifier is 0x-prefixed hex and
+				    reads as a second wallet address sitting under your real one.
+				    It is a World ID hash: one per human per action, and not
+				    linkable back to the person. */}
+				{session.nullifier ? (
+					<>
+						{" · World ID "}
+						<span
+							className="font-mono"
+							title="your World ID nullifier — one per human for this action, not an address and not linkable to you"
+						>
+							{session.nullifier}
+						</span>
+					</>
+				) : null}{" "}
+				· bound to your wallet
 			</span>
 		);
 

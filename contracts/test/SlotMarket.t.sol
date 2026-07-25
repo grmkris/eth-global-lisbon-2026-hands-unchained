@@ -262,13 +262,77 @@ contract SlotMarketTest is Test {
 
     function test_StartSlot_ClockStartsAtUnlockNotBooking() public {
         uint256 id = _book(alice, "p");
-        // inside the no-show grace on purpose: warp past it and `_sweep` would
-        // (correctly) skip her as a no-show before she ever unlocks
         vm.warp(block.timestamp + NO_SHOW_GRACE - 10);
         _start(id);
         assertEq(
             uint256(_endAt(id)), block.timestamp + SLOT_DURATION, "the 30 minutes start at unlock"
         );
+    }
+
+    /**
+     * The bug this exists to stop, found on a live rig.
+     *
+     * `startSlot` sweeps before checking the head, so when the caller IS the
+     * head, `_sweep`'s Booked branch fired on their own slot: past the grace it
+     * skipped them as a no-show, the head advanced, and the require then failed
+     * with "not at the head of the queue". The revert rolled the skip back too,
+     * so there was no refund either — the slot stayed Booked, stayed the head,
+     * and every retry reverted identically. Permanently unstartable, 90 seconds
+     * after booking, on a product that advertises "the clock starts when you
+     * take control, not when you paid".
+     */
+    function test_StartSlot_HeadIsNotSkippedByItsOwnSweep() public {
+        uint256 id = _book(alice, "p");
+        vm.warp(block.timestamp + NO_SHOW_GRACE + 600); // read the page, got coffee
+        _start(id);
+        assertEq(uint8(_status(id)), uint8(SlotMarket.Status.Running), "a late walk-up starts");
+        assertEq(uint256(_endAt(id)), block.timestamp + SLOT_DURATION);
+    }
+
+    /// Same, when the operator starts it themselves rather than via the hub —
+    /// the relay is a convenience, never the only way in.
+    function test_StartSlot_LateOperatorMayStillStartThemselves() public {
+        uint256 id = _book(alice, "p");
+        vm.warp(block.timestamp + NO_SHOW_GRACE + 600);
+        vm.prank(alice);
+        market.startSlot(id);
+        assertEq(uint8(_status(id)), uint8(SlotMarket.Status.Running));
+    }
+
+    /**
+     * The protection that replaces it, and why the trade is sound.
+     *
+     * Letting a late head start does weaken the no-show rule: with someone
+     * queued behind, an absent operator could sit on the arm and then claim it
+     * whenever. That case is handled deliberately instead of accidentally —
+     * `skipHead` is permissionless, so anyone waiting (and the hub, on its
+     * tick) can evict them. What is gone is only the self-eviction of the one
+     * person actually trying to drive.
+     */
+    function test_StartSlot_LateHeadIsStillEvictableByAnyoneWaiting() public {
+        uint256 a = _book(alice, "p");
+        uint256 b = _book(bob, "q");
+        vm.warp(block.timestamp + NO_SHOW_GRACE + 600);
+
+        market.skipHead(RIG); // anyone at all
+        assertEq(uint8(_status(a)), uint8(SlotMarket.Status.Skipped));
+        assertEq(alice.balance, 10 ether, "a no-show is rude, not fraud");
+
+        _start(b);
+        assertEq(uint8(_status(b)), uint8(SlotMarket.Status.Running));
+    }
+
+    /// A stale PREDECESSOR must still be cleared — that is what the sweep is
+    /// for, and the guard must not disable it.
+    function test_StartSlot_StillSweepsAStalePredecessor() public {
+        uint256 a = _bookAndStart(alice);
+        uint256 b = _book(bob, "q");
+        // alice's slot ran out and nobody settled it
+        vm.warp(block.timestamp + SLOT_DURATION + GRADE_GRACE + 1);
+
+        _start(b); // sweeps alice out of the way on the way in
+        assertEq(uint8(_status(a)), uint8(SlotMarket.Status.Settled));
+        assertEq(uint8(_status(b)), uint8(SlotMarket.Status.Running));
     }
 
     function test_StartSlot_OperatorMayStartThemselves() public {

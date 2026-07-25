@@ -23,6 +23,7 @@ import {
 	explorerAddressFor,
 	explorerTxFor,
 	shortAddress,
+	tokenFor,
 } from "#/market/chain";
 import type {
 	RigSlotInfo,
@@ -396,11 +397,13 @@ export function SlotPanel({
 					>
 						{shortAddress(slot.operator)}
 					</a>
-					<StatusBadge tone="info">{slot.stakeOg} OG staked</StatusBadge>
+					<StatusBadge tone="info">
+						{slot.stakeOg} {tokenFor(slot.chain)} staked
+					</StatusBadge>
 					<span className="text-muted-foreground">
 						earned{" "}
 						<span className="font-mono text-foreground tabular-nums">
-							{slot.creditsOg.toFixed(3)} OG
+							{slot.creditsOg.toFixed(3)} {tokenFor(slot.chain)}
 						</span>
 					</span>
 					{slot.strikes > 0 && (
@@ -460,9 +463,9 @@ export function SlotPanel({
 						<TriangleAlert />
 						<AlertTitle>One more and the slot ends</AlertTitle>
 						<AlertDescription>
-							Another failed success claim slashes your whole {slot.stakeOg} OG
-							stake. When an attempt doesn't work, press Discard — a discard is
-							free and never counts against you.
+							Another failed success claim slashes your whole {slot.stakeOg}{" "}
+							{tokenFor(slot.chain)} stake. When an attempt doesn't work, press
+							Discard — a discard is free and never counts against you.
 						</AlertDescription>
 					</Alert>
 				)}
