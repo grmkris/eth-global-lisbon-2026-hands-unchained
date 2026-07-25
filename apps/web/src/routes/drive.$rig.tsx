@@ -39,7 +39,7 @@ import {
 	sendRigCommand,
 	sendRigInput,
 } from "#/lib/hub-api";
-import { marketSessionQuery } from "#/market/market-api";
+import { marketSessionQuery, taskProgressQuery } from "#/market/market-api";
 import { useSlot } from "#/market/use-slot";
 
 export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
@@ -67,6 +67,9 @@ function DrivePage() {
 	const rig = useQuery(rigQuery(rigName));
 	const leaders = useQuery(leadersQuery);
 	const market = useQuery(marketSessionQuery);
+	/** what the referee kept per task — drives the progress bar and the
+	 * "complete" gate, so neither is made of failed work */
+	const taskProgress = useQuery(taskProgressQuery(rigName));
 	const [rtt, setRtt] = useState<number | null>(null);
 
 	const holder = rig.data?.holder ?? null;
@@ -237,6 +240,21 @@ function DrivePage() {
 	const myAttempt =
 		rig.data?.attempt?.active === true &&
 		rig.data.attempt.operator === clientId;
+
+	/**
+	 * Is there anything left to record on this arm?
+	 *
+	 * Same rule TaskPanel uses for its per-task "complete ✓", applied across
+	 * every active task. False means an operator holding a live slot has no way
+	 * to earn another credit, so the panel offers them the exit instead of
+	 * letting the clock run out on a rig nobody else can book.
+	 */
+	const activeTasks = rig.data?.tasks.filter((t) => t.active) ?? [];
+	const workLeft =
+		activeTasks.length === 0 ||
+		activeTasks.some(
+			(t) => t.maxEpisodes === null || (t.episodesDone ?? 0) < t.maxEpisodes,
+		);
 
 	// owner verbs carry the stored key; rejection surfaces via lastCommandResult
 	const ownerCommand = (verb: string, args?: Record<string, unknown>) =>
@@ -570,13 +588,20 @@ function DrivePage() {
 				</CardContent>
 			</Card>
 
-			{/* the holder's own ledger — a spectator sees the badge, not this */}
+			{/* The holder's own ledger — a spectator sees the badge, not this.
+			    Keyed on `mine` rather than `hasToken` so it does NOT vanish the
+			    instant the clock runs out: that is the moment the operator wants
+			    to read the last verdict and click their payout. */}
 			{slot.enabled &&
 				slot.info &&
-				slot.info.you?.hasToken === true &&
-				(slot.live || slot.info.state === "voided") && (
+				(slot.mine || slot.info.state === "voided") && (
 					<div className="mt-4">
-						<SlotPanel info={slot.info} maxStrikes={slot.maxStrikes} />
+						<SlotPanel
+							info={slot.info}
+							maxStrikes={slot.maxStrikes}
+							gradeGraceSeconds={slot.gradeGraceSeconds}
+							workLeft={workLeft}
+						/>
 					</div>
 				)}
 
@@ -584,6 +609,7 @@ function DrivePage() {
 				<div className="mt-4 flex flex-col gap-4">
 					<TaskPanel
 						slotEndsAt={slot.live?.endAt ?? null}
+						progress={taskProgress.data ?? null}
 						rig={data}
 						iAmDriving={iAmDriving}
 						myAttempt={myAttempt}

@@ -38,6 +38,8 @@ export interface DatasetCatalogShape {
 	readonly push: (
 		repoName: string,
 		isPrivate: boolean,
+		/** episode indices the referee failed — published without them */
+		excludeEpisodes?: ReadonlyArray<number>,
 	) => Effect.Effect<PushStatus, Error>;
 	readonly pushStatus: () => Effect.Effect<PushStatus>;
 }
@@ -291,11 +293,16 @@ export class DatasetCatalog extends Context.Service<
 
 				// repoName, never a full repoId: the rig owns its own HF namespace,
 				// exactly like tasks. An operator cannot aim a push at someone else's.
-				push: (repoName, isPrivate) =>
+				push: (repoName, isPrivate, excludeEpisodes) =>
 					driver
 						.rpc<{ started: boolean; repoId: string }>("dataset_push", {
 							repo_id: `${RIG.hfUser}/${repoName}`,
 							private: isPrivate,
+							// omitted entirely when there is nothing to exclude, so the
+							// driver's fast path stays a plain whole-repo push
+							...(excludeEpisodes && excludeEpisodes.length > 0
+								? { exclude_episodes: [...excludeEpisodes] }
+								: {}),
 						})
 						.pipe(
 							Effect.map(

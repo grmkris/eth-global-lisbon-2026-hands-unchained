@@ -68,7 +68,16 @@ export class DriverError extends Schema.TaggedErrorClass<DriverError>()(
  * this is rig state relayed through telemetry — the hub holds no credentials. */
 export class PushStatus extends Schema.Class<PushStatus>("PushStatus")(
 	Schema.Struct({
-		phase: Schema.Literals(["idle", "uploading", "done", "failed"]),
+		/** `filtering` = building a copy with the referee's rejects removed;
+		 * it can take minutes when a video segment has to be re-encoded, so it
+		 * is its own phase rather than a silent stretch of "uploading". */
+		phase: Schema.Literals([
+			"idle",
+			"filtering",
+			"uploading",
+			"done",
+			"failed",
+		]),
 		repoId: Schema.NullOr(Schema.String),
 		url: Schema.NullOr(Schema.String),
 		error: Schema.NullOr(Schema.String),
@@ -91,6 +100,14 @@ const DatasetsGroup = HttpApiGroup.make("Datasets").add(
 			/** name only — the rig prefixes its own HF user, exactly like tasks */
 			repoName: Schema.String,
 			private: Schema.optional(Schema.Boolean),
+			/**
+			 * Episode indices the referee failed. The HUB fills this in — it is
+			 * the only party holding the verdicts — and the driver publishes a
+			 * copy of the dataset with these removed rather than the whole repo.
+			 * Absent or empty means "publish everything", which is what a hub
+			 * with no market layer sends.
+			 */
+			excludeEpisodes: Schema.optional(Schema.Array(Schema.Number)),
 		}),
 		success: PushStatus,
 		error: DriverError,
@@ -447,6 +464,14 @@ const AttemptsGroup = HttpApiGroup.make("Attempts").add(
 		payload: Schema.Struct({
 			taskId: Schema.String,
 			operator: Schema.String, // stamped by the hub from the lease holder
+			/**
+			 * How many of this task's recorded episodes the referee threw out —
+			 * stamped by the hub, which is the only party holding the verdicts.
+			 * The quota counts episodes that will actually SHIP, so rejected work
+			 * does not eat someone else's slot. Absent = no market layer, and the
+			 * gate behaves exactly as it always did.
+			 */
+			rejectedEpisodes: Schema.optional(Schema.Number),
 		}),
 		success: AttemptState,
 		error: Schema.Union([DriverError, PreflightError]),

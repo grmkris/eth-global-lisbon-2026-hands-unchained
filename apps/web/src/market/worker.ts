@@ -29,11 +29,13 @@ import { stopSampler } from "#/market/sampler";
 import {
 	allHeads,
 	beginInFlight,
+	cachedRig,
 	chainOf,
 	endInFlight,
 	ensureSlotMirror,
 	liveSlot,
 	markEnforced,
+	notePayout,
 	refreshRig,
 } from "#/market/slots";
 import {
@@ -97,6 +99,7 @@ const slowTick = async (state: { busy: boolean }): Promise<void> => {
 		for (const row of listRows()) await advance(row);
 		await releaseIdleStakes();
 		await settleDueSlots();
+		await skipNoShows();
 	} catch (e) {
 		console.error("[market] worker tick failed:", e);
 	} finally {
@@ -196,10 +199,69 @@ const settleDueSlots = async (): Promise<void> => {
 			if (!beginInFlight(key)) continue;
 			try {
 				const slots = await import("#/market/zg-slots");
-				await slots.settleSlot(chain, head.slotId);
+				const settleTx = await slots.settleSlot(chain, head.slotId);
+				// The hash is the receipt. Discarding it (as this did) left the
+				// operator with "settled" as a word and nothing to open.
+				if (settleTx !== null)
+					notePayout(head.slotId, { chainKey: head.chainKey, settleTx });
+				// settle pays directly unless the transfer fails, in which case the
+				// amount sits in `owed` — push it, and record that too.
+				const withdrawTx = await slots.withdrawFor(chain, head.operator);
+				if (withdrawTx !== null)
+					notePayout(head.slotId, { chainKey: head.chainKey, withdrawTx });
 				await refreshRig(rig.name);
 			} catch (e) {
 				console.error(`[market] settle ${head.slotId} failed:`, e);
+			} finally {
+				endInFlight(key);
+			}
+		}
+	}
+};
+
+/**
+ * The head booked and never walked up. `skipHead` is permissionless and
+ * refunds them in full — not showing up is rude, not fraud — but until now
+ * NOTHING called it, so the only thing that ever advanced a stalled queue was
+ * the next person's `bookSlot` (which sweeps on the way in). A rig with exactly
+ * one no-show at the head stayed blocked indefinitely.
+ *
+ * Deliberately NOT a blind `sweep` every tick: `sweep` is a state-changing call
+ * that costs gas whether or not anything is due, and its two branches are
+ * already covered — the Running one by settleDueSlots above, the Booked one
+ * here.
+ *
+ * And deliberately only when SOMEONE IS WAITING. Skipping is for unblocking a
+ * queue; with an empty queue behind them there is nothing to unblock, and the
+ * grace is 90 seconds — short enough that an operator who books, reads the
+ * page and then takes control would otherwise be refunded and evicted for
+ * being slow.
+ */
+const skipNoShows = async (): Promise<void> => {
+	if (!SLOTS.configured) return;
+	for (const rig of listRigs()) {
+		const cached = cachedRig(rig.name);
+		if (cached === null) continue;
+		for (const entry of cached.chains) {
+			const head = entry.head;
+			if (head === null || head.status !== "booked") continue;
+			if (entry.queue.length < 2) continue; // nobody is blocked behind them
+			const chain = chainOf(head);
+			if (chain === null) continue;
+			const key = `skip:${entry.chainKey}:${head.slotId}`;
+			if (!beginInFlight(key)) continue;
+			try {
+				const slots = await import("#/market/zg-slots");
+				const params = await slots.slotParams(chain);
+				if (params === null) continue;
+				const due =
+					entry.headSince > 0 &&
+					Date.now() >= (entry.headSince + params.noShowGraceSeconds) * 1000;
+				if (!due) continue;
+				const tx = await slots.skipHead(chain, rig.name);
+				if (tx !== null) await refreshRig(rig.name);
+			} catch (e) {
+				console.error(`[market] skipHead ${rig.name} failed:`, e);
 			} finally {
 				endInFlight(key);
 			}

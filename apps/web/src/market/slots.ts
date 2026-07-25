@@ -44,6 +44,19 @@ export interface RigSlots {
 	error: string | null;
 }
 
+/** What actually moved the money at the end of a slot. `withdrawTx` is often
+ * null and that is not a failure: `settle` pays straight to the operator
+ * unless the transfer fails, in which case the amount is deferred to `owed`
+ * and a separate `withdraw` pushes it. */
+export interface SlotPayout {
+	chainKey: string;
+	settleTx: string | null;
+	withdrawTx: string | null;
+	/** who called it — the hub's settler, or the operator's own wallet */
+	by: "hub" | "self";
+	at: number;
+}
+
 interface MirrorState {
 	byRig: Map<string, RigSlots>;
 	/** clientId -> slotId, learned at unlock — the analogue of noteClient */
@@ -52,7 +65,10 @@ interface MirrorState {
 	enforced: Set<number>;
 	/** in-flight settle/skip guard, so a 1 Hz tick cannot stack transactions */
 	inFlight: Set<string>;
-	pinAttempts: Map<string, { count: number; until: number }>;
+	/** slotId -> the transactions that PAID, kept because the worker used to
+	 * throw these hashes away and "you were paid" with nothing to click is
+	 * indistinguishable from a claim */
+	payouts: Map<number, SlotPayout>;
 	timer: ReturnType<typeof setInterval> | null;
 	busy: boolean;
 }
@@ -63,7 +79,7 @@ g.__slotMirror ??= {
 	clientSlot: new Map(),
 	enforced: new Set(),
 	inFlight: new Set(),
-	pinAttempts: new Map(),
+	payouts: new Map(),
 	timer: null,
 	busy: false,
 };
@@ -184,42 +200,6 @@ export const noteSlotClient = (clientId: string, slotId: number): void => {
 export const slotIdForClient = (clientId: string): number | null =>
 	state.clientSlot.get(clientId)?.slotId ?? null;
 
-// --- PIN attempt throttling --------------------------------------------------
-
-/**
- * Rate limiting is NOT what makes the PIN safe — the commitment is public on
- * chain, so an offline attacker never touches this code path. It stops the
- * other attacker: the one guessing online without reading the chain.
- */
-const PIN_WINDOW_MS = 60_000;
-const PIN_MAX_ATTEMPTS = 5;
-
-export const pinAttemptAllowed = (key: string): boolean => {
-	const entry = state.pinAttempts.get(key);
-	if (!entry) return true;
-	if (Date.now() > entry.until) {
-		state.pinAttempts.delete(key);
-		return true;
-	}
-	return entry.count < PIN_MAX_ATTEMPTS;
-};
-
-export const notePinAttempt = (key: string): void => {
-	const entry = state.pinAttempts.get(key);
-	if (!entry || Date.now() > entry.until) {
-		state.pinAttempts.set(key, {
-			count: 1,
-			until: Date.now() + PIN_WINDOW_MS,
-		});
-		return;
-	}
-	entry.count += 1;
-};
-
-export const clearPinAttempts = (key: string): void => {
-	state.pinAttempts.delete(key);
-};
-
 // --- one-shot guards ---------------------------------------------------------
 
 export const markEnforced = (slotId: number): boolean => {
@@ -237,6 +217,25 @@ export const beginInFlight = (key: string): boolean => {
 export const endInFlight = (key: string): void => {
 	state.inFlight.delete(key);
 };
+
+// --- payout receipts ---------------------------------------------------------
+
+export const notePayout = (
+	slotId: number,
+	patch: Partial<SlotPayout> & { chainKey: string },
+): void => {
+	const existing = state.payouts.get(slotId);
+	state.payouts.set(slotId, {
+		chainKey: patch.chainKey,
+		settleTx: patch.settleTx ?? existing?.settleTx ?? null,
+		withdrawTx: patch.withdrawTx ?? existing?.withdrawTx ?? null,
+		by: patch.by ?? existing?.by ?? "hub",
+		at: Date.now(),
+	});
+};
+
+export const payoutFor = (slotId: number): SlotPayout | null =>
+	state.payouts.get(slotId) ?? null;
 
 // --- the poller --------------------------------------------------------------
 

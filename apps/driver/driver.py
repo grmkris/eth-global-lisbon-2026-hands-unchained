@@ -23,9 +23,12 @@ Events: ready, brightness, joints, robot_state, record_state, episode_saved,
 """
 
 import argparse
+import shutil
 import sys
+import tempfile
 import threading
 import time
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import cv2
@@ -449,6 +452,9 @@ def cmd_dataset_push(req: dict) -> dict:
     repo_id = req.get("repo_id") or ""
     if not repo_id:
         raise ValueError("repo_id required")
+    # Episodes the referee failed. The hub derives these from its verdicts; an
+    # empty list (or a hub with no market layer) means publish everything.
+    exclude = sorted({int(i) for i in (req.get("exclude_episodes") or [])})
     if PUSHING["thread"] is not None and PUSHING["thread"].is_alive():
         raise ValueError("a dataset push is already running")
     # Uploading a dataset that the recorder is still writing into would ship a
@@ -466,6 +472,51 @@ def cmd_dataset_push(req: dict) -> dict:
             if not root.exists():
                 raise ValueError(f"no local dataset at {root} — record an episode first")
             dataset = LeRobotDataset(repo_id, root=str(root))
+
+            # THE REFEREE GATES THE DATA. push_to_hub uploads a whole folder and
+            # has no notion of an episode subset — and could not have one, since
+            # a v3 dataset packs many episodes into a single parquet file. So we
+            # build a filtered COPY first: delete_episodes rewrites the parquet,
+            # re-encodes any video segment that mixed kept and dropped episodes,
+            # and recomputes the stats, leaving a dataset consistent with its own
+            # metadata. The recording on disk is never touched.
+            if exclude:
+                from lerobot.datasets.dataset_tools import delete_episodes
+
+                keep = dataset.meta.total_episodes - len(exclude)
+                if keep <= 0:
+                    raise ValueError(
+                        f"nothing to publish — all {dataset.meta.total_episodes} "
+                        "episodes failed the referee"
+                    )
+                push_state("filtering", repo_id)
+                log(f"excluding {len(exclude)} failed episode(s) from {repo_id}: {exclude}")
+                # A TEMP dir, deliberately not a sibling of the source: the
+                # dataset catalog scans ~/.cache/huggingface/lerobot/<user>/*
+                # and would list the staging copy as a second, phantom dataset.
+                staged = Path(tempfile.mkdtemp(prefix="poh-publish-"))
+                staged_root = staged / "dataset"
+                try:
+                    dataset = delete_episodes(
+                        dataset,
+                        episode_indices=exclude,
+                        output_dir=staged_root,
+                        repo_id=repo_id,
+                    )
+                    push_state("uploading", repo_id)
+                    log(f"pushing {repo_id} ({dataset.meta.total_episodes} episodes) to the Hub")
+                    dataset.push_to_hub(
+                        private=bool(req.get("private", False)),
+                        tags=["robotics", "so101", "teleoperation", "proof-of-hands"],
+                    )
+                finally:
+                    shutil.rmtree(staged, ignore_errors=True)
+                push_state(
+                    "done", repo_id, url=f"https://huggingface.co/datasets/{repo_id}"
+                )
+                log(f"pushed {repo_id} without {len(exclude)} rejected episode(s)")
+                return
+
             log(f"pushing {repo_id} ({dataset.meta.total_episodes} episodes) to the Hub")
             dataset.push_to_hub(
                 private=bool(req.get("private", False)),

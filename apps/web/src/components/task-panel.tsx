@@ -10,6 +10,7 @@ import { Checkbox } from "#/components/ui/checkbox";
 import { Label } from "#/components/ui/label";
 import { Progress } from "#/components/ui/progress";
 import type { RigSummary } from "#/lib/hub-api";
+import type { TaskProgress } from "#/market/market-api";
 
 /**
  * The crowdsourcing surface: tasks the rig owner wants done. Each attempt is
@@ -24,8 +25,6 @@ import type { RigSummary } from "#/lib/hub-api";
 const CHAIN_WAIT_MS = 20_000;
 
 const collected = (task: TaskInfo): number => task.episodesDone ?? 0;
-const isComplete = (task: TaskInfo): boolean =>
-	task.maxEpisodes !== null && collected(task) >= task.maxEpisodes;
 
 export function TaskPanel(props: {
 	rig: RigSummary;
@@ -41,6 +40,9 @@ export function TaskPanel(props: {
 	 * The ONLY thing this panel knows about slots: don't offer an attempt that
 	 * cannot finish before the arm is taken away. */
 	slotEndsAt?: number | null;
+	/** per task, what the referee kept and threw out. null = no market layer,
+	 * and the recorder's own count is the only truth there is. */
+	progress?: TaskProgress | null;
 }) {
 	const {
 		rig,
@@ -51,8 +53,27 @@ export function TaskPanel(props: {
 		blockedReason,
 		busy,
 		slotEndsAt = null,
+		progress = null,
 	} = props;
 	const active = rig.tasks.filter((t) => t.active);
+	/**
+	 * Episodes that will actually SHIP: what the recorder wrote, minus what the
+	 * referee threw out (they are dropped at publish). Recorded-minus-rejected
+	 * rather than a raw pass count, so episodes recorded before the market
+	 * existed still count — only a verdict we hold, and that failed, subtracts.
+	 *
+	 * The rig's own quota gate does the same arithmetic with the same number,
+	 * stamped onto attempt_start by the hub — so "keep going" here and "task
+	 * complete" there can never disagree.
+	 */
+	const keptOf = (task: TaskInfo): number => {
+		const verdicts = progress?.tasks[task.id];
+		return verdicts
+			? Math.max(0, collected(task) - verdicts.failed)
+			: collected(task);
+	};
+	const completeNow = (task: TaskInfo): boolean =>
+		task.maxEpisodes !== null && keptOf(task) >= task.maxEpisodes;
 	/** An episode needs its own seconds plus the reset. Offering one that the
 	 * clock will cut off wastes the operator's stake-backed minutes and lands
 	 * them a `slot_expired` row they did not ask for. */
@@ -117,11 +138,9 @@ export function TaskPanel(props: {
 			waitingSince.current = null;
 			return;
 		}
-		if (isComplete(chainTask)) {
+		if (completeNow(chainTask)) {
 			setAutoContinue(false);
-			toast.success(
-				`${chainTask.title} — ${collected(chainTask)} episodes, done`,
-			);
+			toast.success(`${chainTask.title} — ${keptOf(chainTask)} episodes, done`);
 			return;
 		}
 		const base = chainBase.current;
@@ -231,7 +250,14 @@ export function TaskPanel(props: {
 				</div>
 				{active.map((task) => {
 					const done = collected(task);
-					const complete = isComplete(task);
+					const complete = completeNow(task);
+					// What the referee kept. Recorded-minus-failed rather than the
+					// raw pass count, so episodes recorded before the market existed
+					// (or while it was off) still count as data — only a verdict we
+					// actually hold, and that actually failed, subtracts.
+					const verdicts = progress?.tasks[task.id] ?? null;
+					const kept =
+						verdicts === null ? null : Math.max(0, done - verdicts.failed);
 					return (
 						<div
 							key={task.id}
@@ -247,17 +273,34 @@ export function TaskPanel(props: {
 								</div>
 								{task.maxEpisodes !== null ? (
 									<div className="mt-2 flex items-center gap-2">
+										{/* The bar tracks what the dataset will actually SHIP —
+										    failed episodes are dropped at publish, so counting
+										    them here would promise data that never arrives. */}
 										<Progress
-											value={Math.min(100, (done / task.maxEpisodes) * 100)}
+											value={Math.min(
+												100,
+												((kept ?? done) / task.maxEpisodes) * 100,
+											)}
 											className="w-32"
 										/>
 										<span className="font-mono text-xs tabular-nums text-muted-foreground">
-											{done}/{task.maxEpisodes}
+											{kept ?? done}/{task.maxEpisodes}
 										</span>
+										{kept !== null && kept < done && (
+											<span
+												className="text-warn text-xs"
+												title="the referee failed these — they are left out of the published dataset"
+											>
+												{done - kept} rejected
+											</span>
+										)}
 									</div>
 								) : (
 									<div className="mt-1 font-mono text-xs text-muted-foreground">
-										{done} eps collected
+										{kept ?? done} eps collected
+										{kept !== null && kept < done
+											? ` · ${done - kept} rejected`
+											: ""}
 									</div>
 								)}
 							</div>

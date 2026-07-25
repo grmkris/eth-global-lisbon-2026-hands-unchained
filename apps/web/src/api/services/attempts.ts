@@ -62,6 +62,8 @@ export interface AttemptsShape {
 	readonly start: (
 		taskId: string,
 		operator: string,
+		/** episodes the referee rejected — they do not count toward the quota */
+		rejectedEpisodes?: number,
 	) => Effect.Effect<AttemptState, DriverError | PreflightError>;
 	readonly finish: (
 		success: boolean,
@@ -247,7 +249,7 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 			return {
 				state: () => Effect.sync(toState),
 				log: () => loadLog,
-				start: (taskId, operator) =>
+				start: (taskId, operator, rejectedEpisodes = 0) =>
 					Effect.gen(function* () {
 						if (current)
 							return yield* Effect.fail(
@@ -268,10 +270,14 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 						const repoId = `${RIG.hfUser}/${task.repoName}`;
 						const datasets = yield* catalog.list();
 						const existing = datasets.find((d) => d.repoId === repoId);
-						if (
-							task.maxEpisodes !== null &&
-							(existing?.totalEpisodes ?? 0) >= task.maxEpisodes
-						)
+						// The quota counts episodes that will actually SHIP. Work the
+						// referee threw out is dropped at publish, so counting it here
+						// would close a task on a dataset that ends up short.
+						const keptEpisodes = Math.max(
+							0,
+							(existing?.totalEpisodes ?? 0) - Math.max(0, rejectedEpisodes),
+						);
+						if (task.maxEpisodes !== null && keptEpisodes >= task.maxEpisodes)
 							return yield* Effect.fail(
 								new DriverError({
 									message: `task complete — ${task.maxEpisodes} episodes collected`,

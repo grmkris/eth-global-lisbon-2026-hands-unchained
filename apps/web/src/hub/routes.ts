@@ -10,6 +10,8 @@ import type {
 	RunInfo,
 	TaskInfo,
 } from "#/api/contract";
+import { marketEnabled } from "#/market/config";
+import { failedEpisodeIndices } from "#/market/store";
 import {
 	claimLease,
 	clearLeaderInputDebug,
@@ -52,6 +54,45 @@ export const json = (body: unknown, status = 200): Response =>
 			"cache-control": "no-store",
 		},
 	});
+
+/**
+ * Args the HUB adds to a relayed verb, from knowledge the client does not have.
+ *
+ * Both of them are the same fact — which recorded episodes the referee threw
+ * out — used at the two points where it matters: the quota gate that decides
+ * whether more work is needed, and the publish that decides what ships. The
+ * hub is the only party holding verdicts, so it is the only party that can say.
+ *
+ * `marketEnabled()` short-circuits first, so a hub with MARKET_MODE=0 relays
+ * exactly the args it always did. (A dynamic import would buy nothing here —
+ * server.ts already pulls the market layer in on every hub.)
+ */
+const excludeFor = (
+	verb: string,
+	rig: Rig,
+	args: Record<string, unknown>,
+): Record<string, unknown> => {
+	if (verb !== "dataset_push" && verb !== "attempt_start") return {};
+	if (!marketEnabled()) return {};
+
+	if (verb === "attempt_start") {
+		const taskId = typeof args.taskId === "string" ? args.taskId : "";
+		if (taskId === "") return {};
+		const rejected = failedEpisodeIndices(rig.name, new Set([taskId])).length;
+		return rejected === 0 ? {} : { rejectedEpisodes: rejected };
+	}
+
+	const repoName = typeof args.repoName === "string" ? args.repoName : "";
+	if (repoName === "") return {};
+	// One dataset can collect for more than one task; the exclusion is per
+	// dataset, so gather every task pointing at this repo.
+	const taskIds = new Set(
+		rig.tasks.filter((t) => t.repoName === repoName).map((t) => t.id),
+	);
+	if (taskIds.size === 0) return {};
+	const exclude = failedEpisodeIndices(rig.name, taskIds);
+	return exclude.length === 0 ? {} : { excludeEpisodes: exclude };
+};
 
 const enc = new TextEncoder();
 const CRLF = enc.encode("\r\n");
@@ -416,17 +457,30 @@ export const handleHubRequest = async (
 				// real validation is the rig's typed API.
 				const args = body.args ?? {};
 				const allowed = new Set(spec.args ?? []);
+				const hubOnly = new Set(spec.hubOnly ?? []);
 				for (const key of Object.keys(args))
-					if (!allowed.has(key))
+					if (!allowed.has(key) || hubOnly.has(key))
 						return json({ error: `arg not allowed: ${key}` }, 403);
 				if (JSON.stringify(args).length > MAX_ARGS_BYTES)
 					return json({ error: "args too large" }, 413);
+				/**
+				 * THE REFEREE GATES THE DATA, not just the money.
+				 *
+				 * Publishing was a whole-repo push, so a failed episode and a
+				 * slashed one shipped to the Hub alongside the good work. The hub
+				 * is the only party that holds the verdicts, so it — not the
+				 * browser — names which episodes to leave behind. `excludeEpisodes`
+				 * is deliberately NOT in the verb's arg allowlist: a client that
+				 * sends it is rejected above, and this list is appended after that
+				 * check, so it can only ever come from a verdict we actually hold.
+				 */
+				const extra = excludeFor(verb, rig, args);
 				if (!isOnline(rig)) return json({ error: "rig offline" }, 409);
 				if (rig.pending.length >= MAX_PENDING)
 					return json({ error: "command queue full" }, 429);
 				rig.pending.push({
 					verb,
-					...(spec.args ? { args } : {}),
+					...(spec.args ? { args: { ...args, ...extra } } : {}),
 					...(spec.owner ? { ownerKey: body.ownerKey } : {}),
 					holder: leaseHolder(rig),
 					queuedAt: Date.now(),

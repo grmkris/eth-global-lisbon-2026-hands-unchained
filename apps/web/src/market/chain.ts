@@ -84,26 +84,27 @@ export const explorerTx = (hash: string): string => `${explorer}/tx/${hash}`;
 export const explorerAddress = (address: string): string =>
 	`${explorer}/address/${address}`;
 
+/**
+ * The same hash on the right explorer.
+ *
+ * A slot's money lives on whichever chain the operator picked, so a link built
+ * from a single hard-coded explorer is wrong half the time — and wrong in the
+ * worst way, because a 0G explorer answers "not found" for a real Hedera
+ * transaction and reads as "the payout never happened". Both link builders take
+ * the chain key the DTO already carries.
+ */
+const HASHSCAN = "https://hashscan.io/testnet";
+
+export const explorerTxFor = (chainKey: string | null, hash: string): string =>
+	chainKey === "hedera" ? `${HASHSCAN}/transaction/${hash}` : explorerTx(hash);
+
+export const explorerAddressFor = (
+	chainKey: string | null,
+	address: string,
+): string =>
+	chainKey === "hedera"
+		? `${HASHSCAN}/account/${address}`
+		: explorerAddress(address);
+
 export const shortAddress = (address: string): string =>
 	`${address.slice(0, 6)}…${address.slice(-4)}`;
-
-/**
- * The PIN is a walk-up unlock, not a secret: `pinHash` is public on chain and
- * so is the operator address, so a short numeric PIN is brute-forced offline in
- * microseconds and no amount of server-side rate limiting changes that. Entropy
- * is the only real defence, and the contract has already committed to the hash
- * so no salt or KDF can be added after the fact. Hence: a generated key by
- * default, and a floor under what someone can type instead.
- */
-export const MIN_PIN_LENGTH = 8;
-
-/** Crockford base32 minus look-alikes — safe to read off a screen out loud. */
-const KEY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-
-export const generateSlotKey = (length = MIN_PIN_LENGTH): string => {
-	const bytes = new Uint8Array(length);
-	crypto.getRandomValues(bytes);
-	return Array.from(bytes, (b) => KEY_ALPHABET[b % KEY_ALPHABET.length]).join(
-		"",
-	);
-};

@@ -24,12 +24,14 @@ import {
 import { handleSlotRequest } from "#/market/slot-routes";
 import {
 	earningsFor,
+	failedEpisodeIndices,
 	getBond,
 	getRow,
 	type LedgerRow,
 	listBonds,
 	listRows,
 	marketStats,
+	passedEpisodeCount,
 	putBond,
 	stakeAlreadyUsed,
 } from "#/market/store";
@@ -296,6 +298,32 @@ export const handleMarketRequest = async (
 
 	if (path === "/ledger" && request.method === "GET")
 		return json(listRows().slice(0, 100).map(rowSummary));
+
+	/**
+	 * GET /progress?rig=NAME — per task, how many recorded episodes actually
+	 * survived the referee.
+	 *
+	 * The rig counts what it WROTE (`total_episodes` out of the lerobot meta),
+	 * which is the right number for the recorder and the wrong one for the
+	 * operator: "5/5 complete" made of three failures is a lie about the
+	 * dataset. Only the hub holds the verdicts, so only the hub can say this.
+	 */
+	if (path === "/progress" && request.method === "GET") {
+		const rigName = url.searchParams.get("rig") ?? "";
+		const rig = listRigs().find((r) => r.name === rigName);
+		if (!rig) return json({ tasks: {} });
+		return json({
+			tasks: Object.fromEntries(
+				rig.tasks.map((t) => [
+					t.id,
+					{
+						passed: passedEpisodeCount(rig.name, t.id),
+						failed: failedEpisodeIndices(rig.name, new Set([t.id])).length,
+					},
+				]),
+			),
+		});
+	}
 
 	if (path === "/stats" && request.method === "GET")
 		return json({

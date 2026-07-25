@@ -42,7 +42,11 @@ const DatasetsLive = HttpApiBuilder.group(LabApi, "Datasets", (handlers) =>
 		)
 		.handle("push", ({ payload }) =>
 			Effect.flatMap(DatasetCatalog, (catalog) =>
-				catalog.push(payload.repoName, payload.private ?? false),
+				catalog.push(
+					payload.repoName,
+					payload.private ?? false,
+					payload.excludeEpisodes,
+				),
 			).pipe(Effect.mapError((e) => new DriverError({ message: e.message }))),
 		),
 );
@@ -167,7 +171,11 @@ const AttemptsLive = HttpApiBuilder.group(LabApi, "Attempts", (handlers) =>
 		.handle("log", () => Effect.flatMap(Attempts, (a) => a.log()))
 		.handle("start", ({ payload }) =>
 			Effect.flatMap(Attempts, (a) =>
-				a.start(payload.taskId, payload.operator),
+				a.start(
+					payload.taskId,
+					payload.operator,
+					payload.rejectedEpisodes ?? 0,
+				),
 			),
 		)
 		.handle("finish", ({ payload }) =>

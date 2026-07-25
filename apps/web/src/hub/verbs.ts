@@ -6,8 +6,11 @@
  *
  * Row semantics:
  * - `body`   static payload merged into the local API call
- * - `args`   ALLOWLIST of caller-supplied keys the hub relays (anything else
- *            is rejected hub-side; real validation is the rig's typed API)
+ * - `args`   ALLOWLIST of keys the hub relays to the rig (anything else is
+ *            rejected hub-side; real validation is the rig's typed API)
+ * - `hubOnly` subset of `args` the CALLER may not supply — the hub fills them
+ *            in itself from what only it knows. Sending one is a 403, so a
+ *            client can never forge the value it carries.
  * - `safety` bypasses the lease — anyone watching a misbehaving rig can stop it
  * - `owner`  requires an ownerKey, relayed OPAQUELY (only the rig validates
  *            it) and bypasses the lease (the owner is not the driver)
@@ -21,6 +24,7 @@ export interface VerbSpec {
 	readonly owner?: boolean;
 	readonly stampsHolder?: boolean;
 	readonly args?: readonly string[];
+	readonly hubOnly?: readonly string[];
 }
 
 const table = {
@@ -53,12 +57,19 @@ const table = {
 	dataset_push: {
 		path: "/api/datasets/push",
 		owner: true,
-		args: ["repoName", "private"],
+		// `excludeEpisodes` is relayed but never accepted from a caller: the hub
+		// derives it from the referee's verdicts, so the owner cannot publish
+		// failed work by hand-editing a request.
+		args: ["repoName", "private", "excludeEpisodes"],
+		hubOnly: ["excludeEpisodes"],
 	},
 	// attempts (lease-holder; operator identity stamped by the hub)
 	attempt_start: {
 		path: "/api/attempts/start",
-		args: ["taskId"],
+		// same rule as dataset_push: the hub owns `rejectedEpisodes`, because it
+		// owns the verdicts. A caller supplying it could mint unlimited attempts.
+		args: ["taskId", "rejectedEpisodes"],
+		hubOnly: ["rejectedEpisodes"],
 		stampsHolder: true,
 	},
 	attempt_finish: { path: "/api/attempts/finish", args: ["success"] },

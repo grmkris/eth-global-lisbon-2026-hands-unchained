@@ -135,12 +135,80 @@ export const bookSlot = async (input: {
 	return { hash, account };
 };
 
+/**
+ * Every other operator-signed call is the same three lines: connect, write one
+ * slotId, return the hash. Kept as one helper so a new lifecycle button is a
+ * one-liner and cannot forget the chain switch that `connect` performs.
+ */
+const slotWrite = async (
+	functionName: "startSlot" | "endEarly" | "cancel" | "settle",
+	contract: `0x${string}`,
+	slotId: number,
+	chainKey: string,
+): Promise<`0x${string}`> => {
+	const chain = viemChain(chainKey);
+	const wc = client(chain);
+	const account = await connect(chainKey);
+	return wc.writeContract({
+		account,
+		chain,
+		address: contract,
+		abi: slotMarketAbi,
+		functionName,
+		args: [BigInt(slotId)],
+	});
+};
+
 /** Escape hatch: if the hub's settler key is broke, the operator can start
  * their own slot. Never shown on the happy path — the whole point of the relay
  * is that they don't have to. */
-export const startSlotSelf = async (
+export const startSlotSelf = (
 	contract: `0x${string}`,
 	slotId: number,
+	chainKey = "0g",
+): Promise<`0x${string}`> => slotWrite("startSlot", contract, slotId, chainKey);
+
+/**
+ * "I'm done" — pull `endAt` forward to now.
+ *
+ * NOT a forfeit: the contract only moves the deadline, so the stake and every
+ * credit already earned still pay out on the ordinary settle path, and a
+ * verdict still in flight lands inside the grading grace window. Operator-only,
+ * `Running` only, and refuses once `endAt` has passed (settle handles that).
+ */
+export const endEarlySlot = (
+	contract: `0x${string}`,
+	slotId: number,
+	chainKey = "0g",
+): Promise<`0x${string}`> => slotWrite("endEarly", contract, slotId, chainKey);
+
+/** Booked but never started, and you changed your mind: full refund. The
+ * contract refuses once the clock is running — that is what endEarly is for. */
+export const cancelSlot = (
+	contract: `0x${string}`,
+	slotId: number,
+	chainKey = "0g",
+): Promise<`0x${string}`> => slotWrite("cancel", contract, slotId, chainKey);
+
+/**
+ * Pay yourself out, without asking the hub.
+ *
+ * `settle` is permissionless once the grading window has closed, which is the
+ * part of this design worth demonstrating: the hub normally settles for you so
+ * you never touch a wallet, but if it is down, dishonest, or simply gone, the
+ * money is still yours to take and anyone can move it for you.
+ */
+export const settleSelf = (
+	contract: `0x${string}`,
+	slotId: number,
+	chainKey = "0g",
+): Promise<`0x${string}`> => slotWrite("settle", contract, slotId, chainKey);
+
+/** Sweep a deferred payout to its owner. Callable by anyone, for anyone — so
+ * a stuck balance is never one wallet's problem. */
+export const withdrawSelf = async (
+	contract: `0x${string}`,
+	payee: `0x${string}`,
 	chainKey = "0g",
 ): Promise<`0x${string}`> => {
 	const chain = viemChain(chainKey);
@@ -151,7 +219,7 @@ export const startSlotSelf = async (
 		chain,
 		address: contract,
 		abi: slotMarketAbi,
-		functionName: "startSlot",
-		args: [BigInt(slotId)],
+		functionName: "withdraw",
+		args: [payee],
 	});
 };

@@ -4,9 +4,10 @@ import {
 	ExternalLink,
 	KeyRound,
 	ShieldCheck,
+	Undo2,
 	Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SlotTimer } from "#/components/slot-timer";
 import { StatusBadge } from "#/components/status-badge";
@@ -21,8 +22,14 @@ import type {
 	RigSlotInfo,
 	SlotsConfig,
 } from "#/market/market-api";
-import { noteBooked, unlockSlot } from "#/market/market-api";
-import { bookSlot, connect, walletAvailable } from "#/market/zg-wallet";
+import { noteBooked, noteSettled, unlockSlot } from "#/market/market-api";
+import {
+	bookSlot,
+	cancelSlot,
+	connect,
+	currentAddress,
+	walletAvailable,
+} from "#/market/zg-wallet";
 
 function Step({
 	n,
@@ -126,9 +133,42 @@ export function SlotGate({
 }) {
 	const queryClient = useQueryClient();
 	const [busy, setBusy] = useState(false);
-	// Held here, not inside a step: the address is what the World proof is
-	// signed against AND what books the slot, so both steps need it.
-	const [address, setAddress] = useState<`0x${string}` | null>(null);
+	/**
+	 * THE ADDRESS SURVIVES A REFRESH — three sources, most authoritative first.
+	 *
+	 * Held here, not inside a step: it is what the World proof is signed against
+	 * AND what books the slot, so both steps need it.
+	 *
+	 * Reloading used to reset this to null while the session cookie kept step 2
+	 * ticked, so the card rendered an unchecked "connect your wallet" above a
+	 * checked "you're verified" — self-contradictory, and the reason it looked
+	 * like state was leaking between browsers.
+	 *
+	 * `session.boundAddress` wins because it is the address World actually
+	 * signed against and the only one the hub will accept at unlock; the
+	 * injected wallet's current account is a fallback for the
+	 * connected-but-not-yet-verified case. Deliberately NOT localStorage: a
+	 * stale address there would outlive both the wallet's authorisation and the
+	 * World binding, and start lying rather than merely forgetting.
+	 */
+	const [walletAddress, setWalletAddress] = useState<`0x${string}` | null>(
+		null,
+	);
+	const bound = (session.boundAddress ?? null) as `0x${string}` | null;
+	const address = bound ?? walletAddress;
+	/** eth_accounts, which reports an ALREADY-authorised account and never
+	 * prompts — so a refresh costs the operator no popup. */
+	useEffect(() => {
+		void currentAddress()
+			.then(setWalletAddress)
+			.catch(() => {});
+	}, []);
+	/** They reconnected on a different account than the one they verified with.
+	 * Silence here means a booking that succeeds and an unlock that 403s. */
+	const mismatch =
+		bound !== null &&
+		walletAddress !== null &&
+		bound.toLowerCase() !== walletAddress.toLowerCase();
 	// Which chain holds the money. Rules are identical either side — same
 	// contract, same escrow, same three strikes — so this is a currency choice,
 	// not a product choice.
@@ -145,12 +185,65 @@ export function SlotGate({
 	const live = info?.live ?? null;
 	const needsUnlock = (pending ?? live) !== null;
 
+	/**
+	 * Your own place in the line, when the arm is someone else's.
+	 *
+	 * Booking used to be offered ONLY on a free rig, so the single most common
+	 * situation — walking up to a rig somebody is already driving — had no way
+	 * to put money down at all. The contract has always taken the booking (it is
+	 * an append-only queue); nothing asked for it.
+	 */
+	const myQueued =
+		address === null
+			? null
+			: (info?.queue.find(
+					(q) =>
+						q.status === "booked" &&
+						q.operator.toLowerCase() === address.toLowerCase(),
+				) ?? null);
+	/**
+	 * How long until the arm is yours.
+	 *
+	 * `position` is the index in the on-chain queue and position 0 is the HEAD,
+	 * i.e. whoever is driving right now — so the number of people you actually
+	 * wait for is `position - 1` full slots, plus what is left of the live one.
+	 * Counting `position` slots would quote a 30-minute wait to the person who
+	 * is next.
+	 */
+	const waitMinutes = (position: number): number =>
+		Math.round(
+			(Math.max(0, position - 1) *
+				(chosen?.params?.slotSeconds ?? 1800) *
+				1000 +
+				(live?.remainingMs ?? 0)) /
+				60_000,
+		);
+
 	const doConnect = async () => {
 		setBusy(true);
 		try {
-			setAddress(await connect());
+			setWalletAddress(await connect(chainKey));
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : "could not connect");
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const doCancel = async () => {
+		if (pending === null || pending.contract === null) return;
+		setBusy(true);
+		try {
+			const hash = await cancelSlot(
+				pending.contract,
+				pending.slotId,
+				pending.chain,
+			);
+			await noteSettled(rig, pending.slotId, hash, "cancel");
+			toast.success("booking cancelled — your stake is on its way back");
+			void queryClient.invalidateQueries({ queryKey: ["market"] });
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : "cancel failed");
 		} finally {
 			setBusy(false);
 		}
@@ -177,7 +270,10 @@ export function SlotGate({
 			toast.info("booking sent — waiting for the network…");
 			await noteBooked(rig, hash);
 			toast.success(`booked ${minutes} min on ${rig} (${chosen.label})`, {
-				description: "now unlock with your key to start the clock",
+				description:
+					live !== null
+						? "you're in the queue — the clock starts when you take control"
+						: "take control when you're ready — that starts the clock, not this",
 			});
 			void queryClient.invalidateQueries({ queryKey: ["market"] });
 		} catch (e) {
@@ -186,6 +282,51 @@ export function SlotGate({
 			setBusy(false);
 		}
 	};
+
+	/** One booking transaction, two places it belongs: a free rig, and joining
+	 * the line behind a live one. Same call, same stake, different sentence. */
+	const bookBlock = (label: string) => (
+		<div className="flex flex-col gap-3">
+			{slots !== null && slots.chains.length > 1 && (
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-muted-foreground">
+						Where your stake sits — same rules either way
+					</Label>
+					<div className="flex flex-wrap gap-2">
+						{slots.chains.map((c) => (
+							<Button
+								key={c.key}
+								size="sm"
+								variant={c.key === chainKey ? "default" : "outline"}
+								onClick={() => setChainKey(c.key)}
+							>
+								{c.label} · {c.params?.minStakeOg ?? "?"} {c.token}
+							</Button>
+						))}
+					</div>
+					<p className="text-muted-foreground text-xs">
+						{chosen?.liveSigner
+							? "This contract reads the referee's identity live from 0G's own registry — no pinned constant to trust."
+							: "0G's registry isn't readable from here, so the referee's address is pinned at deploy — one constant, auditable in a single call."}
+					</p>
+				</div>
+			)}
+			<Button size="sm" onClick={() => void doBook()} disabled={busy}>
+				<Wallet />
+				{busy ? "confirming…" : label}
+			</Button>
+			<a
+				className="flex items-center gap-1 text-muted-foreground text-xs underline"
+				href={chosen?.faucet ?? "https://faucet.0g.ai"}
+				target="_blank"
+				rel="noreferrer"
+			>
+				<Coins className="size-3" />
+				need testnet {token}? (free faucet)
+				<ExternalLink className="size-3" />
+			</a>
+		</div>
+	);
 
 	return (
 		<Card className="mx-auto w-full max-w-lg">
@@ -207,12 +348,24 @@ export function SlotGate({
 				    it, and the payout goes back to it. */}
 				<Step n={1} title="Connect your wallet" done={address !== null}>
 					{address !== null ? (
-						<span className="flex items-center gap-2 text-sm">
-							<StatusBadge tone="success">connected</StatusBadge>
-							<span className="font-mono text-muted-foreground">
-								{shortAddress(address)}
+						<div className="flex flex-col gap-1.5">
+							<span className="flex items-center gap-2 text-sm">
+								<StatusBadge tone="success">
+									{bound !== null ? "verified wallet" : "connected"}
+								</StatusBadge>
+								<span className="font-mono text-muted-foreground">
+									{shortAddress(address)}
+								</span>
 							</span>
-						</span>
+							{mismatch && (
+								<span className="text-warn text-xs">
+									Your wallet is on {shortAddress(walletAddress ?? "")} but you
+									proved World ID on {shortAddress(bound ?? "")}. Switch back to
+									that account, or verify again on this one — the arm only opens
+									for the wallet that booked it.
+								</span>
+							)}
+						</div>
 					) : !walletAvailable() ? (
 						<span className="text-muted-foreground text-sm">
 							No wallet detected — install MetaMask on this device.
@@ -242,7 +395,7 @@ export function SlotGate({
 					) : !verified ? (
 						<span className="text-muted-foreground text-sm">verify first</span>
 					) : live !== null ? (
-						<div className="flex flex-col gap-2">
+						<div className="flex flex-col gap-3">
 							<span className="flex items-center gap-2 text-sm">
 								<StatusBadge tone="warn">in use</StatusBadge>
 								<span className="font-mono text-muted-foreground">
@@ -250,53 +403,50 @@ export function SlotGate({
 								</span>
 								<SlotTimer endAt={live.endAt} label="left" />
 							</span>
+							{myQueued !== null ? (
+								<div className="flex flex-col gap-1">
+									<span className="flex items-center gap-2 text-sm">
+										<StatusBadge tone="info">
+											{myQueued.position <= 1
+												? "you're next"
+												: `${myQueued.position - 1} ahead of you`}
+										</StatusBadge>
+										<span className="text-muted-foreground">
+											yours in about {waitMinutes(myQueued.position)} min
+										</span>
+									</span>
+									<p className="text-muted-foreground text-xs">
+										Your stake is already down. Nothing to watch for — the clock
+										only starts when you take control, and a head that never
+										shows up is skipped automatically.
+									</p>
+								</div>
+							) : (
+								/* Booking while someone else drives — a FIFO queue the
+								   contract always supported and nothing ever offered. */
+								bookBlock("Join the queue")
+							)}
 							<SlotUnlock rig={rig} slotId={live.slotId} mine={false} />
 						</div>
 					) : pending !== null ? (
-						<SlotUnlock rig={rig} slotId={pending.slotId} mine={true} />
-					) : (
-						<div className="flex flex-col gap-3">
-							{slots !== null && slots.chains.length > 1 && (
-								<div className="flex flex-col gap-1.5">
-									<Label className="text-muted-foreground">
-										Where your stake sits — same rules either way
-									</Label>
-									<div className="flex flex-wrap gap-2">
-										{slots.chains.map((c) => (
-											<Button
-												key={c.key}
-												size="sm"
-												variant={c.key === chainKey ? "default" : "outline"}
-												onClick={() => setChainKey(c.key)}
-											>
-												{c.label} · {c.params?.minStakeOg ?? "?"} {c.token}
-											</Button>
-										))}
-									</div>
-									<p className="text-muted-foreground text-xs">
-										{chosen?.liveSigner
-											? "This contract reads the referee's identity live from 0G's own registry — no pinned constant to trust."
-											: "0G's registry isn't readable from here, so the referee's address is pinned at deploy — one constant, auditable in a single call."}
-									</p>
-								</div>
-							)}
-							<Button size="sm" onClick={() => void doBook()} disabled={busy}>
-								<Wallet />
-								{busy
-									? "confirming…"
-									: `Book ${minutes} min · ${stakeOg} ${token}`}
-							</Button>
-							<a
-								className="flex items-center gap-1 text-muted-foreground text-xs underline"
-								href={chosen?.faucet ?? "https://faucet.0g.ai"}
-								target="_blank"
-								rel="noreferrer"
+						<div className="flex flex-col gap-2">
+							<SlotUnlock rig={rig} slotId={pending.slotId} mine={true} />
+							{/* The 409 on a cross-chain double-booking already tells the
+							    operator to "cancel for a refund" — this is the thing it
+							    was telling them to press. */}
+							<Button
+								size="sm"
+								variant="ghost"
+								className="self-start text-muted-foreground"
+								onClick={() => void doCancel()}
+								disabled={busy || pending.contract === null}
 							>
-								<Coins className="size-3" />
-								need testnet {token}? (free faucet)
-								<ExternalLink className="size-3" />
-							</a>
+								<Undo2 />
+								Cancel booking · full refund
+							</Button>
 						</div>
+					) : (
+						bookBlock(`Book ${minutes} min · ${stakeOg} ${token}`)
 					)}
 				</Step>
 			</CardContent>

@@ -136,6 +136,23 @@ export const marketLedgerQuery = queryOptions({
 	refetchInterval: 2_000,
 });
 
+/** Per task on one rig: episodes the referee passed, and how many it failed.
+ * Null when the hub has no market layer, in which case the recorder's own
+ * count is the only truth there is and the UI says nothing extra. */
+export interface TaskProgress {
+	tasks: Record<string, { passed: number; failed: number }>;
+}
+
+export const taskProgressQuery = (rig: string) =>
+	queryOptions({
+		queryKey: ["market", "progress", rig],
+		queryFn: () =>
+			get<TaskProgress>(
+				`/api/market/progress?rig=${encodeURIComponent(rig)}`,
+			).catch(() => ({ tasks: {} }) as TaskProgress),
+		refetchInterval: 5_000,
+	});
+
 export const marketStatsQuery = queryOptions({
 	queryKey: ["market", "stats"],
 	queryFn: () => get<MarketStats>("/api/market/stats"),
@@ -174,9 +191,21 @@ export const postStake = (txHash: string) =>
 
 // --- slots ------------------------------------------------------------------
 
+/** What paid, once something did. `by` distinguishes the hub settling for you
+ * from you settling yourself — the second is the interesting one. */
+export interface SlotPayout {
+	chainKey: string;
+	settleTx: string | null;
+	withdrawTx: string | null;
+	by: "hub" | "self";
+	at: number;
+}
+
 export interface SlotSummary {
 	/** which chain holds this slot's money */
 	chain: string;
+	/** the SlotMarket on that chain — enough to sign endEarly/cancel/settle */
+	contract: `0x${string}` | null;
 	slotId: number;
 	operator: string;
 	stakeOg: number;
@@ -188,6 +217,7 @@ export interface SlotSummary {
 	strikes: number;
 	creditsOg: number;
 	status: string;
+	payout: SlotPayout | null;
 }
 
 export interface SlotEpisode {
@@ -195,16 +225,30 @@ export interface SlotEpisode {
 	episodeIndex: number | null;
 	taskTitle: string | null;
 	claimed: string | null;
+	/** open | closed | graded | paid | rejected | anchored — the stage the row
+	 * is at, which is what the panel narrates */
 	status: string;
+	/** the rig has read the recorded episode back off disk */
+	measured: boolean;
 	grade: {
 		score: number;
 		pass: boolean;
 		provider: string;
 		reason: string;
 	} | null;
+	/** the 0G inference this verdict came from, when there was one */
+	zg: {
+		chatID: string | null;
+		model: string | null;
+		teeVerified: boolean | null;
+		responseHash: string | null;
+	} | null;
 	/** false = graded with no 0G signature, so it CANNOT have cost a strike */
 	attested: boolean | null;
 	slotTx: string | null;
+	slotChain: string | null;
+	teeTxHash: string | null;
+	zgRoot: string | null;
 	openedAt: number;
 	closedAt: number | null;
 }
@@ -215,7 +259,10 @@ export interface RigSlotInfo {
 	state: "free" | "awaiting-start" | "live" | "voided";
 	live: SlotSummary | null;
 	pending: SlotSummary | null;
+	/** ran its full clock (or was ended early) and still holds money */
+	ended: SlotSummary | null;
 	queue: ReadonlyArray<{
+		chain: string;
 		slotId: number;
 		operator: string;
 		position: number;
@@ -224,7 +271,17 @@ export interface RigSlotInfo {
 	}>;
 	stale: boolean;
 	error: string | null;
-	you?: { hasToken: boolean; slotId: number | null };
+	you?: {
+		/** holds a token for the LIVE slot — what the drive gate keys off */
+		hasToken: boolean;
+		slotId: number | null;
+		/** the slot this browser owns, running OR finished; null for a spectator */
+		mine?: number | null;
+		/** the payout receipt — outlives the slot leaving the on-chain queue */
+		payout?: SlotPayout | null;
+		/** deferred payout waiting in the contract, claimable by anyone */
+		owedOg?: number;
+	};
 	episodes?: ReadonlyArray<SlotEpisode>;
 }
 
@@ -254,7 +311,6 @@ export interface SlotsConfig {
 	configured: boolean;
 	namespace: string;
 	required: boolean;
-	minPinLength: number;
 	/** every chain the operator may put money on; same rules, different token */
 	chains: ReadonlyArray<SlotChainInfo>;
 	rigs: ReadonlyArray<RigSlotInfo>;
@@ -300,4 +356,24 @@ export const unlockSlot = (rig: string, clientId: string) =>
 export const noteBooked = (rig: string, txHash: string) =>
 	post<RigSlotInfo>(`/api/market/slots/${encodeURIComponent(rig)}/booked`, {
 		txHash,
+	});
+
+/**
+ * Same, for the calls the operator makes with their own wallet.
+ *
+ * `kind` matters: only `settle` and `cancel` actually move money, so only they
+ * leave a payout receipt. `end-early` just pulls the deadline forward — filing
+ * its hash as the payout would point "paid to your wallet" at a transaction
+ * that paid nobody, and would then block the real settle hash from landing.
+ */
+export const noteSettled = (
+	rig: string,
+	slotId: number,
+	txHash: string,
+	kind: "settle" | "cancel" | "end-early",
+) =>
+	post<RigSlotInfo>(`/api/market/slots/${encodeURIComponent(rig)}/settled`, {
+		slotId,
+		txHash,
+		kind,
 	});

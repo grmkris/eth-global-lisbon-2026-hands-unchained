@@ -271,6 +271,49 @@ export const earningsFor = (nullifier: string): number =>
 
 export const rehydratedStats = (): RehydratedStats => state.rehydrated;
 
+/**
+ * Episodes of these tasks that the referee did NOT pass — the ones that must
+ * not ship to the Hub.
+ *
+ * The join key is `telemetry.episode.episodeIndex`: the episode's own index in
+ * the lerobot dataset, measured by the rig reading its own parquet back. A row
+ * with no index never made it to disk and so cannot be excluded from anything.
+ *
+ * Deliberately EXCLUSIVE rather than inclusive — an allowlist would silently
+ * drop every episode recorded before the market existed, or while it was off.
+ * Only a verdict we actually hold and that actually failed removes data.
+ */
+export const failedEpisodeIndices = (
+	rig: string,
+	taskIds: ReadonlySet<string>,
+): number[] => {
+	const failed = new Set<number>();
+	for (const row of state.rows.values()) {
+		if (row.rig !== rig) continue;
+		if (row.taskId === null || !taskIds.has(row.taskId)) continue;
+		const index = row.telemetry.episode?.episodeIndex;
+		if (typeof index !== "number") continue;
+		// A clock-cut attempt was never claimed and never graded — it is not a
+		// verdict, but it is also not work anyone asked for, so it goes too.
+		if (row.claimed === "slot_expired" || row.grade?.pass === false)
+			failed.add(index);
+	}
+	return [...failed].sort((a, b) => a - b);
+};
+
+/** Episodes of a task the referee PASSED — what the progress bar should
+ * count, as opposed to everything the recorder happened to write. */
+export const passedEpisodeCount = (rig: string, taskId: string): number => {
+	const passed = new Set<number>();
+	for (const row of state.rows.values()) {
+		if (row.rig !== rig || row.taskId !== taskId) continue;
+		const index = row.telemetry.episode?.episodeIndex;
+		if (typeof index === "number" && row.grade?.pass === true)
+			passed.add(index);
+	}
+	return passed.size;
+};
+
 export const marketStats = () => {
 	const rows = [...state.rows.values()];
 	const graded = rows.filter((r) => r.grade !== null);

@@ -24,8 +24,16 @@ export interface SlotState {
 	live: RigSlotInfo["live"];
 	/** booked, clock not started */
 	pending: RigSlotInfo["pending"];
+	/** ran out (or was ended early) and still holds the operator's money */
+	ended: RigSlotInfo["ended"];
 	/** this browser holds a valid token for the live slot */
 	hasToken: boolean;
+	/** this browser owns the slot, running OR finished — what decides whether
+	 * the ledger and the payout are shown. Distinct from hasToken, which stays
+	 * live-scoped so it cannot suppress the next operator's unlock prompt. */
+	mine: boolean;
+	/** seconds after endAt before anyone but the hub may settle */
+	gradeGraceSeconds: number;
 	/** nobody has booked this rig and one is required */
 	needsBooking: boolean;
 	/** a slot exists but this browser has not proved it owns it */
@@ -48,7 +56,9 @@ export const useSlot = (
 
 	const live = info?.live ?? null;
 	const pending = info?.pending ?? null;
+	const ended = info?.ended ?? null;
 	const hasToken = info?.you?.hasToken === true;
+	const mine = (info?.you?.mine ?? null) !== null;
 	const verified = session?.verified === true;
 
 	const needsBooking =
@@ -74,10 +84,13 @@ export const useSlot = (
 		info,
 		live,
 		pending,
+		ended,
 		hasToken,
+		mine,
 		needsBooking,
 		needsUnlock,
 		maxStrikes: config?.chains[0]?.params?.maxStrikes ?? 3,
+		gradeGraceSeconds: config?.chains[0]?.params?.gradeGraceSeconds ?? 150,
 		blockedReason,
 	};
 };

@@ -25,7 +25,9 @@ import {
 	allHeads,
 	cachedRig,
 	liveSlot,
+	notePayout,
 	noteSlotClient,
+	payoutFor,
 	pendingSlot,
 	refreshRig,
 	remainingMs,
@@ -36,22 +38,48 @@ import type { SlotView } from "#/market/zg-slots";
 /** ethers behind a dynamic import — see the note in market/slots.ts. */
 const chain = () => import("#/market/zg-slots");
 
-const publicSlot = (slot: SlotView) => ({
-	chain: slot.chainKey,
-	slotId: slot.slotId,
-	operator: slot.operator,
-	stakeOg: slot.stakeOg,
-	startedAt: slot.startedAt,
-	endAt: slot.endAt,
-	remainingMs: remainingMs(slot),
-	episodes: slot.episodes,
-	passes: slot.passes,
-	strikes: slot.strikes,
-	creditsOg: slot.accruedOg,
-	status: slot.status,
-});
+const publicSlot = (slot: SlotView) => {
+	const sc = slotChain(slot.chainKey);
+	return {
+		chain: slot.chainKey,
+		/** carried so the browser can call endEarly/cancel/settle without also
+		 * having fetched the whole /slots config first */
+		contract: sc?.address ?? null,
+		slotId: slot.slotId,
+		operator: slot.operator,
+		stakeOg: slot.stakeOg,
+		startedAt: slot.startedAt,
+		endAt: slot.endAt,
+		remainingMs: remainingMs(slot),
+		episodes: slot.episodes,
+		passes: slot.passes,
+		strikes: slot.strikes,
+		creditsOg: slot.accruedOg,
+		status: slot.status,
+		/** what actually paid, once it has. null while the slot is still running. */
+		payout: payoutFor(slot.slotId),
+	};
+};
 
-/** Episodes of THIS slot, as the operator's own ledger. */
+/** A string field off the grader's proof artifact, or null. The shape differs
+ * between the Direct SDK path and the router fallback, so read defensively
+ * rather than casting. */
+const proofString = (
+	proof: Record<string, unknown> | null | undefined,
+	key: string,
+): string | null => {
+	const value = proof?.[key];
+	return typeof value === "string" && value !== "" ? value : null;
+};
+
+/**
+ * Episodes of THIS slot, as the operator's own ledger.
+ *
+ * `status` is carried through verbatim — the client turns it into "reading
+ * your episode" / "referee deliberating" / "posting the verdict", and it can
+ * only do that if every stage survives the trip. It used to be flattened into
+ * "graded or not", which is why a 60-second round trip looked like a hang.
+ */
 const episodesOf = (slotId: number) =>
 	listRows()
 		.filter((r) => r.slotId === slotId)
@@ -61,6 +89,9 @@ const episodesOf = (slotId: number) =>
 			taskTitle: r.taskTitle,
 			claimed: r.claimed,
 			status: r.status,
+			/** the rig has read its own parquet back — the referee has evidence to
+			 * work from, which is the difference between the first two stages */
+			measured: r.telemetry.episode !== null,
 			grade:
 				r.grade === null
 					? null
@@ -70,9 +101,29 @@ const episodesOf = (slotId: number) =>
 							provider: r.grade.provider,
 							reason: r.grade.reason,
 						},
+			/**
+			 * The 0G artifact itself, not just a badge implying it. `chatID` is
+			 * the inference this verdict came from and `teeVerified` is the SDK's
+			 * own signature check — the two things a judge asks to see.
+			 */
+			zg:
+				r.grade?.proof == null
+					? null
+					: {
+							chatID: proofString(r.grade.proof, "chatID"),
+							model: proofString(r.grade.proof, "model"),
+							teeVerified:
+								typeof r.grade.proof.teeVerified === "boolean"
+									? r.grade.proof.teeVerified
+									: null,
+							responseHash: proofString(r.grade.proof, "responseHash"),
+						},
 			/** false = graded without 0G's signature, so it CANNOT have struck */
 			attested: r.provenance?.slotAttested ?? null,
 			slotTx: r.provenance?.slotTx ?? null,
+			slotChain: r.slotChain,
+			teeTxHash: r.provenance?.teeTxHash ?? null,
+			zgRoot: r.provenance?.zgRoot ?? null,
 			openedAt: r.openedAt,
 			closedAt: r.closedAt,
 		}))
@@ -83,6 +134,18 @@ const rigDto = (rig: string) => {
 	const live = liveSlot(rig);
 	const pending = pendingSlot(rig);
 	const voided = allHeads(rig).some((h) => h.status === "voided");
+	/**
+	 * Over, but not yet settled — a state nothing used to surface.
+	 *
+	 * `liveSlot` goes null the instant the clock passes `endAt` and `pendingSlot`
+	 * only ever matches `booked`, so a finished slot with money still in it was
+	 * invisible to the browser. That is precisely the slot an operator needs to
+	 * see in order to claim it themselves when the hub is down.
+	 */
+	const ended =
+		allHeads(rig).find(
+			(h) => h.status === "running" && h.endAt * 1000 <= Date.now(),
+		) ?? null;
 	return {
 		rig,
 		rigId: rigIdOf(rig, SLOTS.namespace),
@@ -95,6 +158,7 @@ const rigDto = (rig: string) => {
 					: "free",
 		live: live ? publicSlot(live) : null,
 		pending: pending ? publicSlot(pending) : null,
+		ended: ended ? publicSlot(ended) : null,
 		queue: (cached?.chains ?? []).flatMap((c) =>
 			c.queue.map((s, i) => ({
 				chain: c.chainKey,
@@ -164,16 +228,59 @@ export const handleSlotRequest = async (
 		if (cached === null || Date.now() - cached.polledAt > 5_000)
 			await refreshRig(rig);
 		const token = readSlotToken(request, rig);
+		const dto = rigDto(rig);
 		const live = liveSlot(rig);
 		const hasToken = token !== null && token.slotId === live?.slotId;
+		/**
+		 * The slot this browser holds a token for, running or not.
+		 *
+		 * Keyed off the token rather than off `live` because the ledger must not
+		 * vanish the moment the clock runs out — that is when the operator most
+		 * wants to look at it: to read the last verdict and click the payout.
+		 */
+		/**
+		 * ...and it must not vanish once the money HAS moved either. `settle`
+		 * advances the queue past the slot, so it stops being a head and drops
+		 * out of the rig DTO entirely — which would take the payout link away at
+		 * the exact instant it became worth clicking. A recorded payout keeps the
+		 * slot "mine" for as long as this browser holds its token.
+		 */
+		const paid = token === null ? null : payoutFor(token.slotId);
+		const mine =
+			token !== null &&
+			(token.slotId === live?.slotId ||
+				token.slotId === dto.ended?.slotId ||
+				token.slotId === dto.pending?.slotId ||
+				paid !== null)
+				? token.slotId
+				: null;
+		// Only the holder sees their own episode ledger. Served to everyone it
+		// reads as "this is my slot" in a browser that holds nothing — which
+		// is exactly how it was reported: a second browser showing a
+		// countdown, a stake and graded rows belonging to someone else.
+		const endedChain = dto.ended ? slotChain(dto.ended.chain) : null;
+		const owedOg =
+			mine !== null && dto.ended !== null && endedChain !== null
+				? await (await chain())
+						.owedOg(endedChain, dto.ended.operator)
+						.catch(() => 0)
+				: 0;
 		return json({
-			...rigDto(rig),
-			you: { hasToken, slotId: token?.slotId ?? null },
-			// Only the holder sees their own episode ledger. Served to everyone it
-			// reads as "this is my slot" in a browser that holds nothing — which
-			// is exactly how it was reported: a second browser showing a
-			// countdown, a stake and graded rows belonging to someone else.
-			episodes: live && hasToken ? episodesOf(live.slotId) : [],
+			...dto,
+			you: {
+				// deliberately still LIVE-scoped: `needsUnlock` gates on it, and a
+				// token that stayed "true" past the end would suppress the unlock
+				// prompt for the next operator's booking
+				hasToken,
+				slotId: token?.slotId ?? null,
+				/** the slot this browser owns, running or finished — what decides
+				 * whether to show the ledger and the payout */
+				mine,
+				/** the receipt, which outlives the slot's place in the queue */
+				payout: paid,
+				owedOg,
+			},
+			episodes: mine !== null ? episodesOf(mine) : [],
 		});
 	}
 
@@ -182,11 +289,39 @@ export const handleSlotRequest = async (
 		pin?: string;
 		txHash?: string;
 		clientId?: string;
+		slotId?: number;
+		kind?: string;
 	};
 
 	// POST /slots/:rig/booked — a cache hint after a wallet booking, so the UI
 	// does not wait out a poll interval. Authoritative for nothing.
 	if (action === "/booked") {
+		await refreshRig(rig);
+		return json(rigDto(rig));
+	}
+
+	/**
+	 * POST /slots/:rig/settled — the operator settled, cancelled or ended early
+	 * from their own wallet. Same contract as /booked: a cache hint so the page
+	 * updates now instead of on the next poll, plus the receipt so the payout
+	 * link is the operator's OWN transaction rather than a hash the hub never
+	 * produced. Authoritative for nothing — the chain read that follows is.
+	 *
+	 * `end-early` is deliberately NOT a receipt: it only moves `endAt`, and the
+	 * money still leaves on the ordinary settle path a moment later.
+	 */
+	if (action === "/settled") {
+		const slotId = typeof body.slotId === "number" ? body.slotId : null;
+		const paying = body.kind === "settle" || body.kind === "cancel";
+		if (slotId !== null && typeof body.txHash === "string" && paying) {
+			const head = allHeads(rig).find((h) => h.slotId === slotId);
+			if (head)
+				notePayout(slotId, {
+					chainKey: head.chainKey,
+					settleTx: body.txHash,
+					by: "self",
+				});
+		}
 		await refreshRig(rig);
 		return json(rigDto(rig));
 	}

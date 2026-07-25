@@ -42,7 +42,10 @@ function PublishTask({
 	const collected = task.episodesDone ?? 0;
 	// telemetry is rig-wide; only claim it for the task whose repo it names
 	const mine = push?.repoId?.endsWith(`/${task.repoName}`) ? push : null;
-	const uploading = push?.phase === "uploading";
+	/** `filtering` is the referee's rejects being dropped from a copy before
+	 * anything leaves the machine — busy, and not yet uploading. */
+	const busyPhase = push?.phase === "uploading" || push?.phase === "filtering";
+	const minePhase = mine?.phase;
 
 	if (mine?.phase === "done" && mine.url)
 		return (
@@ -65,19 +68,23 @@ function PublishTask({
 				onClick={() => onPush(ownerKey, task.repoName)}
 				// nothing recorded yet = nothing to publish; the rig would only
 				// answer "no local dataset — record an episode first"
-				disabled={!ownerKey || busy || uploading || collected === 0}
+				disabled={!ownerKey || busy || busyPhase || collected === 0}
 				title={
 					collected === 0
 						? "no episodes recorded yet"
 						: `publish ${task.repoName} to the HF Hub`
 				}
 			>
-				{mine?.phase === "uploading" ? (
+				{minePhase === "uploading" || minePhase === "filtering" ? (
 					<Spinner className="size-3" />
 				) : (
 					<UploadCloud />
 				)}
-				{mine?.phase === "uploading" ? "publishing…" : "Publish"}
+				{minePhase === "filtering"
+					? "dropping failed episodes…"
+					: minePhase === "uploading"
+						? "publishing…"
+						: "Publish"}
 			</Button>
 			{mine?.phase === "failed" && (
 				<span className="text-destructive text-xs" title={mine.error ?? ""}>
