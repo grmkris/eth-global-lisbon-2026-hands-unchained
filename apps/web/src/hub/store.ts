@@ -60,6 +60,9 @@ export interface Rig {
 	/** confirmed camera mapping + live brightness (owner camera-setup panel) */
 	camMapping: { workspace: number | null; wrist: number | null } | null;
 	camBrightness: Record<string, number>;
+	/** indexes the owner switched off — absent from `cams`, so the setup panel
+	 * needs them spelled out to offer them back */
+	camDisabled: ReadonlyArray<number>;
 	/** live record-session status, straight from the rig's telemetry */
 	record: RecordStatus | null;
 	/** live attempt (task try) status */

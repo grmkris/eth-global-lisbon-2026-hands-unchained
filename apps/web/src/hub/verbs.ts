@@ -69,6 +69,13 @@ const table = {
 		owner: true,
 		args: ["workspace", "wrist"],
 	},
+	// switch a camera off for good (phantom black slot, spare angle) — the rig
+	// closes the device, so it leaves `cams` for everyone, not just one browser
+	camera_disable: {
+		path: "/api/cameras/disable",
+		owner: true,
+		args: ["index", "disabled"],
+	},
 	// training-run registry (rig-side sidecar, same pattern as tasks)
 	run_create: {
 		path: "/api/runs",

@@ -1,4 +1,4 @@
-import { Eye, Sun } from "lucide-react";
+import { Eye, EyeOff, Sun } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import type { RigSummary } from "#/lib/hub-api";
 
@@ -31,6 +31,10 @@ export function CameraSetup(props: {
 	const indexOf = (name: string) =>
 		Number.parseInt(name.replace("cam", ""), 10);
 	const confirmed = mapping.workspace !== null && mapping.wrist !== null;
+	// A disabled camera has no stream, so it cannot appear in `cams` — this list
+	// is the only handle left to switch it back on.
+	const disabled = [...(rig.camDisabled ?? [])].sort((a, b) => a - b);
+	const recording = rig.record?.active === true;
 
 	return (
 		<div className="flex flex-col gap-2 border-t pt-3">
@@ -47,7 +51,7 @@ export function CameraSetup(props: {
 				<Button
 					size="sm"
 					variant="outline"
-					disabled={busy || rig.record?.active === true}
+					disabled={busy || recording}
 					onClick={() => onCommand("camera_probe")}
 					title="re-enumerate the cameras (needed after a replug)"
 				>
@@ -65,6 +69,7 @@ export function CameraSetup(props: {
 					{indexed.map((cam) => {
 						const idx = indexOf(cam);
 						const bright = rig.camBrightness[cam];
+						const isMapped = mapping.workspace === idx || mapping.wrist === idx;
 						return (
 							<div key={cam} className="flex items-center gap-2 text-xs">
 								<span className="w-12 font-mono">{cam}</span>
@@ -103,9 +108,52 @@ export function CameraSetup(props: {
 								>
 									wrist
 								</Button>
+								<Button
+									size="sm"
+									variant="ghost"
+									disabled={busy || recording || isMapped}
+									onClick={() =>
+										onCommand("camera_disable", {
+											index: idx,
+											disabled: true,
+										})
+									}
+									title={
+										isMapped
+											? "assigned to the recorder — reassign it before hiding"
+											: `close ${cam} — no stream, no uplink, gone for everyone`
+									}
+								>
+									<EyeOff />
+									hide
+								</Button>
 							</div>
 						);
 					})}
+				</div>
+			)}
+
+			{disabled.length > 0 && (
+				<div className="flex flex-col gap-1 border-t pt-2">
+					<span className="text-muted-foreground text-xs">hidden</span>
+					{disabled.map((idx) => (
+						<div key={idx} className="flex items-center gap-2 text-xs">
+							<span className="w-12 font-mono text-muted-foreground">
+								cam{idx}
+							</span>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={busy || recording}
+								onClick={() =>
+									onCommand("camera_disable", { index: idx, disabled: false })
+								}
+							>
+								<Eye />
+								show
+							</Button>
+						</div>
+					))}
 				</div>
 			)}
 		</div>

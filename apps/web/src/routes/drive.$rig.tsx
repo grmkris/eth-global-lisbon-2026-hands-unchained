@@ -340,24 +340,9 @@ function DrivePage() {
 				</div>
 			)}
 
-			{data && (
-				<div className="mt-4 flex flex-col gap-4">
-					<TaskPanel
-						rig={data}
-						iAmDriving={iAmDriving}
-						myAttempt={myAttempt}
-						blockedReason={attemptBlockedReason}
-						busy={commandWith.isPending}
-						onStart={(taskId) =>
-							commandWith.mutate({ verb: "attempt_start", args: { taskId } })
-						}
-						onFinish={(success) =>
-							commandWith.mutate({ verb: "attempt_finish", args: { success } })
-						}
-					/>
-				</div>
-			)}
-
+			{/* Cameras, then how you drive, THEN the tasks. Starting an attempt is
+			    the one thing you do while watching the feed and the teleop panel at
+			    the same time — tasks in between pushed them a screen apart. */}
 			<Card className="mt-4">
 				<CardContent className="flex flex-col gap-3">
 					<div className="flex flex-wrap items-center gap-4 text-sm">
@@ -556,6 +541,24 @@ function DrivePage() {
 					)}
 				</CardContent>
 			</Card>
+
+			{data && (
+				<div className="mt-4 flex flex-col gap-4">
+					<TaskPanel
+						rig={data}
+						iAmDriving={iAmDriving}
+						myAttempt={myAttempt}
+						blockedReason={attemptBlockedReason}
+						busy={commandWith.isPending}
+						onStart={(taskId) =>
+							commandWith.mutate({ verb: "attempt_start", args: { taskId } })
+						}
+						onFinish={(success) =>
+							commandWith.mutate({ verb: "attempt_finish", args: { success } })
+						}
+					/>
+				</div>
+			)}
 
 			{data && (
 				<div className="mt-4 flex flex-col gap-4">

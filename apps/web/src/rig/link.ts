@@ -243,6 +243,9 @@ export const startRigLink = (opts: {
 	let camMapping: { workspace: number | null; wrist: number | null } | null =
 		null;
 	let camBrightness: Record<string, number> = {};
+	// Cameras the owner switched off. They are absent from `cams` by
+	// construction, so this is the only way the panel can offer them back.
+	let camDisabled: ReadonlyArray<number> = [];
 
 	const runCommand = async (cmd: {
 		verb: string;
@@ -301,16 +304,11 @@ export const startRigLink = (opts: {
 			await runCommand({
 				verb: autoConnect === "sim" ? "connect_sim" : "connect_real",
 			});
-			if (autoConnect === "real") {
-				const probed = (await localApi("/api/cameras/probe")) as Array<{
-					index: number;
-				}> | null;
-				if (probed?.length)
-					await localApi("/api/cameras/preview/start", {
-						method: "POST",
-						body: JSON.stringify({ indexes: probed.map((c) => c.index) }),
-					});
-			}
+			// one shot, not probe-then-start: probeAndPreview is the path that
+			// honours the owner's disabled set, so a camera switched off stays off
+			// across an agent restart
+			if (autoConnect === "real")
+				await localApi("/api/cameras/probe-preview", { method: "POST" });
 		}
 
 		// cached driver-event state — both are cheap in-memory reads
@@ -337,6 +335,7 @@ export const startRigLink = (opts: {
 					cams: previewing,
 					camMapping,
 					camBrightness,
+					camDisabled,
 					lastError: robot?.lastError ?? null,
 					record,
 					attempt,
@@ -435,10 +434,12 @@ export const startRigLink = (opts: {
 			previewing?: string[];
 			mapping?: { workspace: number | null; wrist: number | null };
 			brightness?: Record<string, number>;
+			disabled?: number[];
 		} | null;
 		previewing = cameras?.previewing ?? [];
 		camMapping = cameras?.mapping ?? null;
 		camBrightness = cameras?.brightness ?? {};
+		camDisabled = cameras?.disabled ?? [];
 		const mjpeg = mjpegBase(); // null until the driver reports its port
 		if (!mjpeg || previewing.length === 0) return;
 		for (const cam of previewing) {

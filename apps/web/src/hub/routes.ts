@@ -72,6 +72,7 @@ const rigSummary = (rig: Rig) => ({
 	runs: rig.runs,
 	camMapping: rig.camMapping,
 	camBrightness: rig.camBrightness,
+	camDisabled: rig.camDisabled,
 	/** age of each cam's newest frame, hub-side. The one number that says
 	 * whether video is keeping up — a value that climbs means the rig's uplink
 	 * cannot carry the push cadence. */
@@ -162,6 +163,7 @@ export const handleHubRequest = async (
 			lastCommandResult?: Rig["lastCommandResult"];
 			camMapping?: Rig["camMapping"];
 			camBrightness?: Record<string, number>;
+			camDisabled?: ReadonlyArray<number>;
 			/** rev-echo: full arrays ride along only when our echo mismatched */
 			tasksRev?: string | null;
 			tasks?: ReadonlyArray<TaskInfo>;
@@ -179,6 +181,7 @@ export const handleHubRequest = async (
 			lastError: body.lastError ?? null,
 			camMapping: body.camMapping ?? null,
 			camBrightness: body.camBrightness ?? {},
+			camDisabled: body.camDisabled ?? [],
 			record: body.record ?? null,
 			attempt: body.attempt ?? null,
 			push: body.push ?? null,

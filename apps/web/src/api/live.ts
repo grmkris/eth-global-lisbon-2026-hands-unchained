@@ -99,6 +99,11 @@ const CamerasLive = HttpApiBuilder.group(LabApi, "Cameras", (handlers) =>
 		.handle("status", () => Effect.flatMap(Cameras, (c) => c.status()))
 		.handle("confirm", ({ payload }) =>
 			Effect.flatMap(Cameras, (c) => c.confirm(payload)),
+		)
+		.handle("disable", ({ payload }) =>
+			Effect.flatMap(Cameras, (c) =>
+				c.setDisabled(payload.index, payload.disabled),
+			).pipe(Effect.mapError((e) => new DriverError({ message: e.message }))),
 		),
 );
 

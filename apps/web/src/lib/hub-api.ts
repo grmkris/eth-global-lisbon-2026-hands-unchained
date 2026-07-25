@@ -32,6 +32,8 @@ export interface RigSummary {
 	lastError: string | null;
 	camMapping: { workspace: number | null; wrist: number | null } | null;
 	camBrightness: Record<string, number>;
+	/** camera indexes the owner switched off — not in `cams` by construction */
+	camDisabled: ReadonlyArray<number>;
 	/** per-cam age of the newest frame the hub holds, ms */
 	camAgeMs: Record<string, number>;
 	record: RecordStatus | null;

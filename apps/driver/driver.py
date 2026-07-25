@@ -41,6 +41,11 @@ STOP_FLAGS: list[threading.Event] = []
 # devices (macOS: one owner per device) and only this remembers what was
 # streaming, so the worker can put the previews back when it is done.
 PREVIEW_SPECS: list[dict] = []
+# Names whose LAST frame survives stop_previews(). The recorder needs a second
+# or two to open the devices; without this the 1 Hz status event reports an
+# empty stream list inside that window and every panel in the browser unmounts
+# and comes back.
+KEEP_FRAMES: set[str] = set()
 
 
 # ---------- camera preview (real cameras; sim feeds FRAMES itself) ----------
@@ -72,13 +77,21 @@ def capture_loop(name: str, index: int, width: int, height: int, fps: int, stop:
             with LOCK:
                 FRAMES[name] = jpg.tobytes()
     cap.release()
-    with LOCK:
-        FRAMES.pop(name, None)
-        BRIGHTNESS.pop(name, None)
+    if name not in KEEP_FRAMES:  # a handover keeps the last frame on screen
+        with LOCK:
+            FRAMES.pop(name, None)
+            BRIGHTNESS.pop(name, None)
     log(f"capture {name} stopped")
 
 
-def stop_previews() -> None:
+def stop_previews(keep: set[str] | None = None) -> None:
+    """Release every capture device. `keep` names whose last frame stays put —
+    the ones something else is about to take over (the record tee)."""
+    # stays set until the NEXT stop_previews: a capture thread can sit in a
+    # blocking cap.read() well past the sleep below, and its cleanup must still
+    # see the flag
+    KEEP_FRAMES.clear()
+    KEEP_FRAMES.update(keep or ())
     for flag in STOP_FLAGS:
         flag.set()
     STOP_FLAGS.clear()
@@ -124,6 +137,101 @@ def cmd_preview_start(cameras: list[dict]) -> dict:
         started.append(cam["name"])
     PREVIEW_SPECS[:] = [dict(cam) for cam in cameras]
     return {"started": started}
+
+
+# ---------- record tee: previews that survive a recording ----------
+#
+# The recorder takes the camera devices away from the capture loops, but it
+# READS every frame — so the video does not have to go dark for the person
+# driving the episode. The tap publishes those frames back into FRAMES under
+# the SAME cam<index> names, which is the part that matters: `streams` never
+# changes, so the rig's advertised `cams` never changes, and the browser <img>
+# is not even remounted. It just keeps playing.
+#
+# Split in two on purpose. The tap runs INSIDE lerobot's 30 Hz control loop,
+# so it does the cheap half only (a clock check and a copy); the encoder thread
+# does colour conversion and JPEG off-loop, dropping whatever it cannot keep up
+# with. A tee that stole loop time would show up as dropped control frames in
+# the dataset — the exact thing we are recording.
+
+TEE_MIN_INTERVAL_S = 0.1  # ~10 fps is plenty for watching; recording is 30
+TEE = {
+    "names": {},        # lerobot cam key -> preview name (cam<index>)
+    "mailbox": {},      # preview name -> newest RGB frame not yet encoded
+    "last": {},         # preview name -> when we last took one
+    "wake": threading.Event(),
+    "stop": threading.Event(),
+    "thread": None,
+    "n": 0,
+}
+
+
+def tee_observation(obs: dict) -> None:
+    """Called per control tick by recorder.run_session. Must never raise."""
+    try:
+        now = time.monotonic()
+        for cam_key, name in TEE["names"].items():
+            frame = obs.get(cam_key)
+            if frame is None:
+                continue
+            if now - TEE["last"].get(name, 0.0) < TEE_MIN_INTERVAL_S:
+                continue
+            TEE["last"][name] = now
+            TEE["mailbox"][name] = frame.copy()  # latest-wins, single slot
+        TEE["wake"].set()
+    except Exception as exc:  # noqa: BLE001 — a dead preview beats a dead recording
+        log(f"record tee: {exc}")
+
+
+def _tee_loop() -> None:
+    while not TEE["stop"].is_set():
+        TEE["wake"].wait(0.5)
+        TEE["wake"].clear()
+        for name in list(TEE["mailbox"].keys()):
+            rgb = TEE["mailbox"].pop(name, None)
+            if rgb is None:
+                continue
+            try:
+                frame = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)  # lerobot hands back RGB
+                if PREVIEW_WIDTH and frame.shape[1] > PREVIEW_WIDTH:
+                    scale = PREVIEW_WIDTH / frame.shape[1]
+                    frame = cv2.resize(
+                        frame, (PREVIEW_WIDTH, max(1, round(frame.shape[0] * scale)))
+                    )
+                ok, jpg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, PREVIEW_QUALITY])
+                if not ok:
+                    continue
+                with LOCK:
+                    FRAMES[name] = jpg.tobytes()
+                    if TEE["n"] % 15 == 0:
+                        BRIGHTNESS[name] = round(
+                            float(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).mean()), 1
+                        )
+                TEE["n"] += 1
+            except Exception as exc:  # noqa: BLE001
+                log(f"record tee encode {name}: {exc}")
+
+
+def start_tee(names: dict) -> None:
+    TEE["names"] = dict(names)
+    TEE["mailbox"].clear()
+    TEE["last"].clear()
+    if not names:
+        return  # sim renders its own frames — nothing to tee
+    TEE["stop"].clear()
+    TEE["thread"] = threading.Thread(target=_tee_loop, name="record-tee", daemon=True)
+    TEE["thread"].start()
+    log(f"record tee: {', '.join(f'{k}->{v}' for k, v in names.items())}")
+
+
+def stop_tee() -> set[str]:
+    """Stop teeing and answer which preview names it was feeding."""
+    fed = set(TEE["names"].values())
+    TEE["names"] = {}
+    TEE["stop"].set()
+    TEE["wake"].set()
+    TEE["thread"] = None
+    return fed
 
 
 # ---------- MJPEG ----------
@@ -214,7 +322,6 @@ def cmd_record_start(req: dict) -> dict:
     backend = require_backend()
     teleop_loop.stop(wait=True)  # recorder owns the arm — a live teleop loop must end first
     resume_previews = [dict(cam) for cam in PREVIEW_SPECS]  # put these back afterwards
-    stop_previews()  # recorder owns the cameras (real backend)
 
     cfg = {
         "repo_id": req["repo_id"],
@@ -227,19 +334,57 @@ def cmd_record_start(req: dict) -> dict:
         "cameras": req.get("cameras") or {},
         "source": req.get("source") or ("scripted" if backend.name == "sim" else "leader"),
     }
-    robot, teleop_device, on_episode_start = backend.prepare_record(cfg)
+    # The recorder's cameras carry the same indexes the previews were opened
+    # with, so each one maps back onto the cam<index> stream the browser is
+    # already watching. Sim passes cameras: {} — it renders its own frames and
+    # this whole path stays inert there.
+    previewed = {cam["name"] for cam in resume_previews}
+    tee_names = {
+        cam_key: f"cam{spec['index']}"
+        for cam_key, spec in cfg["cameras"].items()
+        if f"cam{spec['index']}" in previewed
+    }
+    # Only the tee'd names keep their last frame; a camera nobody takes over
+    # (an unmapped cam2) is genuinely closed and must not sit there frozen.
+    stop_previews(keep=set(tee_names.values()))
+
+    # Everything from here to the worker thread runs with the previews already
+    # down: if it raises, the worker's finally never happens, and the cameras
+    # would stay dark until someone clicked Probe + preview.
+    try:
+        robot, teleop_device, on_episode_start = backend.prepare_record(cfg)
+        start_tee(tee_names)
+    except Exception:
+        stop_tee()
+        # the frames stop_previews kept for the handover that never happened
+        for name in tee_names.values():
+            with LOCK:
+                FRAMES.pop(name, None)
+        if resume_previews:
+            try:
+                cmd_preview_start(resume_previews)
+            except Exception as exc:  # noqa: BLE001 — report the ORIGINAL failure
+                log(f"preview restore after failed record start: {exc}")
+        raise
+
     events = recorder.make_events()
     if hasattr(teleop_device, "set_input") or hasattr(teleop_device, "set_joints"):
         teleop_loop.set_record_source(teleop_device)  # teleop_input RPC reaches the recording source
 
     def worker() -> None:
         try:
-            saved = recorder.run_session(robot, teleop_device, cfg, events, on_episode_start)
+            saved = recorder.run_session(
+                robot, teleop_device, cfg, events, on_episode_start,
+                observation_tap=tee_observation if tee_names else None,
+            )
             log(f"record session done, saved={saved}")
         except Exception as exc:  # noqa: BLE001 — recorder already emitted the failed state
             log(f"record session failed: {exc}")
         finally:
             teleop_loop.set_record_source(None)
+            # stop teeing BEFORE the restart, so a frame still in flight cannot
+            # land on top of a fresh preview
+            teed = stop_tee()
             # after_record puts the ARM back (see real.py); this puts the CAMERAS
             # back. Without it a real rig's feeds stay dark for everyone after the
             # first attempt — recorder.run_session has already released the
@@ -251,6 +396,11 @@ def cmd_record_start(req: dict) -> dict:
                     cmd_preview_start(resume_previews)
                 except Exception as exc:  # noqa: BLE001 — a replugged camera must
                     log(f"preview restore failed: {exc}")  # not poison the session
+                    # the tee's last frames would otherwise sit there as a still
+                    # image nobody could tell was stale
+                    for name in teed:
+                        with LOCK:
+                            FRAMES.pop(name, None)
 
     RECORDING["events"] = events
     RECORDING["thread"] = threading.Thread(target=worker, name="record-session", daemon=True)

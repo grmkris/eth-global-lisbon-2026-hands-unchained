@@ -184,6 +184,9 @@ export class CameraStatus extends Schema.Class<CameraStatus>("CameraStatus")(
 		brightness: Schema.Record(Schema.String, Schema.Number),
 		mapping: CameraMapping,
 		brightnessBand: Schema.Struct({ min: Schema.Number, max: Schema.Number }),
+		/** indexes the owner turned off — never opened, never advertised. The
+		 * only record they exist: a disabled camera is not in `previewing`. */
+		disabled: Schema.Array(Schema.Number),
 	}),
 ) {}
 
@@ -209,6 +212,17 @@ const CamerasGroup = HttpApiGroup.make("Cameras").add(
 	HttpApiEndpoint.post("confirm", "/cameras/confirm", {
 		payload: CameraMapping,
 		success: CameraMapping,
+	}),
+	// Turn a camera off for good (the phantom black slot every macOS rig has,
+	// a spare angle nobody wants). Closes the device — no capture thread, no
+	// uplink, gone from `cams` for every viewer, not just hidden in one browser.
+	HttpApiEndpoint.post("disable", "/cameras/disable", {
+		payload: Schema.Struct({
+			index: Schema.Number,
+			disabled: Schema.Boolean,
+		}),
+		success: Schema.Array(Schema.Number),
+		error: DriverError,
 	}),
 );
 

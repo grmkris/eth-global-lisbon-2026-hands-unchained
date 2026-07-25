@@ -13,13 +13,29 @@ def make_events() -> dict:
     return {"exit_early": False, "rerecord_episode": False, "stop_recording": False}
 
 
-def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None) -> int:
+def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None,
+                observation_tap=None) -> int:
+    """`observation_tap(obs)` sees every observation record_loop reads.
+
+    That is how the previews stay alive through an attempt: the recorder owns
+    the camera devices (macOS gives them one owner), but it also SEES every
+    frame, so driver.py taps them back into FRAMES instead of leaving the
+    operator to drive an episode blind. record_loop only ever CALLS
+    robot_observation_processor, so a plain function is a valid stand-in.
+    """
     from lerobot.datasets import LeRobotDataset
     from lerobot.processor import make_default_processors
     from lerobot.scripts.lerobot_record import record_loop
     from lerobot.utils.feature_utils import hw_to_dataset_features
 
     tap, rap, rop = make_default_processors()
+    if observation_tap is not None:
+        _rop = rop
+
+        def rop(obs, _inner=_rop):
+            observation_tap(obs)  # never raises — see driver.tee_observation
+            return _inner(obs)
+
     action_features = hw_to_dataset_features(robot.action_features, "action", True)
     obs_features = hw_to_dataset_features(robot.observation_features, "observation", True)
     features = {**action_features, **obs_features}
