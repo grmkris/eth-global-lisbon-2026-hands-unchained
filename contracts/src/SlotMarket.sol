@@ -193,6 +193,8 @@ contract SlotMarket is TeeVerifier {
 
     constructor(
         address _zgSigner,
+        address _registry,
+        address _provider,
         string memory _type,
         string memory _identity,
         address _settler,
@@ -202,7 +204,7 @@ contract SlotMarket is TeeVerifier {
         uint64 _noShowGrace,
         uint96 _minStake,
         uint88 _rewardPerEpisode
-    ) payable TeeVerifier(_zgSigner, _type, _identity) {
+    ) payable TeeVerifier(_zgSigner, _registry, _provider, _type, _identity) {
         require(_settler != address(0), "settler required");
         require(_treasury != address(0), "treasury required");
         require(_slotDuration > 0, "slot duration required");

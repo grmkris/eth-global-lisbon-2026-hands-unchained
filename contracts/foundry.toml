@@ -27,6 +27,10 @@ int_types = "long"
 [rpc_endpoints]
 og_testnet = "https://evmrpc-testnet.0g.ai"
 og_mainnet = "https://evmrpc.0g.ai"
+# The same SlotMarket runs here too — same escrow, same three strikes, same
+# ecrecover over 0G's enclave signature. The only difference is that Hedera
+# cannot read 0G's registry, so its signer is pinned rather than live.
+hedera_testnet = "https://testnet.hashio.io/api"
 
 # `forge verify-contract --chain 16602` against 0G Chain Scan's open API. The
 # explorer does not require a real key; the placeholder keeps forge happy.

@@ -46,6 +46,8 @@ contract SlotMarketTest is Test {
         vm.prank(owner);
         market = new SlotMarket{value: 1 ether}(
             teeSigner,
+            address(0), // no registry on the test chain -> pinned signer
+            address(0),
             P_TYPE,
             P_IDENT,
             settler,
@@ -637,6 +639,18 @@ contract SlotMarketTest is Test {
         vm.prank(settler);
         vm.expectRevert("owner only");
         market.drainPool(1);
+    }
+
+    // --- the trust anchor ---------------------------------------------------
+
+    /// Where there is no 0G registry to read (every chain but Galileo) the
+    /// signer is a pinned constant and refresh must refuse rather than
+    /// silently no-op, so a Hedera deploy cannot look live when it isn't.
+    function test_RefreshSigner_RevertsWhenPinned() public {
+        vm.expectRevert("signer is pinned on this chain");
+        market.refreshSigner();
+        assertEq(market.zgSigner(), teeSigner, "pinned signer unchanged");
+        assertEq(market.signerRegistry(), address(0));
     }
 
     // --- the balance invariant ---------------------------------------------

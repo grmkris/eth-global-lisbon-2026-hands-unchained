@@ -29,9 +29,13 @@ contract TeeAttestation is TeeVerifier {
         uint256 ts
     );
 
-    constructor(address _zgSigner, string memory _type, string memory _identity)
-        TeeVerifier(_zgSigner, _type, _identity)
-    {}
+    constructor(
+        address _zgSigner,
+        address _registry,
+        address _provider,
+        string memory _type,
+        string memory _identity
+    ) TeeVerifier(_zgSigner, _registry, _provider, _type, _identity) {}
 
     /**
      * Record a grade only if 0G's TEE really signed the response it came from.

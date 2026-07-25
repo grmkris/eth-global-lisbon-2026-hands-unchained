@@ -146,7 +146,8 @@ Live testnet artifacts:
 
 | What | Where |
 |---|---|
-| **SlotMarket** (0G Galileo, 16602) — booking, staking, verdicts, slashing | [`0x84d3d78c844739B2DA8C8815Bd701ec3fAf89bf2`](https://chainscan-galileo.0g.ai/address/0x84d3d78c844739B2DA8C8815Bd701ec3fAf89bf2) |
+| **SlotMarket** (0G Galileo, 16602) — signer read LIVE from 0G's registry | [`0x0EeFee711Ed37dE9C0d892638F9d14ac9047a9D8`](https://chainscan-galileo.0g.ai/address/0x0EeFee711Ed37dE9C0d892638F9d14ac9047a9D8) |
+| **SlotMarket** (Hedera testnet, 296) — same contract, signer pinned | [`0x7f37B89DE964DFf7EE6EF6d2E3d58dAF42Ac6863`](https://hashscan.io/testnet/contract/0x7f37B89DE964DFf7EE6EF6d2E3d58dAF42Ac6863) |
 | EpisodeRegistry (0G Galileo, 16602) | [`0x80669DE19A96F0004adbC3C81c528Ef1abB9a494`](https://chainscan-galileo.0g.ai/address/0x80669DE19A96F0004adbC3C81c528Ef1abB9a494) |
 | HCS provenance topic (Hedera — dormant) | [`0.0.9746374`](https://hashscan.io/testnet/topic/0.0.9746374) |
 | TeeAttestation (Hedera testnet — dormant) | [`0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3`](https://hashscan.io/testnet/contract/0xE6ad861D1c18d2FeFe18b49bCa1B407587673CC3) |

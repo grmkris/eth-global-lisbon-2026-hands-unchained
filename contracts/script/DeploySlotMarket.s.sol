@@ -42,21 +42,44 @@ interface IInferenceServing {
  */
 contract DeploySlotMarket is Script {
     address constant INFERENCE_SERVING = 0xa79F4c8311FF93C06b8CfB403690cc987c93F91E;
+    uint256 constant OG_GALILEO = 16602;
 
     function run() external {
-        uint256 pk = vm.envUint("ZG_PRIVATE_KEY");
+        // DEPLOY_KEY lets a chain bring its own funded deployer; 0G and Hedera
+        // do not share a wallet with HBAR in it.
+        uint256 pk = vm.envOr("DEPLOY_KEY", vm.envUint("ZG_PRIVATE_KEY"));
         address deployer = vm.addr(pk);
         address provider = vm.envAddress("ZG_PROVIDER");
 
-        console.log("1) reading the TEE signer from 0G (the trust anchor)");
-        IInferenceServing.Service memory svc =
-            IInferenceServing(INFERENCE_SERVING).getService(provider);
-        require(svc.teeSignerAddress != address(0), "provider has no TEE signer registered");
-        console.log("   provider :", provider);
-        console.log("   model    :", svc.model);
-        console.log("   teeSigner:", svc.teeSignerAddress);
+        // Where the trust anchor comes from depends on where we are deploying.
+        // On 0G the registry is right there, so read it and let the contract
+        // keep reading it. Anywhere else there is nothing to read, so the
+        // signer must be supplied and becomes a pinned constant — which is
+        // exactly the single cross-chain assumption we document.
+        address zgSigner;
+        string memory pType;
+        string memory pIdentity;
+        address registry;
 
-        (string memory pType, string memory pIdentity) = _descriptors(svc.additionalInfo);
+        if (block.chainid == OG_GALILEO) {
+            console.log("1) reading the TEE signer LIVE from 0G (same chain)");
+            IInferenceServing.Service memory svc =
+                IInferenceServing(INFERENCE_SERVING).getService(provider);
+            require(svc.teeSignerAddress != address(0), "provider has no TEE signer registered");
+            zgSigner = svc.teeSignerAddress;
+            (pType, pIdentity) = _descriptors(svc.additionalInfo);
+            registry = INFERENCE_SERVING;
+            console.log("   model    :", svc.model);
+        } else {
+            console.log("1) 0G's registry is not reachable from this chain - pinning");
+            zgSigner = vm.envAddress("ZG_SIGNER");
+            pType = vm.envOr("ZG_PROVIDER_TYPE", string("centralized"));
+            pIdentity = vm.envOr("ZG_PROVIDER_IDENTITY", string("aliyun"));
+            registry = address(0);
+            require(zgSigner != address(0), "ZG_SIGNER required off 0G");
+        }
+        console.log("   provider :", provider);
+        console.log("   teeSigner:", zgSigner);
         console.log("   descriptor:", string(abi.encodePacked(pType, "/", pIdentity)));
 
         address settler = vm.envOr("ZG_SETTLER", deployer);
@@ -68,14 +91,21 @@ contract DeploySlotMarket is Script {
         uint88 reward = uint88(vm.envOr("REWARD_PER_EPISODE_WEI", uint256(0.002 ether)));
         uint256 fund = vm.envOr("FUND_REWARDS_WEI", uint256(0.1 ether));
 
-        console.log("2) deploying to chain", block.chainid, "(expect 16602)");
+        console.log("2) deploying to chain", block.chainid);
         console.log("   deployer :", deployer);
         console.log("   balance  :", deployer.balance);
-        require(deployer.balance > fund, "deployer has no OG - hit faucet.0g.ai first");
+        require(
+            deployer.balance > fund,
+            block.chainid == OG_GALILEO
+                ? "deployer has no OG - hit faucet.0g.ai first"
+                : "deployer has too little native token for the pool plus gas"
+        );
 
         vm.startBroadcast(pk);
         SlotMarket market = new SlotMarket{value: fund}(
-            svc.teeSignerAddress,
+            zgSigner,
+            registry,
+            provider,
             pType,
             pIdentity,
             settler,
@@ -91,10 +121,28 @@ contract DeploySlotMarket is Script {
         console.log("");
         console.log("DEPLOYED");
         console.log("  address :", address(market));
-        console.log("  explorer: https://chainscan-galileo.0g.ai/address/%s", address(market));
+        console.log("  explorer:", address(market));
         console.log("  settler :", settler, "(hot key: relays starts and verdicts)");
         console.log("  treasury:", treasury);
+        // UNITS ARE NOT THE SAME ON BOTH CHAINS and getting this wrong is
+        // silent: Hedera's EVM denominates value in TINYBAR (1e8 = 1 HBAR) and
+        // the JSON-RPC relay divides the weibar a wallet sends by 1e10. Pass
+        // 5e17 here expecting "0.5" and you have set a stake of five billion
+        // HBAR that nobody can ever pay. Print the interpretation so a wrong
+        // number is obvious in the deploy log rather than at the first booking.
         console.log("  pool    :", fund);
+        console.log(
+            "  units   :",
+            block.chainid == OG_GALILEO ? "wei (1e18 = 1 OG)" : "TINYBAR (1e8 = 1 HBAR)"
+        );
+        console.log("  stake   :", minStake);
+        console.log("  reward  :", reward);
+        console.log(
+            "  anchor  :",
+            registry == address(0)
+                ? "PINNED (audit against 0G with one call)"
+                : "LIVE from 0G InferenceServing"
+        );
         console.log("");
         console.log("export ZG_SLOT_MARKET_ADDRESS=%s", address(market));
 
