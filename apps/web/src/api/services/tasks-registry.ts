@@ -97,6 +97,55 @@ export class TasksRegistry extends Context.Service<
 					{ concurrency: 4 },
 				);
 
+			/** The dataset name a task collects into. Derived from the title when the
+			 * owner left it blank — the browser derives the same thing for its
+			 * preview, but the RIG must not trust it: a blank name reaching disk
+			 * would point the recorder at `<hfUser>/`, not at a dataset. */
+			const slugRepoName = (task: TaskInfo) =>
+				task.repoName.trim() ||
+				`poh_${task.title
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, "_")
+					.replace(/^_+|_+$/g, "")
+					.slice(0, 30)}` ||
+				"poh_task";
+
+			/** Episodes already in a dataset, 0 when it does not exist yet. */
+			const episodesIn = (repoName: string) =>
+				fs
+					.readFileString(
+						`${LEROBOT_CACHE}/${RIG.hfUser}/${repoName}/meta/info.json`,
+					)
+					.pipe(
+						Effect.map((raw) => totalEpisodes(raw) ?? 0),
+						Effect.orElseSucceed(() => 0),
+					);
+
+			/**
+			 * A NEW task must never adopt a dataset that already has episodes.
+			 *
+			 * Progress is the dataset's `total_episodes`, so a task pointed at an
+			 * existing dataset inherits its history: a fresh task read 11/5, showed
+			 * "complete", and `attempts.ts` refused to record into it. That is easy
+			 * to do by accident, because clicking a task in the owner panel loads
+			 * its dataset name into the form.
+			 *
+			 * So: walk to the first free generation (`name`, `name_v2`, `name_v3`…).
+			 * "Free" means empty-or-absent, not absent — an existing dataset with no
+			 * episodes yet is perfectly good to collect into. The RIG has to be the
+			 * one enforcing this: it is the only party that can see datasets on disk
+			 * that belong to no task. An UPDATE is left alone on purpose — changing
+			 * the name is how an owner deliberately repoints a task.
+			 */
+			const freeRepoName = (wanted: string) =>
+				Effect.gen(function* () {
+					for (let gen = 1; gen <= 50; gen++) {
+						const candidate = gen === 1 ? wanted : `${wanted}_v${gen}`;
+						if ((yield* episodesIn(candidate)) === 0) return candidate;
+					}
+					return `${wanted}_v51`; // absurd, but never silently reuse
+				});
+
 			const save = (tasks: ReadonlyArray<TaskInfo>) =>
 				fs
 					.makeDirectory(DATA_DIR, { recursive: true })
@@ -112,9 +161,22 @@ export class TasksRegistry extends Context.Service<
 				upsert: (key, task) =>
 					checkKey(key).pipe(
 						Effect.andThen(load),
-						Effect.flatMap((tasks) => {
+						Effect.flatMap((tasks) =>
+							Effect.gen(function* () {
+								// creates get a guaranteed-empty dataset; updates keep whatever
+								// the owner typed (that is the repoint path)
+								const isCreate = !task.id;
+								const wanted = slugRepoName(task);
+								const repoName = isCreate
+									? yield* freeRepoName(wanted)
+									: wanted;
+								return { tasks, repoName };
+							}),
+						),
+						Effect.flatMap(({ tasks, repoName }) => {
 							const cleaned = new TaskInfo({
 								...task,
+								repoName,
 								episodesDone: null, // derived on read, never persisted
 								id: task.id || crypto.randomUUID().slice(0, 8),
 								title: clamp(task.title, MAX_TITLE),

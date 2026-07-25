@@ -6,8 +6,9 @@ import {
 	Trash2,
 	UploadCloud,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TaskInfo } from "#/api/contract";
+import { CameraSetup } from "#/components/camera-setup";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
@@ -97,9 +98,11 @@ export function OwnerPanel(props: {
 	onUpsert: (ownerKey: string, task: Record<string, unknown>) => void;
 	onDelete: (ownerKey: string, id: string) => void;
 	onPush: (ownerKey: string, repoName: string) => void;
+	/** any owner verb with the stored key attached — cameras use this */
+	onCommand: (verb: string, args?: Record<string, unknown>) => void;
 	busy: boolean;
 }) {
-	const { rig, onUpsert, onDelete, onPush, busy } = props;
+	const { rig, onUpsert, onDelete, onPush, onCommand, busy } = props;
 	const [open, setOpen] = useState(false);
 	const [key, setKey] = useState(() => ownerKeyStore.get(rig.name));
 	const [editingId, setEditingId] = useState<string>("");
@@ -129,17 +132,25 @@ export function OwnerPanel(props: {
 		setActive(t.active);
 	};
 
+	// The dataset a submit would actually target — shown next to the button so a
+	// create can never silently adopt a name that got loaded from another task.
+	const derived = `poh_${title
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "_")
+		.slice(0, 30)}`;
+	const targetRepo = repoName || derived;
+	// Only task-owned datasets are visible from the browser; the rig enforces the
+	// real rule (a create never adopts a dataset that already has episodes).
+	const clash = rig.tasks.find(
+		(t) => t.repoName === targetRepo && (t.episodesDone ?? 0) > 0,
+	);
+
 	const submit = () => {
 		onUpsert(key, {
 			id: editingId,
 			title,
 			instructions,
-			repoName:
-				repoName ||
-				`poh_${title
-					.toLowerCase()
-					.replace(/[^a-z0-9]+/g, "_")
-					.slice(0, 30)}`,
+			repoName: targetRepo,
 			episodeSeconds,
 			resetSeconds,
 			maxEpisodes: maxEpisodes === "" ? null : maxEpisodes,
@@ -148,6 +159,18 @@ export function OwnerPanel(props: {
 	};
 
 	const cmd = rig.lastCommandResult;
+	// Clear the form once a create lands, so the next one starts empty. Watching
+	// lastCommandResult.at is enough: it is a fresh object per relayed verb.
+	const lastApplied = useRef<number | null>(null);
+	useEffect(() => {
+		if (!cmd || cmd.verb !== "task_upsert" || !cmd.ok) return;
+		if (lastApplied.current === cmd.at) return;
+		lastApplied.current = cmd.at;
+		if (editingId) return; // an update keeps the form, so you can keep tuning
+		setTitle("");
+		setInstructions("");
+		setRepoName("");
+	}, [cmd, editingId]);
 
 	return (
 		<Card>
@@ -163,7 +186,12 @@ export function OwnerPanel(props: {
 						<ChevronRight className="size-4" />
 					)}
 					<KeyRound className="size-4 text-muted-foreground" />
-					Rig owner — manage tasks
+					Rig owner
+					{!open && (
+						<span className="font-normal text-muted-foreground text-xs">
+							tasks · publish{rig.backend === "real" ? " · cameras" : ""}
+						</span>
+					)}
 				</button>
 				{open && (
 					<>
@@ -245,6 +273,30 @@ export function OwnerPanel(props: {
 									onChange={(e) => setRepoName(e.target.value)}
 									placeholder="auto from title"
 								/>
+								{title.trim() !== "" && (
+									<p className="text-muted-foreground text-xs">
+										{editingId ? (
+											<>
+												episodes count from{" "}
+												<span className="font-mono">{targetRepo}</span> — point
+												this at a fresh name to start progress over (the old
+												dataset is left untouched)
+											</>
+										) : clash ? (
+											<>
+												<span className="font-mono">{targetRepo}</span> already
+												has {clash.episodesDone} episodes — this task will
+												collect into{" "}
+												<span className="font-mono">{targetRepo}_v2</span>
+											</>
+										) : (
+											<>
+												collects into{" "}
+												<span className="font-mono">{targetRepo}</span>
+											</>
+										)}
+									</p>
+								)}
 							</div>
 							<div className="flex items-end gap-4">
 								<div className="flex flex-col gap-1">
@@ -316,7 +368,8 @@ export function OwnerPanel(props: {
 									New task
 								</Button>
 							)}
-							{cmd?.verb.startsWith("task_") && (
+							{(cmd?.verb.startsWith("task_") ||
+								cmd?.verb === "dataset_push") && (
 								<span
 									className={`font-mono text-xs ${cmd.ok ? "text-muted-foreground" : "text-destructive"}`}
 								>
@@ -324,6 +377,8 @@ export function OwnerPanel(props: {
 								</span>
 							)}
 						</div>
+
+						<CameraSetup rig={rig} onCommand={onCommand} busy={busy} />
 					</>
 				)}
 			</CardContent>

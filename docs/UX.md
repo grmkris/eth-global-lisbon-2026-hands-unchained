@@ -36,7 +36,7 @@ this: rig stated once, intents are 1–3 fields.
 ## CLI → UI mapping
 | CLI today | UI | Status |
 |---|---|---|
-| cam-index verify snippet | drive page Camera setup (probe + confirm over the verb pipe) | ✅ |
+| cam-index verify snippet | Rig owner fold → Cameras (probe + assign over the verb pipe, real rigs only) | ✅ |
 | lerobot-teleoperate (5 lines) | Teleop with source select | ✅ |
 | lerobot-record (10 lines) | Record wizard | ✅ |
 | Colab cell assembly | Train form → generated cell | ✅ |

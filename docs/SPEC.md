@@ -138,9 +138,13 @@ operator's prior source (except after driver failure). Outcomes append to
 `.data/attempts.json` {task, operator, outcome, timestamps}; episode ground
 truth stays in the dataset itself.
 
-**The 20-episode loop.** `TaskInfo.episodesDone` is DERIVED rig-side from the
-dataset's lerobot meta (`total_episodes`, the same number the quota check
-reads) and rides the same advertisement — since the rev hashes the task array,
+**The 20-episode loop.** A task OWNS a dataset generation: `TaskInfo.episodesDone`
+is DERIVED rig-side from that dataset's lerobot meta (`total_episodes`, the same
+number the quota check reads), so progress is the dataset's episode count. A
+created task therefore never adopts a dataset that already has episodes — the
+registry walks to the first free generation (`name`, `name_v2`, …) and derives
+the name from the title when the owner left it blank. Editing a task's dataset
+name is the deliberate way to repoint it and start progress over and rides the same advertisement — since the rev hashes the task array,
 each saved episode re-advertises within ~2 s on its own. The drive page renders
 it as a progress bar (`13/20`, `Start attempt (14/20)`, `complete ✓` with the
 button disabled) and offers "auto-start the next attempt": after Success it

@@ -11,7 +11,6 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CamFeed, CamOffAir } from "#/components/cam-feed";
-import { CameraSetup } from "#/components/camera-setup";
 import { ErrorNote } from "#/components/error-note";
 import { KeyJogPad } from "#/components/key-jog-pad";
 import { OwnerPanel } from "#/components/owner-panel";
@@ -25,7 +24,6 @@ import { TaskPanel } from "#/components/task-panel";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
-import { DEFAULT_HUB } from "#/lib/constants";
 import { apiErrorMessage } from "#/lib/errors";
 import {
 	claimRig,
@@ -40,41 +38,6 @@ import {
 } from "#/lib/hub-api";
 
 export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
-
-/** Bring-your-own-leader onboarding: run one command, then a "Drive with
- * your leader" button appears in the controls above. */
-function LeaderOnboardCard() {
-	const origin = typeof window === "undefined" ? "" : window.location.origin;
-	const hubFlag = origin && origin !== DEFAULT_HUB ? ` --hub ${origin}` : "";
-	const commands = `cd apps/driver && uv sync   # first time only\ncd .. && bun run teleop${hubFlag}`;
-	return (
-		<Card className="mt-4">
-			<CardContent className="flex flex-col gap-2 text-sm">
-				<div className="font-medium">Drive with your own leader arm</div>
-				<p className="text-muted-foreground">
-					Plug in your SO-101 leader, run this from a clone of the repo, and a
-					"Drive with your leader" button appears here. First run walks you
-					through lerobot's calibration.
-				</p>
-				<pre className="overflow-x-auto rounded bg-muted p-3 font-mono text-xs">
-					{commands}
-				</pre>
-				<div>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => {
-							navigator.clipboard.writeText(commands.replace(/ {3}#.*$/m, ""));
-							toast.success("commands copied");
-						}}
-					>
-						copy
-					</Button>
-				</div>
-			</CardContent>
-		</Card>
-	);
-}
 
 /**
  * Age of the newest frame the HUB holds, measured hub-side — so it covers the
@@ -468,18 +431,12 @@ function DrivePage() {
 				</CardContent>
 			</Card>
 
-			{data?.online && onlineLeaders.length === 0 && <LeaderOnboardCard />}
-
 			{data && (
 				<div className="mt-4 flex flex-col gap-4">
-					<CameraSetup
-						rig={data}
-						busy={commandWith.isPending}
-						onCommand={ownerCommand}
-					/>
 					<OwnerPanel
 						rig={data}
 						busy={commandWith.isPending}
+						onCommand={ownerCommand}
 						onUpsert={(ownerKey, task) =>
 							commandWith.mutate({
 								verb: "task_upsert",
