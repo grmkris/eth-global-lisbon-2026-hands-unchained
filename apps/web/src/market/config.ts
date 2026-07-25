@@ -90,6 +90,31 @@ export const ZG = {
 		"https://indexer-storage-testnet-turbo.0g.ai",
 };
 
+/**
+ * The slot market on 0G Galileo — booking a rig IS staking, the clock starts at
+ * the PIN unlock, and TEE-verified verdicts pay or strike. Unset = the platform
+ * runs exactly as before, with no slots, no queue and no PIN.
+ *
+ * `settlerKey` is a HOT key: it relays startSlot and submits every verdict. It
+ * cannot forge a verdict (the contract checks 0G's signature) and it cannot
+ * profit from voiding anyone (slashed stakes go to the reward pool), but it can
+ * drain that pool if it is also the contract owner. Give it its own key.
+ */
+export const SLOTS = {
+	address: process.env.ZG_SLOT_MARKET_ADDRESS ?? "",
+	settlerKey: process.env.ZG_SETTLER_KEY ?? process.env.ZG_PRIVATE_KEY ?? "",
+	/** rigId = keccak256("<ns>|<rigName>") — see market/chain.ts */
+	namespace: process.env.ZG_SLOT_NS ?? "proof-of-hands",
+	/** Require a slot to drive at all. Off = a rig nobody booked stays free. */
+	required: process.env.SLOT_REQUIRED === "1",
+	/** Mirrors of on-chain immutables, for UI copy before the first chain read.
+	 * The contract is authoritative; zg-slots.ts reads the real values at boot. */
+	slotSeconds: Number(process.env.SLOT_DURATION_S ?? 1800),
+	get configured(): boolean {
+		return this.address !== "" && this.settlerKey !== "";
+	},
+};
+
 export const WORLD = {
 	appId: process.env.WORLD_APP_ID ?? "",
 	rpId: process.env.WORLD_RP_ID ?? "",
