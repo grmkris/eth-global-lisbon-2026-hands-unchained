@@ -157,7 +157,13 @@ def cmd_preview_start(cameras: list[dict]) -> dict:
 # with. A tee that stole loop time would show up as dropped control frames in
 # the dataset — the exact thing we are recording.
 
-TEE_MIN_INTERVAL_S = 0.1  # ~10 fps is plenty for watching; recording is 30
+# Must stay ABOVE the hub push cadence (rig/link.ts FRAME_MS, 50ms = 20fps).
+# At 0.1 the tee emitted ~10 unique fps into an 80ms push grid, so viewers got
+# new-frame/duplicate/new-frame — an irregular beat that reads far worse than a
+# steady low rate, during every attempt, which is exactly when someone is
+# watching. 0.04 is 25fps: above any push cadence, so every push carries a
+# genuinely new frame. Recording itself is unaffected and still runs at 30.
+TEE_MIN_INTERVAL_S = 0.04
 TEE = {
     "names": {},        # lerobot cam key -> preview name (cam<index>)
     "mailbox": {},      # preview name -> newest RGB frame not yet encoded

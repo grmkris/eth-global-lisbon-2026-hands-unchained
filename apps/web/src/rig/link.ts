@@ -14,15 +14,31 @@ import { isVerb, VERBS, type Verb } from "#/hub/verbs";
 import { setHolder } from "#/rig/holder";
 
 const LINK_MS = 50; // 20 Hz control
-/** Preview cadence — the recording stays full-rate locally. 80 ms = 12.5 fps;
- * two 640×480 JPEG streams ≈ 1 MB/s up, which a home line carries fine.
- * LAB_FRAME_MS trades upload for smoothness (125 = the old 8 fps). */
-/** Camera push cadence. Guarded because `setTimeout(fn, NaN)` means 0 — a
- * typo'd LAB_FRAME_MS would turn the frame loop into a hot loop hammering the
- * cameras and the hub as fast as the network allows. */
+/** Preview cadence — the recording stays full-rate locally. 50 ms = 20 fps;
+ * two 480px JPEG streams ≈ 600 KB/s up, which is LESS than the 12.5 fps this
+ * used to run at, because the driver now downscales previews (apps/driver/
+ * shared.py PREVIEW_WIDTH). Measured: 12.4 fps at 27 KB/frame beforehand.
+ *
+ * The two settings are a pair. pushFrames keeps ONE upload in flight per camera
+ * and skips a tick that finds one busy, so the effective interval is
+ * FRAME_MS × ceil(pushOne / FRAME_MS) — a cliff, not a slope. Lowering this
+ * without the smaller frames would find pushOne over 50 ms and HALVE the rate
+ * to 10 fps. If a rig's uplink can't hold it, LAB_FRAME_MS=65 is the fallback.
+ *
+ * Guarded because `setTimeout(fn, NaN)` means 0 — a typo'd LAB_FRAME_MS would
+ * turn the frame loop into a hot loop hammering the cameras and the hub as fast
+ * as the network allows. */
 const frameMsRaw = Number(process.env.LAB_FRAME_MS);
 const FRAME_MS =
-	Number.isFinite(frameMsRaw) && frameMsRaw >= 20 ? frameMsRaw : 80;
+	Number.isFinite(frameMsRaw) && frameMsRaw >= 20 ? frameMsRaw : 50;
+/** A stalled push must DROP, not block. Both fetches below were unbounded, so a
+ * wedged socket held the camera's in-flight slot for as long as the OS took to
+ * give up — the feed froze for exactly that long. The snap is loopback, so
+ * anything slow there is a wedged driver rather than a slow network; the hub
+ * push gets 8 ticks, far more than a healthy WAN needs (measured well under
+ * 80 ms) but bounded, so one bad socket costs one gap instead of a freeze. */
+const SNAP_TIMEOUT_MS = 250;
+const PUSH_TIMEOUT_MS = 400;
 
 type InputPacket = {
 	joints?: Record<string, number>;
@@ -393,7 +409,9 @@ export const startRigLink = (opts: {
 
 	const pushOne = async (mjpeg: string, cam: string) => {
 		try {
-			const snap = await fetch(`${mjpeg}/snap/${cam}`);
+			const snap = await fetch(`${mjpeg}/snap/${cam}`, {
+				signal: AbortSignal.timeout(SNAP_TIMEOUT_MS),
+			});
 			if (!snap.ok) return;
 			const buf = await snap.arrayBuffer();
 			const res = await fetch(
@@ -402,6 +420,7 @@ export const startRigLink = (opts: {
 					method: "POST",
 					headers: { "content-type": "image/jpeg", ...auth },
 					body: buf,
+					signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
 				},
 			);
 			if (!res.ok) throw new Error(`hub rejected frame: ${res.status}`);
