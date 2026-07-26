@@ -107,8 +107,20 @@ export function SourcePicker({
 						{name}'s leader
 					</Button>
 				))}
+			{/* The leader bound to you, and it stays CLICKABLE.
+			    It used to be disabled because it is already selected — but a
+			    recording tears the rig's teleop source down, and re-issuing `drive`
+			    is the only path in the codebase that queues `teleop_start_remote`
+			    again. Disabled, the operator's only way back was Stop driving
+			    followed by re-picking: a two-step ritual after every episode. */}
 			{drivingLeaderName && (
-				<Button size="sm" variant="default" disabled>
+				<Button
+					size="sm"
+					variant="default"
+					disabled={busy || recording}
+					title="re-arm this leader if the arm stopped following it"
+					onClick={() => onPick({ kind: "leader", name: drivingLeaderName })}
+				>
 					<Play />
 					{drivingLeaderName}'s leader
 				</Button>

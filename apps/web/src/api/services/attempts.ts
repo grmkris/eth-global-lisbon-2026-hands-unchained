@@ -49,12 +49,19 @@ interface Current {
  * mistake spin-up for session-end. */
 const SPINUP_GRACE_MS = 8_000;
 
-/** How long to keep trying to hand the arm back. See `restoreTeleop`: the
- * recorder's THREAD outlives its own terminal record_state, and the window is
- * whatever `after_record()` plus re-opening the cameras costs. 20 x 500ms is
- * far more than that has ever needed, and a failure here is loud. */
+/** How long to keep trying to hand the arm back, AFTER the recorder has
+ * actually finished. See `restoreTeleop`. */
 const RESTORE_TRIES = 20;
 const RESTORE_GAP_MS = 500;
+
+/** How long to wait for the record session to be over before the retry budget
+ * above starts. The recorder's THREAD outlives its own terminal record_state —
+ * MP4 encode per camera, dataset finalize, device disconnect, `after_record()`
+ * and the camera-preview restore all happen after it reports done, and
+ * `teleop_start` is refused ("recording is active") for the whole window. Two
+ * minutes is far past any real teardown; it exists so a wedged recorder cannot
+ * hang the loop forever. */
+const TEARDOWN_TRIES = 240;
 
 export interface AttemptsShape {
 	readonly state: () => Effect.Effect<AttemptState>;
@@ -89,6 +96,23 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 			/** highest episode index on disk when this attempt began — anything
 			 * above it is ours, anything at or below it belongs to somebody else */
 			let episodeBaseline = -1;
+			/**
+			 * HOW THE OPERATOR CHOSE TO DRIVE, remembered across attempts.
+			 *
+			 * The live `robot.state().source` cannot answer this: recording stops
+			 * teleop, and `after_record()` reconnects and emits
+			 * `robot_state{state:"connected"}` with no source at all, so between
+			 * one attempt and the next the rig genuinely reports null. Deriving
+			 * `priorSource` from that read meant the second attempt in a row
+			 * recorded through the `?? "keys"` fallback while the operator's leader
+			 * arm streamed into a source that could not accept it — a dead arm and
+			 * an episode burned against the task quota, silently.
+			 *
+			 * Seeded from the live source whenever one is actually reported, so an
+			 * operator who picked their source before this rig process started is
+			 * still remembered.
+			 */
+			let chosenSource: string | null = null;
 
 			const toState = (): AttemptState =>
 				new AttemptState(
@@ -160,25 +184,61 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 			 * from `finish()`, whose HTTP response the UI is waiting on.
 			 */
 			let restoring = false;
+			/**
+			 * The source a restore should aim at. Set by every caller, so a second
+			 * attempt closing while the first is still retrying RE-TARGETS the loop
+			 * instead of being dropped: `if (restoring) return` used to abandon the
+			 * later restore entirely and log nothing, which auto-continue hits
+			 * routinely because it chains attempts faster than a slow teardown
+			 * finishes.
+			 */
+			let restoreTarget: string | null = null;
 			const restoreTeleop = (source: string) =>
 				Effect.gen(function* () {
-					if (restoring) return; // back-to-back attempts must not stack fibers
+					restoreTarget = source;
+					if (restoring) return; // a loop is already running; it will pick this up
 					restoring = true;
+					/**
+					 * WAIT FOR THE RECORDER, THEN COUNT. The retry budget used to
+					 * start at `record_control keep` and expire before the session was
+					 * even over: lerobot still has to encode an MP4 per camera,
+					 * finalize the dataset, disconnect the devices, run
+					 * `after_record()` and re-open the cameras, and `teleop_start` is
+					 * refused for that whole window. On a two-camera real rig that
+					 * routinely outlasts 20 x 500ms, so every try failed and the arm
+					 * was left idle. Waiting for `!status.active` first means the
+					 * tries are spent on actual failures, not on the teardown.
+					 */
+					for (let i = 0; i < TEARDOWN_TRIES; i++) {
+						const status = yield* recorder
+							.status()
+							.pipe(Effect.orElseSucceed(() => null));
+						if (status !== null && !status.active) break;
+						yield* Effect.sleep(`${RESTORE_GAP_MS} millis`);
+					}
 					for (let i = 0; i < RESTORE_TRIES; i++) {
-						const ok = yield* robot.command("teleop_start", { source }).pipe(
-							Effect.as(true),
-							Effect.orElseSucceed(() => false),
-						);
-						if (ok) {
+						const target: string | null = restoreTarget;
+						if (target === null) break;
+						const ok = yield* robot
+							.command("teleop_start", { source: target })
+							.pipe(
+								Effect.as(true),
+								Effect.orElseSucceed(() => false),
+							);
+						// only clear when nobody re-targeted us mid-flight
+						if (ok && restoreTarget === target) {
 							restoring = false;
+							restoreTarget = null;
 							return;
 						}
 						yield* Effect.sleep(`${RESTORE_GAP_MS} millis`);
 					}
+					const failed = restoreTarget;
 					restoring = false;
+					restoreTarget = null;
 					// An idle arm must never be silent — same rule as driver lastError.
 					console.error(
-						`[attempts] could not restore teleop (source ${source}) after ${RESTORE_TRIES} tries — the arm is idle, re-arm from the drive page`,
+						`[attempts] could not restore teleop (source ${failed}) after ${RESTORE_TRIES} tries — the arm is idle, re-arm from the drive page`,
 					);
 				});
 
@@ -324,8 +384,14 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 						// Record with whatever source the operator is driving with now;
 						// the driver swaps teleop -> record-source itself, seeded from
 						// current joints, so their input stream never really pauses.
+						//
+						// The live read only WINS when it says something — between
+						// attempts it is null by construction (see `chosenSource`), and
+						// falling back to "keys" there hands a leader operator a source
+						// that silently discards their packets.
 						const robotState = yield* robot.state();
-						const priorSource = robotState.source ?? "keys";
+						if (robotState.source !== null) chosenSource = robotState.source;
+						const priorSource = chosenSource ?? "keys";
 
 						yield* recorder.start({
 							repoName: task.repoName,
