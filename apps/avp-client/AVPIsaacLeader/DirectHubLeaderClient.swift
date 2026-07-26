@@ -81,7 +81,13 @@ final class DirectHubLeaderClient {
     private var controlPlaneTask: Task<Void, Never>?
     private var inputTask: Task<Void, Never>?
     private var socket: URLSessionWebSocketTask?
+    private var socketReceiveTask: Task<Void, Never>?
+    private var socketLastAcknowledgedAt: TimeInterval = 0
     private var socketRetryAt: TimeInterval = 0
+    /// A send only confirms that URLSession accepted bytes locally. If the hub
+    /// does not acknowledge them promptly, abandon the likely half-open socket
+    /// and use the load-bearing HTTP input mailbox instead.
+    private let socketAcknowledgementTimeout: TimeInterval = 0.5
     private var latestCommand: CommandSample?
     private var armVirtualBase: [String: Double]?
     private var armPhysicalBase: [String: Double]?
@@ -155,8 +161,11 @@ final class DirectHubLeaderClient {
         inputTask?.cancel()
         controlPlaneTask = nil
         inputTask = nil
+        socketReceiveTask?.cancel()
+        socketReceiveTask = nil
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
+        socketLastAcknowledgedAt = 0
         socketRetryAt = 0
         armed = false
         selectedRig = nil
@@ -633,21 +642,24 @@ final class DirectHubLeaderClient {
     }
 
     private func sendInput(rig: String, joints: [String: Double]) async throws {
-        if ProcessInfo.processInfo.systemUptime >= socketRetryAt && socket == nil {
+        let now = ProcessInfo.processInfo.systemUptime
+        if now >= socketRetryAt && socket == nil {
             openInputSocket()
         }
         if let socket {
-            do {
-                let data = try JSONSerialization.data(withJSONObject: [
-                    "t": "input", "rig": rig, "joints": joints,
-                    "sentAt": Int(Date().timeIntervalSince1970 * 1000),
-                ])
-                try await socket.send(.data(data))
-                return
-            } catch {
-                socket.cancel(with: .abnormalClosure, reason: nil)
-                self.socket = nil
-                socketRetryAt = ProcessInfo.processInfo.systemUptime + 10
+            if now - socketLastAcknowledgedAt > socketAcknowledgementTimeout {
+                invalidateInputSocket(socket, retryAfter: 10)
+            } else {
+                do {
+                    let data = try JSONSerialization.data(withJSONObject: [
+                        "t": "input", "rig": rig, "joints": joints,
+                        "sentAt": Int(Date().timeIntervalSince1970 * 1000),
+                    ])
+                    try await socket.send(.data(data))
+                    return
+                } catch {
+                    invalidateInputSocket(socket, retryAfter: 10)
+                }
             }
         }
         _ = try await request(
@@ -672,8 +684,53 @@ final class DirectHubLeaderClient {
         if !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let task = URLSession.shared.webSocketTask(with: request)
         socket = task
+        socketLastAcknowledgedAt = ProcessInfo.processInfo.systemUptime
         socketRetryAt = ProcessInfo.processInfo.systemUptime + 10
         task.resume()
+        receiveInputSocketAcknowledgements(from: task)
+    }
+
+    private func receiveInputSocketAcknowledgements(from socket: URLSessionWebSocketTask) {
+        socketReceiveTask?.cancel()
+        socketReceiveTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    let message = try await socket.receive()
+                    guard let self, self.socket === socket else { return }
+                    let data: Data
+                    switch message {
+                    case .string(let text): data = Data(text.utf8)
+                    case .data(let value): data = value
+                    @unknown default: continue
+                    }
+                    guard let ack = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                          ack["t"] as? String == "ack" else { continue }
+                    if ack["forwarded"] as? Bool ?? true {
+                        self.socketLastAcknowledgedAt = ProcessInfo.processInfo.systemUptime
+                    } else {
+                        self.invalidateInputSocket(socket, retryAfter: 10)
+                        return
+                    }
+                } catch {
+                    guard let self, self.socket === socket else { return }
+                    self.invalidateInputSocket(socket, retryAfter: 10)
+                    return
+                }
+            }
+        }
+    }
+
+    private func invalidateInputSocket(
+        _ expectedSocket: URLSessionWebSocketTask,
+        retryAfter: TimeInterval
+    ) {
+        guard socket === expectedSocket else { return }
+        socketReceiveTask?.cancel()
+        socketReceiveTask = nil
+        socket?.cancel(with: .abnormalClosure, reason: nil)
+        socket = nil
+        socketLastAcknowledgedAt = 0
+        socketRetryAt = ProcessInfo.processInfo.systemUptime + retryAfter
     }
 
     // MARK: - HTTP helpers

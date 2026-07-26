@@ -91,6 +91,10 @@ const message = async (ws: Sock, raw: string | Buffer): Promise<void> => {
 	await impair();
 	const dropped = shouldDrop();
 	noteLeaderInput(rig, leader.name, "websocket", packet.joints, dropped);
+	// URLSession reports a local WebSocket write as successful even if a
+	// half-open connection never reaches this hub. Ack every authorized packet
+	// so native leaders can detect that condition and use their HTTP fallback.
+	ws.send(JSON.stringify({ t: "ack", forwarded: !dropped, at: Date.now() }));
 	if (dropped) return;
 	// Only trust the socket while the rig's own HTTP link says it is alive: a
 	// half-open socket (network partition, the rig reconnected over a fresh TCP
