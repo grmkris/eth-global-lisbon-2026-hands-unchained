@@ -420,8 +420,8 @@ export function SlotPanel({
 					    way out was to idle out the clock. */}
 					<Button
 						size="sm"
-						variant="ghost"
-						className="ml-auto text-muted-foreground"
+						variant="outline"
+						className="ml-auto"
 						onClick={() => void doEndEarly()}
 						disabled={busy || slot.contract === null}
 					>

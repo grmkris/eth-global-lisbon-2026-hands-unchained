@@ -219,9 +219,13 @@ export function OwnerPanel(props: {
 							<div className="flex flex-col gap-1">
 								{rig.tasks.map((t) => (
 									<div key={t.id} className="flex items-center gap-2 text-sm">
+										{/* Clicking a title loads it into the form below. The
+										    underline is permanent, not hover-only: an affordance
+										    that only appears once you are already pointing at it
+										    is not an affordance. */}
 										<button
 											type="button"
-											className="underline-offset-2 hover:underline"
+											className="rounded underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
 											onClick={() => loadTask(t.id)}
 										>
 											{t.title}
@@ -244,6 +248,8 @@ export function OwnerPanel(props: {
 										<Button
 											size="icon-sm"
 											variant="ghost"
+											aria-label={`delete task "${t.title}"`}
+											title="delete this task"
 											onClick={() => onDelete(key, t.id)}
 											disabled={!key || busy}
 										>

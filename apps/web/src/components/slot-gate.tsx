@@ -498,8 +498,8 @@ export function StartRequirements({
 							    was telling them to press. */}
 					<Button
 						size="sm"
-						variant="ghost"
-						className="self-start text-muted-foreground"
+						variant="outline"
+						className="self-start"
 						onClick={() => void doCancel()}
 						disabled={inFlight || pending.contract === null}
 					>
