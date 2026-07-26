@@ -360,11 +360,17 @@ def cmd_record_start(req: dict) -> dict:
     # Everything from here to the worker thread runs with the previews already
     # down: if it raises, the worker's finally never happens, and the cameras
     # would stay dark until someone clicked Probe + preview.
+    prepared = False
     try:
         robot, teleop_device, on_episode_start = backend.prepare_record(cfg)
+        prepared = True
         start_tee(tee_names)
     except Exception:
         stop_tee()
+        if prepared:
+            # RealBackend attaches record cameras to its already-live arm.
+            # Release them if tee setup fails, without disconnecting the arm.
+            backend.after_record()
         # the frames stop_previews kept for the handover that never happened
         for name in tee_names.values():
             with LOCK:
@@ -382,9 +388,14 @@ def cmd_record_start(req: dict) -> dict:
 
     def worker() -> None:
         try:
+            # RealBackend reuses its configured, torque-holding devices; the
+            # recorder must neither reconnect nor disconnect those serial arms.
+            reuse_real_devices = backend.name == "real"
             saved = recorder.run_session(
                 robot, teleop_device, cfg, events, on_episode_start,
                 observation_tap=tee_observation if tee_names else None,
+                devices_already_connected=reuse_real_devices,
+                disconnect_devices=not reuse_real_devices,
             )
             log(f"record session done, saved={saved}")
         except Exception as exc:  # noqa: BLE001 — recorder already emitted the failed state
@@ -394,10 +405,9 @@ def cmd_record_start(req: dict) -> dict:
             # stop teeing BEFORE the restart, so a frame still in flight cannot
             # land on top of a fresh preview
             teed = stop_tee()
-            # after_record puts the ARM back (see real.py); this puts the CAMERAS
-            # back. Without it a real rig's feeds stay dark for everyone after the
-            # first attempt — recorder.run_session has already released the
-            # devices in its own finally, so re-opening here is safe.
+            # after_record removes only the temporary recorder cameras for a
+            # real rig; its follower remains powered and connected. This lets
+            # preview capture reopen without making the arm go limp.
             backend.after_record()
             if resume_previews:
                 try:

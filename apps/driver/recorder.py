@@ -14,7 +14,8 @@ def make_events() -> dict:
 
 
 def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None,
-                observation_tap=None) -> int:
+                observation_tap=None, *, devices_already_connected: bool = False,
+                disconnect_devices: bool = True) -> int:
     """`observation_tap(obs)` sees every observation record_loop reads.
 
     That is how the previews stay alive through an attempt: the recorder owns
@@ -77,9 +78,10 @@ def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None,
             image_writer_threads=4 * n_cams if n_cams else 0,
         )
 
-    robot.connect()
-    if teleop is not None:
-        teleop.connect()
+    if not devices_already_connected:
+        robot.connect()
+        if teleop is not None:
+            teleop.connect()
     # crib LeLab: push calibration into motor memory when real hardware
     if hasattr(robot, "bus") and getattr(robot, "calibration", None) is not None:
         robot.bus.write_calibration(robot.calibration)
@@ -140,12 +142,13 @@ def run_session(robot, teleop, cfg: dict, events: dict, on_episode_start=None,
             dataset.finalize()  # lerobot's own script does this; we must too
         except Exception as exc:  # noqa: BLE001
             log(f"recorder finalize: {exc}")
-        for device, tag in ((robot, "robot"), (teleop, "teleop")):
-            if device is None:
-                continue
-            try:
-                device.disconnect()
-            except Exception as exc:  # noqa: BLE001
-                log(f"recorder {tag} disconnect: {exc}")
+        if disconnect_devices:
+            for device, tag in ((robot, "robot"), (teleop, "teleop")):
+                if device is None:
+                    continue
+                try:
+                    device.disconnect()
+                except Exception as exc:  # noqa: BLE001
+                    log(f"recorder {tag} disconnect: {exc}")
         state("failed" if failed else "done", ep, saved)
     return saved

@@ -15,6 +15,9 @@ class RealBackend:
         self.teleop = None
         self.state = "disconnected"
         self._ports: dict = {}
+        # Cameras are attached only for a recording session; the already
+        # connected follower and optional leader remain the serial owners.
+        self._record_cameras: dict = {}
 
     # ---------- lifecycle ----------
 
@@ -179,32 +182,31 @@ class RealBackend:
     # ---------- record ----------
 
     def prepare_record(self, cfg: dict):
-        """Release held devices, build FRESH lerobot objects with cameras for the recorder.
+        """Attach record cameras without releasing torque or serial ownership.
 
-        Demos come from cfg["source"]: leader (needs the leader arm) or an
-        input-driven source (keys/phone — no leader required, clamped).
-        Returns (robot, teleop, on_episode_start).
+        LeRobot's follower ``disconnect()`` disables torque by default and a
+        fresh ``connect()`` temporarily disables it again while configuring
+        motors. The old handoff recreated both devices for every episode, so a
+        task attempt made an elevated arm go limp. Reuse the already configured
+        follower/leader and attach only the cameras that the recorder needs.
         """
+        from lerobot.cameras import make_cameras_from_configs
         from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
-        from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
-        from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
 
+        if self.robot is None:
+            raise ValueError("not connected")
         source = cfg.get("source", "leader")
         if source == "scripted":
             raise ValueError("scripted source is sim-only")
-        if source == "leader" and not self._ports.get("leaderPort"):
+        if source == "leader" and self.teleop is None:
             raise ValueError("recording needs the leader arm — reconnect with leader")
-        # seed for open-loop EE sources: read while we still hold the arm
+        if self._record_cameras or self.robot.cameras:
+            raise RuntimeError("record cameras are already attached")
+
+        # Seed open-loop EE sources before recording starts. The follower stays
+        # connected throughout, so this is both current and torque-safe.
         seed_obs = self.current_joints_pos() if source != "leader" else None
-
-        # recorder owns the serial ports + cameras from here
-        self._safe_disconnect(self.robot)
-        self._safe_disconnect(self.teleop)
-        self.robot = self.teleop = None
-        self.state = "recording"
-        self._emit_state()
-
-        cameras = {
+        camera_configs = {
             name: OpenCVCameraConfig(
                 index_or_path=cam["index"],
                 width=cam.get("width", 640),
@@ -213,46 +215,49 @@ class RealBackend:
             )
             for name, cam in (cfg.get("cameras") or {}).items()
         }
-        robot = SO101Follower(
-            SO101FollowerConfig(
-                port=self._ports["followerPort"], id=self._ports["robotId"], cameras=cameras
-            )
-        )
+        cameras = make_cameras_from_configs(camera_configs)
+        try:
+            for camera in cameras.values():
+                camera.connect()
+        except Exception:
+            for camera in cameras.values():
+                self._safe_disconnect(camera)
+            raise
+
+        self.robot.cameras = cameras
+        # observation_features is a cached property. It must include the newly
+        # attached camera keys before the recorder builds the dataset schema.
+        self.robot.__dict__.pop("observation_features", None)
+        self._record_cameras = cameras
+        self.state = "recording"
+        self._emit_state()
+
         if source == "leader":
-            teleop = SO101Leader(
-                SO101LeaderConfig(port=self._ports["leaderPort"], id=self._ports["robotId"])
-            )
+            teleop = self.teleop
         else:
             from sources.ee_chain import make_input_source
 
-            # synthetic sources get a per-frame clamp; the leader is human-limited
-            robot.config.max_relative_target = 15.0
+            # Synthetic sources get a per-frame clamp; the leader is human-limited.
+            self.robot.config.max_relative_target = 15.0
             teleop = make_input_source(
-                source, motor_names=list(robot.bus.motors.keys()), seed_obs=seed_obs
+                source, motor_names=list(self.robot.bus.motors.keys()), seed_obs=seed_obs
             )
-        return robot, teleop, None
+        return self.robot, teleop, None
 
     def after_record(self) -> None:
-        """Put the arm BACK, don't leave it disconnected.
+        """Detach only recorder cameras; keep the configured arm powered.
 
-        The recorder disconnected the devices it owned (recorder.run_session's own
-        finally), so we reopen them here. Leaving the rig disconnected made every
-        real-arm attempt a dead end: attempts.ts restores teleop the moment this
-        returns (and failed silently inside Effect.ignore), and the next attempt in
-        a 20-episode run died on "arm not connected". Sim already came back
-        `connected`, which is why this only ever bit real hardware.
+        The recording loop did not open the real follower or leader, so it must
+        not disconnect them. Closing just the temporary cameras lets preview
+        capture reclaim their devices while the arm stays ready for the next
+        attempt.
         """
-        self.robot = self.teleop = None
-        self.state = "disconnected"  # connect() refuses any other state
-        if not self._ports.get("followerPort"):
-            self._emit_state()  # never connected in the first place
-            return
-        try:
-            self.connect(self._ports)  # rebuilds, rewrites calibration, emits
-        except Exception as exc:  # noqa: BLE001 — an unplugged arm must not kill
-            emit({                 # the record worker's finally
-                "event": "error",
-                "where": "real.after_record",
-                "error": f"could not reopen the arm after recording ({exc})",
-            })
-            self._emit_state()
+        for camera in self._record_cameras.values():
+            self._safe_disconnect(camera)
+        self._record_cameras = {}
+        if self.robot is not None:
+            self.robot.cameras = {}
+            self.robot.__dict__.pop("observation_features", None)
+            self.robot.config.max_relative_target = None
+        self.state = "connected" if self.robot is not None else "disconnected"
+        self._emit_state()
