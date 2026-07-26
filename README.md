@@ -36,6 +36,36 @@ with the lobby URL could drive this arm from anywhere in the world.
    controller.py ── your leader arm ──▶ hub ──▶ any rig   (leader-over-wire)
 ```
 
+## What it looks like
+
+**The lobby.** Every rig that has dialled in, with a live preview. A real SO-101
+and a MuJoCo sim, both bookable for thirty minutes — the page cannot tell them
+apart and neither can the driving code.
+
+![The lobby listing two rigs side by side, kris-arm and kris-sim, each with a
+live camera preview, link latency, its task list and a Book 30 min
+button](docs/images/lobby.png)
+
+**Getting access.** The drive page asks for exactly what is missing and nothing
+else, one step at a time — prove you're a unique human, then put money on it.
+The chain is a currency choice, not a product one: same contract, same escrow,
+same three strikes either way.
+
+![The drive page with the live camera feed on the left and, on the right, a
+single active step reading verify with World ID above two dimmed
+steps](docs/images/drive-verify.png)
+
+![The same page one step later: World ID now ticked, the stake step active with
+an OG / HBAR toggle and a Stake 0.05 OG and start
+button](docs/images/drive-stake.png)
+
+**Driving.** The clock runs, the stake is down, and every episode is graded on
+its own by a referee in a TEE — the verdict lands about a minute later.
+
+![The drive page mid-slot: 28:34 left, 0.5 HBAR staked, an episode being graded
+with the caption 0G referee deliberating, and the operator driving via a remote
+leader arm](docs/images/drive-slot-live.png)
+
 ## Layout
 
 - `apps/web` — one TypeScript app (TanStack Start + Effect v4, Bun), two
@@ -83,6 +113,10 @@ corner"); operators who take the rig attempt it. **Each successful attempt
 is one labeled lerobot episode** (the task title is the per-frame label) in
 the task's dataset — crowdsourced training data with per-episode operator
 provenance (`.data/attempts.json` on the rig).
+
+The task the arm in those photos is set for: move the coloured pieces on the peg
+board. The wrist camera rides on the gripper, so every episode carries both the
+workspace view and the close one.
 
 ```
 owner: task_upsert (owner key) ──▶ task card in lobby + drive
