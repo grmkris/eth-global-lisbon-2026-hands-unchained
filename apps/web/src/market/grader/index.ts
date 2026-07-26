@@ -28,6 +28,16 @@ const GRADE_TIMEOUT_MS = 90_000;
 const hubBlindSource = (source: string | null): boolean =>
 	source === "leader" || source === "scripted";
 
+/**
+ * Total joint travel below which a recorded episode is not work.
+ *
+ * A real 20 s attempt runs to hundreds of degrees (the smoke test reports ~290°
+ * for an ordinary one); servo jitter on a parked arm accrues single digits. 15°
+ * sits far below any deliberate motion and far above noise, so it separates
+ * "did nothing" from "did something small" without needing a model.
+ */
+const STILL_PATH_DEG = 15;
+
 export const grade = async (row: LedgerRow): Promise<Grade> => {
 	// A "success" claim with no saved episode is fraud-shaped regardless of
 	// grader: the work product does not exist. episodeSaved === null means the
@@ -73,7 +83,15 @@ export const grade = async (row: LedgerRow): Promise<Grade> => {
 	// Only "blind" when the RECORDING could not be read back either. With the
 	// episode in hand there is nothing to be blind about — it is the arm's
 	// real trajectory, whatever the drive source was.
+	//
+	// GATED ON THE SOURCE, and that is the whole point. The condition below is
+	// also the exact fingerprint of an operator who started an attempt, touched
+	// nothing and claimed success — so without asking WHICH source we are blind
+	// to, this branch credited every empty episode at 70 and the referee was
+	// never called. `keys`, `phone` and `remote` all reach the rig THROUGH the
+	// hub: zero packets from them is not blindness, it is stillness.
 	if (
+		hubBlindSource(row.source) &&
 		row.telemetry.episode === null &&
 		row.telemetry.inputPackets === 0 &&
 		row.telemetry.jointTravelDeg === 0 &&
@@ -83,9 +101,21 @@ export const grade = async (row: LedgerRow): Promise<Grade> => {
 			score: 70,
 			pass: true,
 			provider: "precheck(blind)",
-			reason: hubBlindSource(row.source)
-				? `episode saved and driven by "${row.source}", which never sends input through the hub — there is nothing for us to measure, so the claim is credited`
-				: "episode saved but no hub-observable input reached us — we were blind, which is not evidence of fraud, so the claim is credited",
+			reason: `episode saved and driven by "${row.source}", which never sends input through the hub — there is nothing for us to measure, so the claim is credited`,
+			proof: null,
+		};
+
+	// Measured stillness, from the episode itself. The parquet is the arm's own
+	// trajectory: if it is in hand and shows the arm barely moved, no model
+	// verdict should be able to call that success. Deterministic and BEFORE the
+	// referee, because this is not a judgement call.
+	const ep = row.telemetry.episode;
+	if (ep !== null && ep.frames > 0 && ep.jointPathDeg < STILL_PATH_DEG)
+		return {
+			score: 0,
+			pass: false,
+			provider: "precheck(still)",
+			reason: `claimed success but the recorded episode barely moved — ${ep.jointPathDeg}° of joint travel across ${ep.frames} frames`,
 			proof: null,
 		};
 

@@ -304,42 +304,86 @@ export const clearLeaderInputDebug = (rig: Rig): void => {
 };
 
 /**
+ * Hysteresis band, in degrees, for deciding a leader joint actually went
+ * somewhere.
+ *
+ * A leader arm resting on the desk still reports a jittering position, and
+ * `controller.py` streams it at 30 Hz regardless — so summing |pos - previous
+ * packet| accumulated pure noise: twenty still seconds out-ran the referee's
+ * "commandedMotion above ~10 is real work" bar and scored as an honest episode.
+ *
+ * A per-packet floor cannot fix that, because at 30 Hz slow DELIBERATE motion
+ * is also sub-degree per packet — the two are indistinguishable one packet at a
+ * time. What separates them is NET DISPLACEMENT: noise oscillates around a
+ * point and returns, real motion goes somewhere and stays. So travel is
+ * measured against a per-joint reference that only advances once the joint has
+ * moved a full band away from it. Jitter bounded by the band never advances the
+ * reference and contributes nothing, however long it goes on; a slow drift
+ * crosses the band eventually and is counted in full.
+ *
+ * Any band is defeated by noise wider than itself, so this is set well above
+ * the ~0.1° encoder resolution of the STS3215s these arms use. Widening it is
+ * nearly free: batching loses almost nothing, because the full displacement is
+ * credited whenever the reference finally moves — a 0.2°/packet drift measures
+ * 99% of its true travel at 2°, it is just counted in fewer, larger steps.
+ */
+const LEADER_BAND_DEG = 2;
+
+/**
  * Count one operator input packet on the rig's odometer. Called from BOTH
  * input write paths (the HTTP mailbox and the WS input plane) so evidence of
  * work does not depend on which transport the operator happened to get.
+ *
+ * A PACKET IS NOT WORK. `packets` used to increment unconditionally, which made
+ * it a measure of how long a client had been connected rather than of anything
+ * the operator did — and the referee reads it as evidence. Both transports
+ * stream at a fixed rate whether or not the human moves, so only packets that
+ * actually carry motion are counted now. The rate is still observable in the
+ * live telemetry; this counter is the *evidence* channel and has to mean work.
  */
 export const noteInputOdometer = (
 	rig: Rig,
 	input: { axes?: Record<string, number>; joints?: Record<string, number> },
 ): void => {
 	const odo = rig.inputOdo;
-	odo.packets += 1;
+	let moved = 0;
 	if (input.axes) {
 		const { gripper = 0, ...axes } = input.axes;
-		for (const v of Object.values(axes)) odo.motion += Math.abs(v);
+		for (const v of Object.values(axes)) moved += Math.abs(v);
 		const sign = gripper > 0.2 ? 1 : gripper < -0.2 ? -1 : 0;
 		if (sign !== 0) {
-			odo.motion += Math.abs(gripper);
+			moved += Math.abs(gripper);
 			if (odo.gripperSign !== 0 && sign !== odo.gripperSign)
 				odo.gripperFlips += 1;
 			odo.gripperSign = sign;
 		}
 	} else if (input.joints) {
-		// a leader arm streams absolute joint targets: travel between packets
-		if (odo.lastJoints !== null)
+		// A leader arm streams absolute joint targets. `lastJoints` is the
+		// REFERENCE the joint was last known to have really reached — not simply
+		// the previous packet — so bounded jitter never advances it.
+		if (odo.lastJoints === null) odo.lastJoints = { ...input.joints };
+		else
 			for (const [name, pos] of Object.entries(input.joints)) {
-				const prev = odo.lastJoints[name];
-				if (prev === undefined) continue;
-				const delta = Math.abs(pos - prev);
-				odo.motion += delta / 10; // rough parity with axis units
+				const ref = odo.lastJoints[name];
+				if (ref === undefined) {
+					odo.lastJoints[name] = pos;
+					continue;
+				}
+				const delta = Math.abs(pos - ref);
+				if (delta < LEADER_BAND_DEG) continue; // still inside the noise band
+				moved += delta / 10; // rough parity with axis units
 				if (name.toLowerCase().includes("gripper") && delta >= 8) {
-					const sign = pos > prev ? 1 : -1;
+					const sign = pos > ref ? 1 : -1;
 					if (odo.gripperSign !== 0 && sign !== odo.gripperSign)
 						odo.gripperFlips += 1;
 					odo.gripperSign = sign;
 				}
+				odo.lastJoints[name] = pos; // it went somewhere — move the reference
 			}
-		odo.lastJoints = { ...input.joints };
+	}
+	if (moved > 0) {
+		odo.motion += moved;
+		odo.packets += 1;
 	}
 };
 
