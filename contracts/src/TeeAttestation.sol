@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {TeeVerifier} from "./TeeVerifier.sol";
 
 /**
- * Proof of Hands — the bridge between 0G's referee and Hedera's money.
+ * Hands Unchained — the bridge between 0G's referee and Hedera's money.
  *
  * The grading model runs in a TEE on 0G Compute; its broker signs every
  * response inside the enclave with plain EIP-191. That means a contract on ANY

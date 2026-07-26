@@ -1,59 +1,33 @@
 /**
- * The Proof of Hands mark — one hand, its right half machine.
+ * The Hands Unchained mark.
  *
- * This is the REDUCED cut, drawn for 16-32px: bold silhouette, one seam, three
- * knuckle dots. The detailed mark (three pivot rails per finger, used on the
- * deck at 84px and up) turns to mud at nav size, which is why there are two.
+ * `logo.png` at the repo root is the full lockup — a worker's arm and an SO-101
+ * snapping a chain. It is an illustrative ~1.7:1 drawing, so at nav size it
+ * turns to mush: measured, not assumed. At 18px the whole lockup is
+ * unreadable, while the arm on its own still reads as a flexed arm, because it
+ * spends the entire height budget on one form instead of three. So the app
+ * carries the arm crop.
  *
- * Source of truth is `presentation/logo-mark-small.svg`; this component and
- * `src/logo-mark.svg` (the favicon) are both generated from it, so regenerate
- * all three together:
+ * It stays RASTER rather than traced to vector. The antialiasing and the cyan
+ * gradient are doing real legibility work down there, and the app is
+ * permanently dark (`<html className="dark">`), so a `currentColor` silhouette
+ * would buy nothing and cost the gradient.
  *
- *   python3 presentation/trace-logo.py mark-small-2 \
- *     --smooth 1.3 --tolerance 0.8 --width 700 \
- *     --out presentation/logo-mark-small.svg
+ * Regenerate with `python3 presentation/extract-logo.py` — it cuts this,
+ * `logo-plate.png`, `logo-art.png` and the traced `logo-mark.svg` from the one
+ * source — then copy `presentation/logo-arm.png` to `src/logo-mark.png`.
  */
+import markUrl from "../logo-mark.png?url";
+
 export function HandMark(props: { className?: string }) {
 	return (
-		<svg
-			className={props.className}
-			viewBox="0 0 700.000000 700.000000"
-			fill="currentColor"
-			fillRule="evenodd"
+		<img
+			src={markUrl}
+			alt=""
 			aria-hidden="true"
-		>
-			<g transform="translate(0.000000,700.000000) scale(0.100000,-0.100000)">
-				<path
-					d="M3617 6990 c-266 -48 -518 -231 -597 -435 -32 -82 -23 -76 -82 -53
--439 170 -943 -34 -1083 -439 -44 -125 -45 -157 -45 -1128 -1 -1064 19 -964
--147 -747 -212 277 -415 393 -693 394 -592 3 -982 -592 -724 -1105 32 -63 93
--147 349 -482 286 -374 577 -755 669 -875 60 -80 131 -172 156 -205 26 -33
-149 -195 275 -360 243 -319 335 -420 482 -528 92 -69 92 -69 95 -460 3 -438 2
--430 80 -504 71 -68 -79 -63 1898 -63 1977 0 1827 -5 1899 63 70 67 71 69 71
-486 0 373 0 373 77 455 308 326 480 736 533 1265 18 181 13 2789 -5 2895 -79
-451 -558 736 -1015 604 -47 -14 -92 -27 -100 -29 -13 -3 -16 16 -21 116 -16
-336 -235 594 -576 681 -172 43 -425 25 -551 -40 -38 -20 -42 -20 -42 -2 0 28
--81 173 -127 227 -175 207 -500 319 -776 269z m318 -490 c39 -19 78 -47 100
--72 67 -79 65 -47 65 -1010 0 -714 2 -874 14 -902 74 -176 329 -187 418 -17
-28 53 28 53 28 700 0 750 -3 722 84 807 160 156 461 121 558 -65 28 -53 28
--53 28 -840 0 -890 -2 -859 73 -935 104 -104 281 -83 359 41 23 38 23 38 28
-468 5 415 6 432 27 477 110 238 508 248 622 16 46 -92 44 -2877 -1 -3083 -78
--355 -189 -568 -409 -787 -174 -172 -163 -145 -169 -428 -5 -235 -5 -235
--1082 -238 l-1078 -2 -2 2936 c-3 2816 -2 2936 15 2946 71 38 230 32 322 -12z
-m-1241 -405 c83 -18 142 -51 190 -107 67 -77 66 -69 66 -792 0 -608 2 -654 19
--691 22 -49 76 -99 125 -115 36 -12 36 -12 36 -1886 0 -1874 0 -1874 -192
--1872 -193 3 -193 3 -198 253 -7 325 -12 337 -195 450 -123 76 -239 184 -340
-317 -43 57 -113 148 -155 203 -42 55 -121 159 -175 230 -108 142 -448 586
--904 1183 -160 210 -303 406 -316 435 -105 224 137 481 388 413 100 -27 139
--64 323 -303 92 -120 189 -245 214 -278 26 -33 99 -128 163 -212 133 -172 170
--207 239 -224 106 -25 201 16 264 116 18 28 19 78 24 1345 5 1315 5 1315 29
-1367 60 135 224 204 395 168z M3950 4036 c-308 -65 -356 -479 -73 -617 110
--54 268 -26 362 64 234 226 28 620 -289 553z M4860 3926 c-381 -84 -320 -642
-70 -640 326 1 452 417 180 593 -50 32 -159 67 -191 60 -2 0 -29 -6 -59 -13z
-M5737 3635 c-331 -122 -266 -612 84 -633 295 -17 454 303 267 540 -69 88 -240
-133 -351 93z"
-				/>
-			</g>
-		</svg>
+			className={props.className}
+			width={208}
+			height={256}
+		/>
 	);
 }

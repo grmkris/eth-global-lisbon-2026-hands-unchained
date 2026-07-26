@@ -214,13 +214,13 @@ final class RobotConnectionModel {
         }
     }
 
-    /// Connect Vision Pro directly to the Proof of Hands hub. The hub browser
+    /// Connect Vision Pro directly to the Hands Unchained hub. The hub browser
     /// still owns rig selection and its lease; this headset only advertises a
     /// leader input device and follows the binding it receives.
     func connectDirectlyToHub(hubURL: String, token: String, leaderName: String) {
         disconnect()
         isDirectHub = true
-        gatewayName = "Proof of Hands hub"
+        gatewayName = "Hands Unchained hub"
         directHub.connect(hubURL: hubURL, token: token, leaderName: leaderName)
     }
 
@@ -624,7 +624,7 @@ final class RobotConnectionModel {
         guard isDirectHub else { return }
         connectedGatewayID = snapshot.connected ? "direct-hub" : nil
         connectingGatewayID = nil
-        connectionStatus = "Proof of Hands hub: \(snapshot.mode)"
+        connectionStatus = "Hands Unchained hub: \(snapshot.mode)"
         gatewayMessage = snapshot.message
         pairingRequired = false
         isPaired = snapshot.connected

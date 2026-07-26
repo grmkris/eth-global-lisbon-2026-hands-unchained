@@ -23,3 +23,6 @@ skills-lock.json
 
 # os
 .DS_Store
+
+# derived logo intermediates (regenerate: python3 presentation/extract-logo.py)
+presentation/logo-mask.pbm

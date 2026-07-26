@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bridge the Vision Pro virtual leader to a web-selected Proof of Hands rig.
+"""Bridge the Vision Pro virtual leader to a web-selected Hands Unchained rig.
 
 The AVP keeps its paired Bonjour/TCP protocol. This Mac process registers only
 as a hub leader input device. The browser owns the rig lease and selects this
@@ -333,7 +333,7 @@ class HubBridgeState:
         self.leader_bound = False
         self.armed = False
         self.mode = "starting"
-        self.message = "Connecting to the Proof of Hands hub"
+        self.message = "Connecting to the Hands Unchained hub"
         self.fault: str | None = None
 
         self.last_sequence = -1
@@ -436,7 +436,7 @@ class HubBridgeState:
         if message_type == "heartbeat":
             return self.snapshot()
         if message_type in {"list_rigs", "take_control", "release_control"}:
-            return self.error("Manage rig selection in the Proof of Hands web interface")
+            return self.error("Manage rig selection in the Hands Unchained web interface")
         if message_type == "arm":
             return self.arm()
         if message_type == "stop":
@@ -770,7 +770,7 @@ class HubBridgeState:
             else:
                 self.leader_bound = False
                 self.mode = "waiting"
-                self.message = "Waiting for selection in the Proof of Hands web hub"
+                self.message = "Waiting for selection in the Hands Unchained web hub"
 
     def stop_drive(self, reason: str) -> None:
         with self.lock:
@@ -888,7 +888,7 @@ class HubWorker(threading.Thread):
     WS input plane (fire-and-forget), falling back to keep-alive HTTP."""
 
     def __init__(self, state: HubBridgeState):
-        super().__init__(name="proof-of-hands-hub-loop", daemon=True)
+        super().__init__(name="hands-unchained-hub-loop", daemon=True)
         self.state = state
         self.ws = None
         self.ws_retry_at = 0.0

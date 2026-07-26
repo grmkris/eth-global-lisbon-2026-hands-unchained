@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Integration test for the visionOS-native Proof of Hands leader client.
+"""Integration test for the visionOS-native Hands Unchained leader client.
 
 This compiles the real Swift DirectHubLeaderClient with a tiny stand-in for the
 RealityKit-facing command type, then runs it against a local HTTP hub fixture.

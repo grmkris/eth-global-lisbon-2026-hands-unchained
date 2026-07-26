@@ -19,7 +19,7 @@
     <key>NSHandsTrackingUsageDescription</key>
     <string>This app tracks hand position and orientation to control the virtual leader.</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Discover an optional local SO-101 gateway, or connect directly to the Proof of Hands hub.</string>
+    <string>Discover an optional local SO-101 gateway, or connect directly to the Hands Unchained hub.</string>
     <key>NSBonjourServices</key>
     <array>
         <string>_so101-control._tcp</string>

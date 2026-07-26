@@ -1,5 +1,5 @@
 /**
- * Logo concepts — "Proof of Hands": a human hand touching a robot.
+ * Logo concepts — "Hands Unchained": a human hand touching a robot.
  *
  * These are generated as RASTER stand-ins for a vector mark, so every prompt
  * forces the raster to behave like an SVG: pure black on pure white, one even

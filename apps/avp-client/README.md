@@ -1,6 +1,6 @@
 # AVP Isaac Leader
 
-Native visionOS client for Proof of Hands. It registers directly with the hub
+Native visionOS client for Hands Unchained. It registers directly with the hub
 as a leader input device: the web operator retains the rig lease and selects
 this leader from the rig page. The app has no serial-port dependency and does
 not require a Mac gateway.
@@ -9,7 +9,7 @@ not require a Mac gateway.
 
 - Vision Pro running visionOS 2 or later
 - Xcode with the visionOS SDK
-- A reachable Proof of Hands hub (the deployed hub is the app default)
+- A reachable Hands Unchained hub (the deployed hub is the app default)
 
 ## Run
 

@@ -5,9 +5,9 @@ shipped by the app — `railway.toml`'s `watchPatterns` excludes this directory,
 so touching it never redeploys the hub.
 
 The deck itself lives in Claude Design:
-<https://claude.ai/design/p/6f8cc292-ccbd-4d0b-b5e8-9dfe60c37d0f?file=Proof+of+Hands.dc.html>
+<https://claude.ai/design/p/6f8cc292-ccbd-4d0b-b5e8-9dfe60c37d0f?file=Hands+Unchained.dc.html>
 
-`Proof of Hands.dc.html` here is a mirror of that file at the commit where the
+`Hands Unchained.dc.html` here is a mirror of that file at the commit where the
 photos were wired in — same relative `./images/…` paths as the design project,
 so the two stay interchangeable. Edit the deck in Claude Design, not here.
 
@@ -28,56 +28,78 @@ drop them in — no code change needed, and these stand in until then.
 
 ## The logo
 
-`logo.svg` is the mark: one hand, its right half wearing a teleoperation
-exoskeleton. That is not a metaphor — the frame over the fingers is the rig and
-the pivots are the joints an operator drives.
+`logo.png` at the repo root is the final mark and the source of truth: a
+worker's arm and an SO-101 snapping a chain, neon cyan on a dark navy plate,
+with a grid and registration corners baked in. It is raster, has no alpha, and
+its artwork is about **1.7:1 wide** — none of which suits being dropped straight
+into a deck corner or a nav bar. So everything else is cut from it by
+`extract-logo.py`:
 
-It started as generated raster (`logo-concepts/split-4.jpg`) and was traced to
-vector with `trace-logo.py`, which turns the black strokes into filled outlines
-so the mark takes `fill: currentColor` and tints itself like everything else in
-the blueprint system. The deck draws it at **84x84** in the slide corner and
-**200x200** on the cover, and is legible at both.
-
-Below ~40px it muds, so there are **two cuts, not one**:
-
-| file | concept | used by |
+| file | what it is | used by |
 |---|---|---|
-| `logo.svg` | `split-4` — full exoskeleton, rails and pivots | the deck (84px, 200px) |
-| `logo-mark-small.svg` | `mark-small-2` — bold silhouette, one seam, three dots | the app (18px nav, favicon) |
+| `logo-plate.png` | the whole artwork, downscaled | README hero, social |
+| `logo-art.png` | artwork only, transparent | the deck cover |
+| `logo-arm.png` | the arm alone, transparent | app nav + favicon |
+| `logo-mark.svg` | traced silhouette, `currentColor` | the deck's 12 slide corners |
 
 ```sh
-python3 presentation/trace-logo.py split-4 --smooth 1.3 --tolerance 0.8 --width 900
-python3 presentation/trace-logo.py mark-small-2 --smooth 1.3 --tolerance 0.8 --width 700 \
-  --out presentation/logo-mark-small.svg
+python3 presentation/extract-logo.py --threshold 95
+python3 presentation/trace-logo.py --input presentation/logo-mask.pbm \
+  --smooth 1.3 --tolerance 1.6 --width 520 --out presentation/logo-mark.svg
+cp presentation/logo-arm.png apps/web/src/logo-mark.png     # nav + favicon
 ```
 
-The reduced cut is not the full mark shrunk — it is its own drawing. At 16px the
-full mark's finger gaps close into a blob; the reduced one keeps the silhouette
-because it has almost nothing else in it.
+The plate separates on luminance alone — the artwork is ~5% of pixels above
+L=80 with a flat gap either side, so one threshold lifts the strokes and leaves
+the plate, its grid and its corner marks behind.
 
-### Where the app uses it
+**Why there are two cuts.** Measured, not assumed: the full lockup is clean at
+110px and 84px and turns to mush by 40px, because it is three separate forms in
+a wide frame. The arm crop spends the whole height budget on one form and still
+reads at 18–22px, which is what the app nav needs. The arm stays **raster**
+rather than traced — its antialiasing and cyan gradient are doing real
+legibility work at that size, and the app is permanently dark so a
+`currentColor` silhouette would buy nothing.
 
-`logo-mark-small.svg` is the source of truth for two generated files in
-`apps/web`, and all three must be regenerated together:
-
-- `src/components/logo.tsx` — inline `<HandMark>`, so the nav mark needs no
-  request and inherits the nav's ink through `currentColor`.
-- `src/logo-mark.svg` — the favicon. Standalone, so it cannot use
-  `currentColor`; it carries the brand accent plus a
-  `prefers-color-scheme` override so it stays legible on a light *and* a dark
-  tab strip. Vite inlines it as a `data:` URI (it is under the 4 KB
-  `assetsInlineLimit`), which conveniently sidesteps `server.ts` only serving
-  `/assets/*` in production — a `public/` dir would 404 there.
-
-`--width` is the real quality/size dial: 900 gives 8 KB and is visually
-identical to 16 KB at 1200; below ~700 the outline starts to wobble and the
-joint circles go polygonal. Requires `potrace` (and `rsvg-convert` if you want
-to render the result locally to check it).
+**`--width` on the trace is the quality/size dial.** 520 gives 9 KB and is
+indistinguishable from 19 KB at the 84px the deck actually draws it — and the
+mark is inlined twelve times, so the difference is 108 KB against 228 KB of deck.
 
 **The mark is inlined on all twelve slides, not referenced.** Do not "optimise"
 that into a `<symbol>` + `<use>` pair: `deck-stage` treats its direct children
 as slides, so a `<defs>`/`<symbol>` block placed there renders as an extra blank
-slide at position 1. Twelve copies of an 8 KB path is the deliberate trade.
+slide at position 1.
+
+## The dark flip
+
+The deck used to be light blueprint paper. It now lives in the logo's world —
+dark navy, cyan accent — and because the deck is token-driven that is eight
+lines in the `deck-stage {}` block plus one corrections block. Two things fell
+out of it for free, and three broke:
+
+- Free: `.duotone::after` paints `--color-accent` with `mix-blend-mode: color`,
+  so all three photographs re-duotone to cyan off one token. `.bleed-scrim`
+  fades `--color-bg`, so the slide-05 scrim inverted to a dark fade by itself.
+- Broke: `.divider` was an *inverted* sheet (`background: --color-accent-900;
+  color: --color-bg`), which inverted literally into a full-bleed pale cyan
+  slide that flashes the room. Its ghost numeral went light-on-light. And every
+  rule using `--color-bg` as **ink** — correct when the page was paper — began
+  painting dark on dark.
+
+All three are fixed in a "dark-ground corrections" block at the end of the
+stylesheet rather than in place, so the original rules still read as written.
+
+## The workspace photos
+
+`workspace/` holds real photographs of the rig on the floor at Lisbon,
+converted from the iPhone HEICs (`heif-convert`, then resized to 1600px / q82 —
+GitHub will not render HEIC). These are the genuine article: the follower arm,
+the peg board it picks from, the overhead camera, and the hall.
+
+Worth doing and not yet done: the deck's three `<image-slot>`s still carry
+*generated* stand-ins. A real photo dropped onto a slot in Claude Design
+overrides its `src` with no code change, so swapping them is free and would be
+a real upgrade for a hardware demo.
 
 ## Regenerating
 

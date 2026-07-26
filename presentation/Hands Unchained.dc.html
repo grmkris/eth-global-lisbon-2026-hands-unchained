@@ -1,0 +1,2380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-5a0ad920-6e6c-46fc-8036-d7e563700fb9/styles.css">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&amp;display=swap">
+<title>Hands Unchained — ETHGlobal Lisbon 2026</title>
+<script src="./ds-base.js"></script>
+<script src="./image-slot.js"></script>
+<style>
+/* Template scaffolding — slide layout and projection-scale sizing only; every
+   color, font, radius and shadow comes from ../../styles.css. Change one
+   number here to re-size the whole deck.
+   THE WHOLE-GRID DECK (review rounds 4-5, replacing the containers-only
+   reading at Barron's pick): the modular grid the blueprint grammar
+   implies is drawn in full on every slide — the Grid Systems cover reading
+   of the same direction. Type registers baseline-ON-rule, display sizes
+   step up hard (Müller-Brockmann size contrast), photographs become grid
+   objects, and the system's "+" registration marks keep marking what is
+   measured. The field is EQUAL-MARGINED — 120px from all four stage
+   edges — and nearly every element seats on a DRAWN rule (each seat's
+   comment carries its derivation). */
+deck-stage {
+  /* Night blueprint. The mark is neon cyan on navy, so the deck moved into its
+     world rather than the other way round. Every muted grey is a color-mix off
+     --color-text and every rule a mix off --color-divider, so re-tinting the
+     ink here re-tints all of them; the accent ramp is overridden below because
+     it lives in the design system's :root, not on this element. */
+  --color-text: #cfe4f2;
+  --color-divider: color-mix(in srgb, #22d3ee 22%, transparent);
+  --color-bg: #050d1f;
+  /* Accent ramp inverted for a dark ground: the -700 and -900 steps have to get
+     LIGHTER as they go, not darker, or every kicker and rule sinks into the
+     paper. .duotone paints --color-accent with mix-blend-mode:color, so the
+     three photographs re-duotone to cyan off this one line. */
+  --color-accent: #22d3ee;
+  --color-accent-700: #67e8f9;
+  --color-accent-900: #a5f3fc;
+  --color-neutral-600: #7e97ab;
+  --color-neutral-800: #b8cfe0;
+  --font-heading: "Chakra Petch", "Barlow Condensed", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --type-display: 190px;
+  --type-title: 74px;
+  --type-subtitle: 40px;
+  --type-body: 34px;
+  --type-small: 28px;
+  --type-kicker: 24px;
+  --pad-x: 120px; /* round 2 (Barron): equal field margins — 120 on all four sides */
+  --page-foot-note: "Hands Unchained — ETHGlobal Lisbon 2026"; /* the deck-wide imprint text (page furniture; see the PAGE FURNITURE note below) */
+  --pad-top: 96px;
+  --pad-bottom: 120px;
+  --baseline: 48px; /* grid unit — one default-text line: the 34px Barlow body at its ~1.41
+     deck leading (a compact sans). The field's bottom rule is the 20th gridline (960); in
+     this variant the cover/close meta seats a half-step ABOVE it, on the 936 cell-bottom
+     rule (see .pin-bottom), and 960 itself stays the hard vertical budget: the bleed's
+     note ends exactly ON it, the reviewed deck's own footer convention. */
+}
+
+.slide {
+  display: flex; flex-direction: column;
+  isolation: isolate; /* the slide is its own stacking context, so the board's
+     negative z-index (below) floors it above the slide's OWN background but
+     beneath every in-flow and positioned child — without isolation a negative
+     z-index would drop the board behind the slide background entirely, and
+     with z-index:auto a positioned board paints ABOVE in-flow ink (CSS paint
+     order), the opposite of the drawn-grid intent */
+  background: var(--color-bg); color: var(--color-text);
+  font-family: var(--font-body);
+  text-wrap: pretty; /* inherited: better breaks, no orphans on wrapped blocks */
+  padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+
+/* — the board: the whole modular grid, drawn — */
+/* The variant's one big move. The field is equal-margined: 120px from every
+   stage edge (x 120..1800, y 120..960), so the frame reads symmetric and the
+   bottom rule IS the deck's established 960 footer/budget line. Columns:
+   four 384px modules with 48px gutters (pitch 432) — one baseline unit of
+   gutter, the Grid Systems cover's wider vertical doubling. Rows: seven
+   groups at pitch 120 (2.5 baseline units), each a 96px cell plus a 24px
+   caption row — the cover's doubled-line rhythm, every rule top on the
+   deck's 48/24px baseline lattice. Drawn as
+   border + four repeating gradients (origin border-box, so offsets count
+   from the field edge); zero-flow overlay like the reviewed deck's cells —
+   delete it and no baseline moves. Ink rules on paper; the dividers and
+   bleeds re-derive the rule color per ground (see below). Four "+" marks
+   register the field corners; content-anchored crosses stay on the
+   containers that keep them. */
+.board {
+  --board-rule: color-mix(in srgb, var(--color-divider) 50%, transparent); /* review
+     round 10 (Barron, pre-ship): the grid fades by half — scoped here so the
+     chart grids and timeline line (data furniture on the same divider token)
+     keep their full ink. The table has no rules of its own — the board rules
+     it — so its ruling fades with the board, a deliberate part of the fade. */
+  position: absolute; z-index: -1; /* beneath all content — see .slide's isolation
+     note. The bleed slide overrides this: there the board deliberately lies ON
+     the photograph, beneath the scrim (see .bleed .board) */
+  left: var(--pad-x); top: calc(2.5 * var(--baseline));
+  width: calc(1680px + 1px); height: calc(17.5 * var(--baseline) + 1px);
+  border: 1px solid var(--board-rule, var(--color-divider));
+  background-origin: border-box; background-clip: border-box;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom, var(--board-rule, var(--color-divider)) 0 1px, transparent 1px 120px),
+    repeating-linear-gradient(to bottom, transparent 0 96px, var(--board-rule, var(--color-divider)) 96px 97px, transparent 97px 120px),
+    repeating-linear-gradient(to right, var(--board-rule, var(--color-divider)) 0 1px, transparent 1px 432px),
+    repeating-linear-gradient(to right, transparent 0 384px, var(--board-rule, var(--color-divider)) 384px 385px, transparent 385px 432px);
+}
+
+/* — shared pieces — */
+/* Baseline grid: text sits on a 48px rhythm (--baseline) measured from the
+   slide's top edge. Snapped text blocks are trimmed to their cap and baseline
+   edges (text-box), so a block's bottom edge IS its last baseline and the next
+   block's first baseline lands N gridlines down with
+   margin-top: calc(N * var(--baseline) - 1cap). Compact rhythms (chart axes
+   and ticks) sit on the 24px half-step. Review the rhythm with ?baselines in
+   the URL, or press B (script in the helmet) — half-step lines draw
+   fainter than full ones. In this variant the board's rules are a subset of
+   the same lattice: row-group tops are full gridlines, cell bottoms are
+   half-steps, so "baseline on the rule" and "baseline on the grid" are one
+   statement. */
+.kicker {
+  position: absolute; top: calc(2 * var(--baseline) - 1cap); /* baseline on the reviewed
+     deck's own kicker line (96) — now half a unit ABOVE the field's 120 top rule,
+     so the rule and its corner crosses stay clean */
+  left: var(--pad-x); text-box: trim-both cap alphabetic;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: var(--type-kicker); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-accent);
+  font-feature-settings: "tnum" 1;
+}
+.k-right { left: auto; right: var(--pad-x); } /* the cover/close kicker rides the
+   top rule flush right — the Grid Systems cover's author line */
+.slide-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: var(--type-title); line-height: calc(2 * var(--baseline)); letter-spacing: 0; margin: 0;
+  margin-left: -0.052em; /* optical left alignment — measured for Barlow
+     Condensed SemiBold in the reviewed deck; em-scaled, so it holds at 96px */
+  text-box: trim-both cap alphabetic;
+}
+.pin-bottom { position: absolute; left: var(--pad-x); right: var(--pad-x); bottom: calc(var(--pad-bottom) + var(--baseline) / 2); } /* baseline
+   on the 936 caption rule — inside the field, clear of the 960 corner crosses;
+   the last caption row [936,960] is the imprint's band */
+.meta { display: flex; align-items: baseline; gap: 18px; font-size: var(--type-kicker); color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.meta span { text-box: trim-both cap alphabetic; } /* baseline on the 936 caption rule — see .pin-bottom */
+
+/* PAGE FURNITURE — on by default. To remove the page numbers and footer
+   text deck-wide, add data-no-page-furniture to the deck's <x-import>
+   mount (a one-line tweak — it renders on the <deck-stage>); to change
+   the text, edit --page-foot-note in
+   the deck's token block. The imprint sits where this board documents its
+   imprint's band: flush left on the axis, baseline ON the 936 caption rule
+   (the last caption row [936,960] of the field), at the meta row's scale
+   and 55% ink, the number tabular. Carried by the content slides (hero,
+   quote, split and the half-bleeds included — on the half-bleeds it
+   follows the copy half, because small muted type cannot pass the
+   type-over-photography rule) AND by the dividers: a blueprint sheet
+   carries its imprint on every ground, so the dividers keep it with the
+   ink re-derived to the page-corner marks' 55% paper (measured against
+   the steel ground in the render audit). The cover and close keep their
+   meta rows on the same rule instead, and the full bleed's photograph
+   owns its edges. Every slide still counts, so the printed number stays
+   truthful to position. */
+deck-stage { counter-reset: page; }
+.slide { counter-increment: page; }
+.page-foot {
+  position: absolute; left: var(--pad-x); bottom: calc(var(--pad-bottom) + var(--baseline) / 2); /* baseline ON the 936 caption rule, like .pin-bottom */
+  font-size: var(--type-kicker);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  text-box: trim-both cap alphabetic; /* bottom edge = baseline */
+}
+.page-foot::before { content: counter(page) " · "; font-feature-settings: "tnum" 1; }
+.page-foot::after { content: var(--page-foot-note); }
+deck-stage[data-no-page-furniture] .page-foot, deck-stage[data-no-page-furniture] .page-head { display: none !important; }
+.divider .page-foot { color: color-mix(in srgb, var(--color-bg) 55%, transparent); } /* the imprint survives the steel sheet in the page corners' paper-alpha ink */
+.half-bleed:not(.flip) .page-foot { left: 984px; } /* the imprint follows the copy half, seated on column 3's rule — type never sits on the photograph (deck-templates.md law) */
+
+/* — cover and close — */
+/* The Grid Systems cover, in industry's inks: the full board behind a
+   display line seated baseline-ON-rule (row-group 5's top, y 600), with the
+   description split into two caption columns under it — a short left cell
+   on the axis, the long cell on column 2 — first baselines ON the 696
+   caption rule, clear of the display's descenders (~55px below 600). The
+   kicker rides flush right above the field; the meta sits on the last
+   caption rule (936), inside the field. Most of the grid stays empty on
+   purpose. */
+.cover { justify-content: flex-start; }
+.cover .rise { position: absolute; inset: 0 var(--pad-x); }
+.display {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: var(--type-display); line-height: calc(6 * var(--baseline)); letter-spacing: 0; margin: 0;
+  margin-left: -0.052em; /* optical left alignment, em-scaled — see .slide-title */
+  margin-top: calc(12.5 * var(--baseline) - 1cap); /* baseline exactly on the group-5 top rule (600) */
+  text-box: trim-both cap alphabetic;
+}
+.cover-sub { font-size: var(--type-small); line-height: var(--baseline); margin: 0;
+  position: absolute; left: 0; max-width: 768px;
+  top: calc(14.5 * var(--baseline) - 1cap); /* first baseline ON the 696 caption rule —
+     clear of the 288px display's descenders (~55px below 600) */
+  text-box: trim-both cap alphabetic; }
+.cover-sub-a { left: 0; max-width: 360px; }
+.cover-sub-b { left: 432px; max-width: 816px; } /* column 2's left edge (x 552) */
+
+/* — contents — */
+/* Contents as the cover's caption rows: no panel, no added rules — the
+   board IS the ruling. Each entry's baseline sits ON a caption rule
+   (456 / 576 / 696 / 816), the 24px caption row beneath reading as the
+   doubled line of the reference cover. Numbers hold the axis; labels start
+   on column 2 (x 552) — secondary starts in this deck always sit on a
+   column edge. */
+.toc { position: absolute; inset: 0 var(--pad-x); font-size: var(--type-subtitle); }
+.toc-row { position: absolute; left: 0; right: 0; }
+.toc-row > span { text-box: trim-both cap alphabetic; position: absolute; top: 0; }
+.toc-row > .toc-label { left: 432px; }
+.toc-num { font-size: var(--type-kicker); color: var(--color-accent); font-feature-settings: "tnum" 1; }
+.toc-row { top: calc(9.5 * var(--baseline)); } /* baseline on the 456 caption rule; the rows
+   re-seat below via nth-child so markup stays the reviewed deck's */
+.toc-row:nth-child(2) { top: calc(12 * var(--baseline)); }
+.toc-row:nth-child(3) { top: calc(14.5 * var(--baseline)); }
+.toc-row:nth-child(4) { top: calc(17 * var(--baseline)); }
+.toc-row > span { top: calc(-1cap); } /* each span trims to its cap; the row's
+   top IS the rule, so the baseline lands on it */
+
+/* — section dividers — */
+/* Dividers keep their own ground — the deep steel blueprint sheet — and the
+   variant draws the board through it in paper-alpha hairlines: the section
+   break is a fresh sheet of the same grid. Ghost numeral and title seat
+   baseline-ON-rule like everything else (ghost on 600, title on 816), both
+   flush on the axis; the "+" page corners keep their registration spots.
+   Contrast re-derived for the steel ground: paper type 12.6:1, ghost at
+   ~2.2:1 (a drawing showing through the sheet), board rules decorative at
+   9% paper (halved in round 10's pre-ship fade). */ /* seats: ghost baseline ON the group-5 top rule (600),
+   title ON the 816 caption rule — see each declaration */
+.divider { justify-content: flex-start; background: var(--color-accent-900); color: var(--color-bg); }
+.divider .board { --board-rule: color-mix(in srgb, var(--color-bg) 9%, transparent); } /* half of the pre-round-10 18% — the fade keeps the per-ground ratio */
+.divider .board > .corner { color: color-mix(in srgb, var(--color-bg) 55%, transparent); }
+.divider .rise { position: absolute; inset: 0 var(--pad-x); }
+.page-corner {
+  position: absolute; width: 15px; height: 15px;
+  color: color-mix(in srgb, var(--color-bg) 55%, transparent);
+}
+.page-corner::before, .page-corner::after { content: ""; position: absolute; background: currentColor; }
+.page-corner::before { left: 7px; top: 0; width: 1px; height: 100%; }
+.page-corner::after  { top: 7px; left: 0; width: 100%; height: 1px; }
+.page-corner.tl { top: 41px; left: 41px; }
+.page-corner.tr { top: 41px; right: 41px; }
+.page-corner.bl { bottom: 41px; left: 41px; }
+.page-corner.br { bottom: 41px; right: 41px; }
+
+/* — registration crosses (the cell-corner grammar, kept) — */
+.cell { position: absolute; border: 1px solid var(--color-divider); pointer-events: none; }
+.cell > .corner, .board > .corner { position: absolute; width: 15px; height: 15px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.cell > .corner::before, .cell > .corner::after,
+.board > .corner::before, .board > .corner::after { content: ""; position: absolute; background: currentColor; }
+.cell > .corner::before, .board > .corner::before { left: 7px; top: 0; width: 1px; height: 100%; }
+.cell > .corner::after, .board > .corner::after  { top: 7px; left: 0; width: 100%; height: 1px; }
+.cell > .corner.tl, .board > .corner.tl { top: -8px; left: -8px; }
+.cell > .corner.tr, .board > .corner.tr { top: -8px; right: -8px; }
+.cell > .corner.bl, .board > .corner.bl { bottom: -8px; left: -8px; }
+.cell > .corner.br, .board > .corner.br { bottom: -8px; right: -8px; }
+/* -8px = the 7px arm offset + the 1px border: absolute offsets resolve from
+   the PADDING box, inside the border — each cross centers exactly on its
+   rule intersection, the reviewed deck's convention. */
+.ghost-num {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 360px; line-height: 1; letter-spacing: 0;
+  color: var(--color-accent-700);
+  position: absolute; top: calc(12.5 * var(--baseline) - 1cap); /* baseline on the
+     group-5 top rule (600) */
+  text-box: trim-both cap alphabetic;
+  margin-left: -0.036em; /* ghosts lead with "0" — optical value from the reviewed deck, em-scaled */
+}
+.divider .slide-title { position: absolute; top: calc(17 * var(--baseline) - 1cap); } /* baseline on the 816 caption rule */
+
+/* — content slides — */
+.content { padding-top: calc(5 * var(--baseline)); /* title baseline on the 5th gridline —
+   row 2's top rule (240), clear of the pinned kicker row */ }
+.content > .slide-title, .content > .chart-head { margin-top: -1cap; } /* cap-trimmed: the baseline, not the cap top, sits on the rule */
+.content > .bullets { margin-top: calc(2.5 * var(--baseline) - 1cap); } /* first baseline on
+   the group-3 top rule (360), one row group below the title's */
+.content > figure { margin-top: calc(2 * var(--baseline)); } /* svg top on the 336 caption
+   rule; the plots' axis line (svg y 360) lands ON the 696 caption rule */
+.content > .table { margin-top: calc(0.5 * var(--baseline)); } /* table top at 264: the 96px
+   header row closes its baseline ON the group-3 top rule (360) */
+.content > .chart-caption { margin-top: calc(2 * var(--baseline) - 1cap); }
+.bullets { display: flex; flex-direction: column; max-width: 1220px; margin: 0; padding: 0; list-style: none; font-size: var(--type-body); }
+.bullets li { position: relative; line-height: var(--baseline); text-box: trim-both cap alphabetic; }
+.bullets li + li { margin-top: calc(2.5 * var(--baseline) - 1cap); } /* one thought per
+   row group: single-line bullets seat on successive group-top rules
+   (360 / 480 / 600) — the variant's pitch (the reviewed deck: every other
+   gridline) */
+.bullets li::before, .bullets li::after { content: ""; position: absolute; background: var(--color-accent); }
+.bullets li::before { left: -37px; top: calc(0.5cap - 8px); width: 2px; height: 16px; }
+.bullets li::after  { left: -44px; top: calc(0.5cap - 1px); width: 16px; height: 2px; }
+
+/* — column layouts — */
+/* Columns are the board's own bays: the two-column setting takes two
+   modules per column (x 120 and 984, 816px each, the drawn 48px gutter
+   between), and the three-column setting takes one module apiece (x 120,
+   552, 984) leaving module 4 DELIBERATELY empty — the Grid Systems cover's
+   empty-cell statement; on a four-module board three equal full-width
+   columns cannot seat on drawn rules, so the grid wins and the measure
+   narrows (a module runs ≈21 characters of condensed head, ≈26 of small
+   note — notes, not essays). No rules are added: the board is the ruling.
+   Seats: head baselines ON the group-3 top rule (360), note baselines ON
+   the 456 caption rule, wrapped lines riding the 48px lattice below. */
+.cols { display: grid; column-gap: var(--baseline); margin-top: calc(2.5 * var(--baseline)); /* container top ON the group-3 rule; the cap term lives on the h3, where it resolves in the heading face (the two-family decks' -1cap lesson) */ }
+.cols-2 { grid-template-columns: 816px 816px; }
+.cols-3 { grid-template-columns: repeat(3, 384px); }
+.cols h3 { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: var(--type-subtitle); line-height: var(--baseline); margin: 0;
+  margin-top: -1cap; /* baseline ON the group-3 top rule (360); 1cap in the h3's own face */
+  text-box: trim-both cap alphabetic; }
+.cols p { font-size: var(--type-small); line-height: var(--baseline); margin: 0;
+  margin-top: calc(2 * var(--baseline) - 1cap); /* first baseline ON the 456 caption rule */
+  text-box: trim-both cap alphabetic; }
+
+/* — quadrants — */
+/* The board IS the matrix — no division is drawn because every division
+   is already there: the vertical axis is the columns 2/3 gutter (center
+   960), the horizontal axis is the group-5 top rule (600). Cells are
+   two-module x two-row-group bays: heads seat their baselines ON the band
+   top rules (360 upper, 600 lower — the lower heads hang from the crossing
+   rule itself, the way every seated element does), one-liners ON the
+   caption rules below (456 / 696), wraps on the lattice. The axis pair
+   seats ON the group-7 top rule (840), left label on the axis, right label
+   flush right (the cover kicker's k-right precedent), one row group clear
+   of the 936 imprint. Left column = lower x; the y reading (top row
+   smaller work) is carried by the cell copy — a y pair has no seat that
+   doesn't fight the imprint band or the axis, so the horizontal pair does
+   the labeling (the shared-spec minimum). */
+.quad { display: grid; grid-template-columns: 816px 816px; column-gap: var(--baseline);
+  grid-template-rows: calc(5 * var(--baseline)) calc(5 * var(--baseline));
+  margin-top: calc(2.5 * var(--baseline)); /* matrix top = the group-3 top rule (360) */ }
+.quad h3 { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: var(--type-subtitle); line-height: var(--baseline); margin: 0;
+  margin-top: -1cap; /* baseline ON the cell's band-top rule (360 / 600) */
+  text-box: trim-both cap alphabetic; }
+.quad p { font-size: var(--type-small); line-height: var(--baseline); margin: 0;
+  margin-top: calc(2 * var(--baseline) - 1cap); /* one-liner ON the caption rule (456 / 696) */
+  text-box: trim-both cap alphabetic; }
+.quad-axis { display: flex; justify-content: space-between;
+  margin-top: -1cap; /* label baselines ON the group-7 top rule (840) */
+  font-size: var(--type-kicker); letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.quad-axis span { text-box: trim-both cap alphabetic; }
+
+/* — data table (component class at projection scale) — */
+/* The board rules the table: the component's own hairlines are suppressed
+   (a variant style call — no rules are drawn twice) and the rows take the
+   board's 120px row groups ONE-PER-ROW, each row's text baseline ON its
+   caption rule (456 / 576 / 696 / 816), the header on the group-3 top rule
+   (360). Columns seat on the grid columns — Role on the axis, Value on
+   column 2 (552), ground on column 3 (984), Use on column 4 (1416) — and
+   the swatch hangs LEFT of the axis like every other mark, its bottom edge
+   on the row's rule. */
+.slide .table { max-width: 1680px; width: 1680px; font-size: 29px; font-feature-settings: "tnum" 1;
+  table-layout: fixed; border-collapse: collapse; }
+/* Column plan: three 432px columns — one grid module each — and the rest
+   to Use. Carried on the header row's cells (table-layout: fixed reads row
+   one) rather than a <colgroup>: the Design Component pipeline parses the
+   template outside a real <table> context, where col elements are dropped,
+   and a fixed-layout table without them would fall back to equal columns. */
+.slide .table th:nth-child(-n+3) { width: 432px; }
+.slide .table thead tr { height: calc(2 * var(--baseline)); }
+.slide .table tbody tr { height: calc(2.5 * var(--baseline)); } /* one board row group per data row */
+.slide .table th, .slide .table td {
+  text-box: trim-both cap alphabetic; text-align: left; font-weight: 400;
+  border: none; background: none; vertical-align: bottom;
+  padding: 0 24px calc(0.5 * var(--baseline)) 0;
+}
+.slide .table th { font-size: var(--type-kicker); }
+.slide .table thead th { padding-bottom: 0; } /* bottom-anchored: the header row closes ON the
+   group-3 top rule (360), each data row's LAST baseline sits 24px above its row's bottom —
+   on the caption rules 456 / 576 / 696 / 816 — and a wrapped cell grows upward into
+   its own cell instead of past the field (the vertical budget, kept by construction) */
+.slide .table tbody tr:hover { background: none; }
+.slide .table th:first-child, .slide .table td:first-child { padding-left: 0; position: relative; }
+.slide .table th:last-child, .slide .table td:last-child { padding-right: 0; }
+.slide .table .swatch { position: absolute; left: -72px; bottom: calc(0.5 * var(--baseline)); } /* hangs
+   left of the axis like every mark; bottom edge ON the row's rule */
+.swatch { display: inline-block; width: 48px; height: 48px; border-radius: 0; /* square-corner
+   doctrine; 48px = one grid unit, bottom edge on the row's rule */ box-shadow: var(--shadow-sm); }
+
+/* — hero figure — */
+/* The variant's loudest size contrast: the figure at 432px, flush on the
+   axis, baseline ON the group-5 top rule (600); the caption moves to column
+   3 (x 984), its first baseline ON the 696 caption rule — the number and
+   its note read corner-to-corner across the empty grid. */
+.hero { justify-content: flex-start; }
+.hero-num {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 330px; line-height: 1; letter-spacing: 0; margin: 0;
+  color: var(--color-accent);
+  position: absolute; left: var(--pad-x); top: calc(12.5 * var(--baseline) - 1cap);
+  text-box: trim-both cap alphabetic;
+  margin-left: -0.010em; /* leads with the near-bearingless "1" — reviewed value, em-scaled */
+}
+.hero-caption { font-size: var(--type-small); line-height: var(--baseline); margin: 0;
+  position: absolute; left: 984px; top: calc(14.5 * var(--baseline) - 1cap); max-width: 816px;
+  text-box: trim-both cap alphabetic; }
+
+/* — charts (static SVG on the tokens; no script, no chart library) — */
+/* The plots seat their anatomy ON drawn rules — svg top at 336 (a caption
+   rule), the x-axis ON the 696 caption rule, and the line chart's 10k
+   gridlines (120px apart, the row-group pitch) phased by the axis onto the
+   drawn caption rules (576 / 456). Bar x-geometry is derived for the 1680
+   field. The board's column rules pass behind the plots — the drawing
+   stays on its grid. */
+.chart { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text {
+  font-family: var(--font-body); font-size: 24px;
+  fill: color-mix(in srgb, var(--color-text) 55%, transparent);
+  font-feature-settings: "tnum" 1;
+}
+.chart .grid, .chart .axis { stroke: var(--color-divider); stroke-width: 1; }
+.chart .bar { fill: none; stroke: var(--color-neutral-600); stroke-width: 1; }
+.chart .bar-hi { fill: var(--color-accent); stroke: none; }
+.chart .val { fill: color-mix(in srgb, var(--color-text) 70%, transparent); }
+.chart .ref { stroke: var(--color-accent-700); stroke-width: 1; stroke-dasharray: 8 8; }
+.chart .ref-label { fill: var(--color-accent-700); }
+.chart .hi-label { fill: var(--color-accent-700); }
+.chart .series-a, .key .series-a { stroke: var(--color-accent); stroke-width: 3; fill: none; }
+.chart .series-b, .key .series-b { stroke: var(--color-neutral-800); stroke-width: 3; fill: none; stroke-dasharray: 10 8; }
+.chart-caption { font-size: 25px; line-height: var(--baseline); max-width: 88ch; margin: 0; text-box: trim-both cap alphabetic; }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: var(--type-title); }
+.chart-legend { display: flex; align-items: baseline; gap: 16px; font-family: var(--font-body); font-weight: 400; font-size: var(--type-kicker); color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.chart-legend span { text-box: trim-both cap alphabetic; }
+.chart-legend .key { width: 60px; height: 4px; overflow: visible; position: relative; top: -7px; }
+.chart-legend .key:not(:first-child) { margin-left: 24px; }
+.chart .tl-line { stroke: var(--color-divider); stroke-width: 1; }
+.chart .tl-node { stroke: var(--color-neutral-600); stroke-width: 1.5; }
+.chart .tl-node-hi-fill { fill: var(--color-accent); }
+.chart .tl-node-hi { stroke: var(--color-bg); stroke-width: 1.5; }
+.chart .tl-date { fill: color-mix(in srgb, var(--color-text) 55%, transparent); letter-spacing: 0.08em; }
+.chart .tl-date-hi { fill: var(--color-accent-700); letter-spacing: 0.08em; }
+.chart .tl-label { fill: var(--color-text); font-size: 30px; font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+/* The timeline figure drops to the mid-field so its line sits ON the
+   group-4 top rule (480): svg top at 384, dates above, labels below, the
+   notes' baselines landing exactly ON the group-5 top rule (600). Node
+   pitch is 360 — milestone positions are data, not grid furniture. The
+   column-seated alternative (pitch 432, nodes on 120/552/984/1416/1800,
+   re-checked for the round-2 geometry) stays rejected: the fifth
+   milestone's ~340px notes would either overflow the stage or,
+   right-anchored, collide with the fourth's — and mixed anchoring
+   re-breaks the reviewed one-left-edge-per-milestone rule. */
+.fig-timeline { margin-top: calc(3 * var(--baseline)) !important; }
+
+/* — image slide — */
+/* The photograph becomes a grid object: columns 3-4 by row-groups 2-7
+   exactly (x 984..1800, y 240..936), the blueprint frame's "+" marks seated
+   on board intersections. The copy keeps the axis in columns 1-2. */
+.split { flex-direction: row; align-items: flex-start; gap: 0; padding-top: calc(5 * var(--baseline)); }
+.split-copy { flex: none; width: 768px; display: flex; flex-direction: column; }
+.split-copy .slide-title { margin-top: -1cap; }
+.split-copy .note { font-size: var(--type-small); line-height: var(--baseline); margin: calc(2.5 * var(--baseline) - 1cap) 0 0;
+  text-box: trim-both cap alphabetic; max-width: 768px; }
+.split-figure { position: absolute; left: 984px; top: calc(5 * var(--baseline)); width: 816px; height: calc(14.5 * var(--baseline)); margin: 0; }
+.split-figure image-slot { width: 100%; height: 100%; } /* the grid-object box (columns 3-4 ×
+   row-groups 2-7) does the framing; cover is the component's own default */
+.split-figure > .corner { pointer-events: none; } /* the registration crosses overlap the
+   slot by a few px — decorative marks must not eat its hover/drop events
+   (image-slot usage contract); scoped here rather than in styles.css, whose
+   .corner serves the whole system */
+
+/* — full-bleed image slide — */
+/* The board is drawn OVER the photograph in paper-alpha — the blueprint
+   laid onto the image — and UNDER the scrim, so the rules fade out exactly
+   where the type needs its measured ground. Type treatment unchanged from
+   the reviewed deck (it passes the type-over-photography rule): full-ink
+   note, kicker stepped to accent-700. */
+.bleed .board { --board-rule: color-mix(in srgb, var(--color-bg) 13%, transparent); /* half of the pre-round-10 25%, rounded to a whole step */
+  z-index: auto; /* the one slide where the board rides ABOVE its photograph:
+     DOM-order painting — after the positioned figure, before the positioned
+     scrim — so photo → board → scrim → copy stack as documented */ }
+.bleed .board > .corner { color: color-mix(in srgb, var(--color-bg) 55%, transparent); }
+.bleed-figure { position: absolute; inset: 0; margin: 0; }
+.bleed-figure image-slot { width: 100%; height: 100%; } /* framing is the component's (fit=cover default) */
+.bleed-scrim {
+  position: absolute; inset: 0; pointer-events: none; /* the slot beneath is interactive (hover controls, drops) — overlays must not eat its events (image-slot usage contract) */
+  background:
+    linear-gradient(to top,
+      color-mix(in srgb, var(--color-bg) 98%, transparent),
+      color-mix(in srgb, var(--color-bg) 95%, transparent) 24%,
+      color-mix(in srgb, var(--color-bg) 60%, transparent) 42%,
+      transparent 66%),
+    linear-gradient(to bottom,
+      color-mix(in srgb, var(--color-bg) 92%, transparent),
+      color-mix(in srgb, var(--color-bg) 80%, transparent) 12%,
+      transparent 26%);
+}
+.bleed-copy { position: absolute; left: var(--pad-x); right: var(--pad-x); bottom: var(--pad-bottom); pointer-events: none; } /* text over the slot — must not eat its hover/drop events */
+.bleed .kicker { color: var(--color-accent-700); pointer-events: none; /* sits on the photograph — same usage contract as the scrim */ }
+.bleed-copy .note {
+  font-size: var(--type-small); line-height: var(--baseline); max-width: 56ch;
+  margin: calc(2 * var(--baseline) - 1cap) 0 0;
+  text-box: trim-both cap alphabetic;
+  color: var(--color-text);
+} /* bottom-anchored block: the note's LAST baseline sits ON the field's 960
+   bottom rule; its earlier baselines (864/912) and the title's (768) ride the
+   48px lattice, not drawn rules — over a photograph the scrim, not the board,
+   is the ground (the board fades out beneath it) */
+
+/* — half-bleed image slides — */
+/* The photograph takes grid columns, not a raw half-stage: it bleeds to
+   three edges and stops at the gutter (base: columns 1-2, inner edge on
+   the 936 gutter rule; .flip mirrors to columns 3-4, starting exactly on
+   column 3's rule at 984), and the copy starts on a column rule — x 984
+   (column 3) for the base, the axis for the mirror. The board draws first,
+   the photograph covers its half. */
+.half-bleed { padding-top: calc(5 * var(--baseline)); }
+.half-bleed > .slide-title { margin-top: -1cap; max-width: 816px; }
+.half-bleed .note {
+  font-size: var(--type-small); line-height: var(--baseline); max-width: 816px;
+  margin: calc(2 * var(--baseline) - 1cap) 0 0;
+  text-box: trim-both cap alphabetic;
+}
+.half-bleed .bullets { margin-top: calc(2.5 * var(--baseline) - 1cap); max-width: 816px; }
+.half-bleed .bullets li + li { margin-top: calc(4 * var(--baseline) - 1cap); } /* items here
+   run up to two lines: the 4-unit gap from a two-line item's last baseline seats
+   each bullet's FIRST baseline back on a group-top rule (360 / 600 / 840), and a
+   one-line item simply leaves more air before the next */
+.half-bleed-figure { position: absolute; inset: 0 auto 0 0; width: 936px; margin: 0; }
+.half-bleed-figure image-slot { width: 100%; height: 100%; } /* framing is the component's (fit=cover default) */
+.half-bleed:not(.flip) > .slide-title { margin-left: calc(864px - 0.052em); } /* column 3 (x 984), preserving the optical shift */
+.half-bleed:not(.flip) .note,
+.half-bleed:not(.flip) .bullets { margin-left: 864px; }
+.half-bleed:not(.flip) .kicker { left: 984px; }
+.half-bleed.flip .half-bleed-figure { inset: 0 0 0 auto; width: 936px; }
+/* With the photograph ending on the 936 gutter rule and the copy on column
+   3 (984), the 48px gutter is the hanging margin: the crosses center on the
+   gutter's own centerline (x 960) with 16px of paper on either side —
+   "whatever sits behind them" now means the gutter itself. */
+.half-bleed:not(.flip) .bullets li::before { left: -25px; }
+.half-bleed:not(.flip) .bullets li::after  { left: -32px; }
+
+/* — quote — */
+/* Flush on the axis, airy MB leading: 64px poster lines on a two-unit
+   (96px) leading, first baseline ON the group-3 top rule (360; the deck's
+   copy sets in two lines, 360/456 — top rule and caption rule); the
+   attribution drops to the 696 caption rule — see the figcaption note. */
+.quote { justify-content: flex-start; }
+.quote .rise { position: absolute; inset: 0 var(--pad-x); }
+.quote blockquote {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 56px; line-height: calc(2 * var(--baseline)); letter-spacing: 0;
+  max-width: 1200px; margin: 0;
+  margin-top: calc(7.5 * var(--baseline) - 1cap); /* first baseline on the group-3 top rule (360) */
+  text-box: trim-both cap alphabetic;
+  text-indent: -0.316em; /* hang the opening “ (measured advance in the Condensed 600) */
+}
+.quote figcaption { font-size: var(--type-small); margin: 0;
+  position: absolute; top: calc(14.5 * var(--baseline) - 1cap); /* baseline on the 696
+     caption rule — a full row-group below the quote's two-line setting (360/456),
+     chosen for air over the nearer 576 rule; re-seat if the quote re-wraps */
+  text-box: trim-both cap alphabetic;
+  text-indent: -0.885em; /* hang the leading em-dash + space (measured advance in Barlow Regular) */ }
+
+/* Review aid: the baseline grid drawn as a hairline under every --baseline
+   step. Debug-only — toggled by ?baselines or the B key; not part of the look. */
+deck-stage[data-baselines] .slide::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom,
+      color-mix(in srgb, var(--color-accent) 35%, transparent) 0 1px,
+      transparent 1px var(--baseline)),
+    repeating-linear-gradient(to bottom,
+      transparent 0 calc(var(--baseline) / 2),
+      color-mix(in srgb, var(--color-accent) 16%, transparent) calc(var(--baseline) / 2) calc(var(--baseline) / 2 + 1px),
+      transparent calc(var(--baseline) / 2 + 1px) var(--baseline));
+}
+
+/* The Hands Unchained mark — a worker's arm and an SO-101 snapping a chain,
+   traced from logo.png; it inherits the slide's ink through currentColor.
+   Inlined twelve times ON PURPOSE: a <symbol>/<use> pair placed in deck-stage
+   renders as a phantom thirteenth slide, because deck-stage treats its direct
+   children as slides. */
+.mark { position: absolute; right: var(--pad-x); bottom: calc(var(--pad-bottom) + var(--baseline) / 2 - 22px);
+  width: 84px; height: 84px; color: var(--color-accent-700); pointer-events: none; }
+.divider .mark, .bleed .mark { color: color-mix(in srgb, var(--color-bg) 70%, transparent); }
+.bleed .mark { color: var(--color-accent-700); }
+.split .mark { right: auto; left: 752px; }
+.cover .mark { width: 200px; height: 200px; top: calc(3 * var(--baseline)); bottom: auto; color: var(--color-accent); }
+
+/* — the cover carries the mark as artwork, not as a tinted glyph — */
+/* Everywhere else the mark is a currentColor silhouette that takes the slide's
+   ink. On the cover it should be the logo itself, cyan gradient and all, so it
+   comes in as the extracted artwork (no plate: the deck supplies the ground). */
+.cover-art {
+  position: absolute; right: var(--pad-x); top: calc(3 * var(--baseline));
+  width: 560px; height: auto; pointer-events: none;
+}
+.no-mark > .mark { display: none; } /* the artwork replaces it on this slide */
+
+/* — dark-ground corrections — */
+/* Three rules assumed the page was paper, and inverting the palette broke all
+   three. Fixed here rather than in place so the originals still read as written.
+   1. A divider was an INVERTED sheet: dark ground, paper ink. Inverting that
+      literally on a dark deck gives a full-bleed pale cyan slide that flashes
+      the room between two dark ones. A divider is now a DEEPER sheet of the
+      same night — cyan mixed into the page rather than laid over it.
+   2. Anywhere --color-bg was used as INK (correct when the page was paper) it
+      now paints dark on dark, so those switch to --color-text.
+   3. The ghost numeral read as "a drawing showing through the sheet" at ~2.2:1
+      against paper; on the night sheet that has to come from --color-text. */
+.divider {
+  background: color-mix(in srgb, var(--color-accent) 11%, var(--color-bg));
+  color: var(--color-text);
+}
+.divider .board { --board-rule: color-mix(in srgb, var(--color-text) 9%, transparent); }
+.divider .board > .corner { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.divider .page-foot { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.divider .page-corner { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.divider .ghost-num { color: color-mix(in srgb, var(--color-text) 15%, transparent); }
+.divider .mark { color: color-mix(in srgb, var(--color-text) 40%, transparent); }
+/* the bleed slide's board and corners sit OVER a photograph — paper-alpha ink
+   there is now invisible, so they take the light ink too */
+.bleed .board { --board-rule: color-mix(in srgb, var(--color-text) 13%, transparent); }
+.bleed .board > .corner { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+
+/* Entrance — end-state is the base style; animate from hidden, gated on the
+   active slide and the motion preference, so print and reduced-motion are safe. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-deck-active] .rise { animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+}
+</style>
+<script>
+// Review aid: baseline-grid overlay — add ?baselines to the URL, or press B to toggle.
+// This runs from <helmet>, before the deck renders, so the stage is looked up when it is
+// needed instead of captured up front; the window flag keeps a second evaluation of
+// this helmet script (a recreated script node) from binding the B key twice.
+(() => {
+  if (window.__deckBaselineAid) return;
+  window.__deckBaselineAid = true;
+  const stage = () => document.querySelector('deck-stage');
+  if (new URLSearchParams(location.search).has('baselines')) {
+    let tries = 600; // wait out the deck's first render (up to ~10s of frames)
+    const arm = () => { const s = stage(); if (s) s.setAttribute('data-baselines', ''); else if (tries-- > 0) requestAnimationFrame(arm); };
+    arm();
+  }
+  addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; // typing guard, as in deck-stage's own keys
+    if ((e.key === 'b' || e.key === 'B') && !e.metaKey && !e.ctrlKey && !e.altKey) stage()?.toggleAttribute('data-baselines');
+  });
+})();
+</script>
+</helmet>
+<x-import component-from-global-scope="deck-stage" from="./deck-stage.js" width="1920" height="1080" hint-size="100%,100%" data-uneditable="">
+
+
+  <section class="slide cover no-mark" data-label="Cover" data-screen-label="01" data-om-slide-id="2928cb68">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker k-right"><span>ETHGlobal Lisbon 2026</span></div>
+    <img class="cover-art" src="./logo-art.png" alt="" aria-hidden="true" />
+    <div class="rise">
+      <h1 class="display">Hands Unchained</h1>
+      <p class="cover-sub cover-sub-a text-muted">Crowdsourced robot teleoperation</p>
+      <p class="cover-sub cover-sub-b text-muted">A labor market where verified humans teach robots — and only graded work gets paid.</p>
+    </div>
+    <div class="pin-bottom meta"><span>Kristjan</span><span>·</span><span>July 2026</span></div>
+  </section>
+
+  <section class="slide hero" data-label="The data bottleneck" data-screen-label="02" data-om-slide-id="25ac74a6">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker"><span>The problem</span></div>
+    <p class="hero-num rise">0</p>
+    <p class="hero-caption text-muted">Hours of robot manipulation data you can crawl. Language models had the internet; robot foundation models have human demonstrations, collected one teleop episode at a time.</p>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  <section class="slide divider" data-label="Section · The platform" data-screen-label="03" data-om-slide-id="90c629d5">
+    <i class="page-corner tl"></i><i class="page-corner tr"></i><i class="page-corner bl"></i><i class="page-corner br"></i>
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="rise">
+      <div class="ghost-num">01</div>
+      <h2 class="slide-title">The platform</h2>
+    </div>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  <section class="slide half-bleed" data-label="The loop we ship" data-screen-label="04" data-om-slide-id="2242629a">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <figure class="half-bleed-figure duotone">
+      <image-slot id="photo-arm-loop" shape="rect" src="./images/photo-arm-loop.jpg" placeholder="Photo: the SO-101 arm mid-task" role="img" aria-label="The SO-101 follower arm mid-task"></image-slot>
+    </figure>
+    <div class="kicker"><span>01 · The platform</span></div>
+    <h2 class="slide-title rise">The loop we ship</h2>
+    <ul class="bullets rise">
+      <li>A real SO-101 arm or a MuJoCo sim dials out and registers as a rig</li>
+      <li>An operator anywhere claims a single-writer lease and drives it</li>
+      <li>Each successful attempt is one labeled LeRobot episode</li>
+    </ul>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  
+
+  <section class="slide bleed" data-label="Hands on the arm" data-screen-label="05" data-om-slide-id="7282acc4">
+    <figure class="bleed-figure duotone">
+      <image-slot id="photo-arm-bleed" shape="rect" src="./images/photo-arm-bleed.jpg" placeholder="Photo: someone driving the arm at the booth" role="img" aria-label="An operator driving the SO-101 arm"></image-slot>
+    </figure>
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="bleed-scrim"></div>
+    <div class="kicker"><span>01 · The platform</span></div>
+    <div class="bleed-copy rise">
+      <h2 class="slide-title">One arm, many hands</h2>
+      <p class="note text-muted">The rig owner never leaves their desk. Everyone else is a stranger on the internet who was allowed to move it.</p>
+    </div>
+  </section>
+
+  <section class="slide divider" data-label="Section · Paying strangers" data-screen-label="06" data-om-slide-id="cb92fdfa">
+    <i class="page-corner tl"></i><i class="page-corner tr"></i><i class="page-corner bl"></i><i class="page-corner br"></i>
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="rise">
+      <div class="ghost-num">02</div>
+      <h2 class="slide-title">Paying strangers</h2>
+    </div>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  <section class="slide content" data-label="Three gaps, three integrations" data-screen-label="07" data-om-slide-id="b01bc619">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker"><span>02 · Paying strangers</span></div>
+    <h2 class="slide-title">Three gaps, three integrations</h2>
+    <table class="table rise">
+      <thead>
+        <tr><th>Gap in the platform</th><th>Integration</th><th>What it becomes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Any browser is a new worker</td><td>World ID</td><td>One human, 18+, one payout identity</td></tr>
+        <tr><td>Workers grade their own work</td><td>0G Compute</td><td>A referee neither side runs</td></tr>
+        <tr><td>No rail for $0.50 of work</td><td>Hedera</td><td>HBAR per episode, HCS receipt</td></tr>
+      </tbody>
+    </table>
+    <p class="chart-caption text-muted">Each row is a hole the standalone platform genuinely has — the integrations are load-bearing, not bolted on.</p>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  <section class="slide split" data-label="The gate is a person" data-screen-label="08" data-speaker-notes="Say this part out loud. We are not gating for reputation — World's own exclusion list rules that out. This is paid physical labor, so an age floor and one-identity-per-human are requirements, not features. A bot swarm moving a real arm is a safety and liability problem that payment cannot solve.">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker"><span>02 · Paying strangers</span></div>
+    <div class="split-copy">
+      <h2 class="slide-title rise">The gate is a person</h2>
+      <p class="note text-muted rise">Not reputation theater — this is paid physical labor. Every World ID holder is 18 or over by World's own policy, so the age floor rides along with proof of personhood. And the nullifier binds one human to one payout account: fifty wallets cannot farm the same market.</p>
+    </div>
+    <figure class="split-figure duotone">
+      <image-slot id="photo-rig" shape="rect" src="./images/photo-rig.jpg" placeholder="Photo: the rig on the bench" role="img" aria-label="The SO-101 rig on the bench"></image-slot>
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    </figure>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  <section class="slide content" data-label="Claimed is not graded" data-screen-label="09" data-speaker-notes="The honest beat. The platform today lets the operator declare their own success — they click the check. That hole is real and pre-existing, which is exactly why a referee we do not run is load-bearing rather than decorative. Then botch the attempt on purpose and let them watch the payout not happen.">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker"><span>02 · Paying strangers</span></div>
+    <h2 class="slide-title">Claimed is not graded</h2>
+    <div class="cols cols-2 rise">
+      <div>
+        <h3>Claimed</h3>
+        <p>The operator clicks success. Today that is the only vote on the work — and it belongs to the person being paid for it.</p>
+      </div>
+      <div>
+        <h3>Graded</h3>
+        <p>0G Compute reads the trajectory: duration, joint travel, gripper cycles, whether an episode actually saved. Disagreement means no payment.</p>
+      </div>
+    </div>
+    <p class="chart-caption text-muted">That hole is real and pre-existing, which is what makes a referee load-bearing instead of decorative. So we demo it on purpose: botch an attempt, claim success, watch the payout not happen.</p>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  <section class="slide content" data-label="The demo, in seven beats" data-screen-label="10" data-om-slide-id="0ca1b205">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker"><span>02 · Paying strangers</span></div>
+    <h2 class="slide-title">The demo, in seven beats</h2>
+    <figure class="rise fig-timeline">
+      <svg class="chart" viewBox="0 0 1680 288" role="img" aria-label="Seven demo beats: deny, verify, drive, attempt, grade, pay, prove">
+      <line class="tl-line" x1="0" y1="96" x2="1680" y2="96"></line>
+      <text class="tl-date" x="0" y="62">ONE</text>
+      <text class="tl-date" x="240" y="62">TWO</text>
+      <text class="tl-date" x="480" y="62">THREE</text>
+      <text class="tl-date" x="720" y="62">FOUR</text>
+      <text class="tl-date-hi" x="960" y="62">FIVE</text>
+      <text class="tl-date" x="1200" y="62">SIX</text>
+      <text class="tl-date" x="1440" y="62">SEVEN</text>
+      <g class="tl-node"><line x1="8" y1="88" x2="8" y2="104"></line><line x1="0" y1="96" x2="16" y2="96"></line></g>
+      <g class="tl-node"><line x1="248" y1="88" x2="248" y2="104"></line><line x1="240" y1="96" x2="256" y2="96"></line></g>
+      <g class="tl-node"><line x1="488" y1="88" x2="488" y2="104"></line><line x1="480" y1="96" x2="496" y2="96"></line></g>
+      <g class="tl-node"><line x1="728" y1="88" x2="728" y2="104"></line><line x1="720" y1="96" x2="736" y2="96"></line></g>
+      <rect class="tl-node-hi-fill" x="960" y="88" width="16" height="16"></rect>
+      <g class="tl-node-hi"><line x1="968" y1="91" x2="968" y2="101"></line><line x1="963" y1="96" x2="973" y2="96"></line></g>
+      <g class="tl-node"><line x1="1208" y1="88" x2="1208" y2="104"></line><line x1="1200" y1="96" x2="1216" y2="96"></line></g>
+      <g class="tl-node"><line x1="1448" y1="88" x2="1448" y2="104"></line><line x1="1440" y1="96" x2="1456" y2="96"></line></g>
+      <text class="tl-label" x="0" y="158">Deny</text>
+      <text class="tl-label" x="240" y="158">Verify</text>
+      <text class="tl-label" x="480" y="158">Drive</text>
+      <text class="tl-label" x="720" y="158">Attempt</text>
+      <text class="tl-label" x="960" y="158">Grade</text>
+      <text class="tl-label" x="1200" y="158">Pay</text>
+      <text class="tl-label" x="1440" y="158">Prove</text>
+      <text x="0" y="216">unverified —</text>
+      <text x="240" y="216">Selfie Check,</text>
+      <text x="480" y="216">claim the lease,</text>
+      <text x="720" y="216">one labeled</text>
+      <text x="960" y="216">0G Compute,</text>
+      <text x="1200" y="216">HBAR, sent by</text>
+      <text x="1440" y="216">HCS digest,</text>
+      <text x="0" y="264">arm refuses</text>
+      <text x="240" y="264">my phone</text>
+      <text x="480" y="264">real arm</text>
+      <text x="720" y="264">episode</text>
+      <text x="960" y="264">TEE-attested</text>
+      <text x="1200" y="264">the grader</text>
+      <text x="1440" y="264">0G root</text>
+      </svg>
+    </figure>
+    <p class="chart-caption text-muted">We open on the deny path — an unverified browser is refused the lease. Then I verify on my own phone, drive one attempt on the arm in front of you, and let the referee decide whether it pays.</p>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  
+
+  <section class="slide hero" data-label="Traction" data-screen-label="11" data-om-slide-id="4bd6bca4">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker"><span>02 · Paying strangers</span></div>
+    <p class="hero-num rise">[N]</p>
+    <p class="hero-caption text-muted">Labeled episodes recorded by strangers at this booth — each one graded by the referee, each one paid on testnet. Not a number we projected: one that went up while we stood here.</p>
+    <div class="page-foot" aria-hidden="true"></div>
+  </section>
+
+  <section class="slide cover" data-label="Close" data-screen-label="12" data-om-slide-id="21405902">
+    <div class="board" aria-hidden="true"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i></div>
+    <svg class="mark" viewBox="0 0 520.000000 520.000000" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><g transform="translate(0.000000,520.000000) scale(0.100000,-0.100000)"><path d="M2575 3960 c-7 -11 12 -375 21 -417 10 -48 22 -19 28 70 3 50 11 144
+18 208 6 64 9 123 5 132 -7 19 -62 24 -72 7z M3830 3853 c-150 -9 -183 -27
+-282 -158 -42 -55 -103 -135 -136 -178 -69 -90 -75 -131 -18 -125 21 2 31 8
+31 19 0 45 249 349 298 364 48 14 247 32 247 23 0 -5 -99 -37 -206 -67 -53
+-14 -56 -18 -87 -131 -36 -127 -41 -112 78 -223 77 -73 105 -105 105 -123 0
+-27 3 -28 31 -13 16 8 20 19 17 46 -3 36 -3 36 79 61 78 24 89 32 98 72 1 3 7
+30 13 61 13 57 111 175 126 151 3 -5 -8 -68 -24 -138 -17 -71 -33 -141 -36
+-156 -4 -16 -16 -30 -33 -36 -14 -6 -60 -22 -101 -37 -137 -50 -155 -58 -190
+-95 -74 -77 -119 -67 -256 57 -120 109 -121 111 -46 178 61 56 82 89 65 106
+-5 5 -35 -19 -72 -56 -34 -36 -68 -65 -75 -65 -6 0 -19 -9 -29 -20 -9 -11 -29
+-20 -44 -20 -130 0 -224 -53 -236 -131 -7 -48 -110 -40 -125 8 -18 61 -58 91
+-148 113 -101 25 -111 25 -93 4 12 -15 11 -19 -9 -32 -33 -21 -27 -29 26 -36
+117 -17 208 -77 126 -84 -74 -6 -74 -92 -1 -92 36 0 32 -18 -10 -42 -29 -17
+-33 -17 -108 2 -104 27 -106 26 -98 -10 3 -19 1 -30 -6 -30 -41 0 5 -20 90
+-39 122 -27 176 -11 214 65 20 41 20 41 152 48 153 8 161 10 170 44 8 34 -26
+64 -65 56 -15 -3 -45 -1 -67 4 -40 10 -40 10 -7 11 19 1 35 7 38 16 14 36 227
+72 256 43 19 -19 19 -21 3 -38 -41 -46 9 -90 67 -59 16 9 24 7 36 -5 15 -15
+14 -16 -6 -16 -14 0 -27 -10 -37 -29 -17 -35 -20 -36 -149 -56 -55 -9 -104
+-19 -109 -22 -5 -3 -22 4 -38 16 -55 41 -118 21 -83 -26 54 -75 295 -77 396
+-3 37 27 38 27 38 -28 0 -71 16 -82 120 -82 126 0 148 20 152 136 3 86 3 86
+98 121 52 19 104 38 115 43 11 4 41 15 67 24 68 25 58 0 119 294 23 111 5 162
+-56 162 -25 0 -164 -138 -166 -164 -1 -9 -3 -19 -4 -23 -1 -5 -5 -27 -10 -49
+-16 -91 -175 -107 -257 -27 -59 59 -65 68 -58 92 5 14 16 52 25 83 15 58 15
+58 73 74 172 48 185 55 204 107 27 71 22 73 -192 60z m-95 -767 c28 0 58 3 68
+8 23 11 15 -69 -10 -96 -22 -24 -128 -26 -137 -2 -15 38 -7 107 12 98 9 -5 40
+-8 67 -8z M1146 3800 c-55 -27 -103 -55 -108 -62 -5 -7 -12 -19 -16 -26 -6 -9
+-15 -10 -40 -1 -127 44 -222 -197 -111 -284 27 -21 28 -24 18 -64 -23 -89 40
+-217 129 -263 32 -16 78 -51 104 -79 27 -27 72 -61 102 -75 123 -58 86 -391
+-71 -638 -30 -47 -30 -47 -48 -8 -43 95 -205 215 -315 234 -36 6 -36 6 -58 97
+-79 324 -345 557 -640 563 -131 2 -138 -64 -8 -76 256 -23 476 -202 559 -455
+39 -117 38 -119 -29 -126 -61 -6 -163 -51 -208 -92 -35 -32 -29 -42 13 -21
+270 140 718 -77 644 -311 -22 -70 -21 -234 1 -300 25 -75 35 -66 29 25 -10
+147 25 268 131 445 117 195 157 401 120 613 -5 25 -1 32 20 42 39 17 32 29
+-21 37 -77 11 -138 43 -192 100 -28 30 -59 56 -70 60 -150 47 -183 251 -54
+333 99 64 166 -43 70 -110 -18 -12 -34 -23 -36 -25 -2 -1 3 -11 11 -20 8 -10
+18 -26 22 -37 6 -18 7 -18 27 0 20 18 22 18 51 1 16 -9 42 -17 56 -17 19 0 32
+-9 44 -29 21 -37 72 -64 110 -59 23 4 36 -2 63 -29 23 -23 42 -33 57 -31 32 4
+35 34 4 42 -45 11 -68 65 -61 143 10 122 15 141 43 159 75 49 136 114 106 114
+-13 0 -163 -114 -169 -128 -3 -9 -11 -65 -17 -124 -12 -114 -16 -121 -61 -96
+-45 23 -48 36 -42 158 8 131 3 123 114 207 118 89 156 94 199 28 17 -27 29
+-35 53 -35 51 0 66 -15 94 -99 25 -77 37 -91 75 -91 17 0 16 7 -12 93 -35 102
+-77 157 -122 157 -18 0 -43 18 -88 65 -68 70 -112 91 -171 80 -26 -5 -37 -2
+-52 15 -59 65 -118 65 -249 0z m185 -20 c34 -19 20 -39 -58 -82 -101 -54 -133
+-86 -133 -130 0 -33 0 -34 -46 -33 -54 0 -62 113 -11 161 56 54 208 105 248
+84z m183 -63 c19 -14 -1 -30 -139 -120 -104 -68 -103 -65 -111 -189 -7 -110
+-7 -110 -38 -104 -38 7 -70 43 -59 65 4 9 8 50 10 91 4 135 4 134 101 198 102
+66 195 89 236 59z m-528 -75 c7 -4 14 -35 15 -70 6 -96 -86 -143 -110 -56 -21
+75 43 160 95 126z M2956 3797 c-224 -377 -232 -417 -32 -168 118 147 131 172
+97 191 -32 16 -45 12 -65 -23z M2216 3787 c-28 -23 -28 -23 25 -92 123 -162
+199 -245 199 -218 0 18 -182 333 -193 333 -1 0 -15 -10 -31 -23z M1681 3353
+c-29 -15 -41 -28 -58 -61 -1 -2 -10 1 -21 7 -21 11 -43 -53 -27 -79 11 -19
+103 -60 120 -54 30 12 31 55 0 80 -48 38 -8 48 113 30 111 -16 147 -28 160
+-51 6 -12 19 -16 43 -13 45 4 42 30 -9 78 -38 37 -37 37 -262 76 -14 2 -40 -4
+-59 -13z M2395 3355 c-5 -1 -37 -9 -70 -16 -99 -21 -143 -54 -160 -121 -9 -34
+-270 -39 -281 -5 -3 9 -9 17 -14 17 -5 0 -15 3 -24 6 -14 5 -16 -5 -16 -75 0
+-80 0 -81 25 -81 14 0 25 6 25 13 0 9 17 11 73 7 39 -3 103 -5 140 -5 68 1 68
+1 86 -39 38 -86 84 -102 223 -76 109 21 117 25 100 42 -8 8 -8 17 -1 30 16 30
+9 30 -97 9 -94 -19 -101 -19 -128 -3 -43 25 -44 42 -4 42 39 0 58 15 58 45 0
+30 -19 45 -57 45 -86 0 -17 56 95 77 95 18 106 25 72 43 -16 9 -18 15 -10 30
+11 20 -3 25 -35 15z M3640 3345 c0 -9 5 -15 11 -13 6 2 11 8 11 13 0 5 -5 11
+-11 13 -6 2 -11 -4 -11 -13z M3741 3236 c-41 -42 -47 -66 -16 -66 16 0 87 80
+82 94 -7 22 -25 14 -66 -28z M1560 3158 c2 -168 392 -263 472 -114 19 34 -49
+51 -83 20 -41 -37 -292 12 -305 60 -3 15 -18 29 -37 37 -18 7 -35 14 -39 17
+-5 2 -8 -7 -8 -20z M4710 3023 c-8 -3 -35 -25 -60 -48 -32 -31 -64 -50 -109
+-64 -118 -38 -111 -25 -111 -224 0 -173 0 -173 -112 -308 -62 -74 -133 -161
+-158 -193 -41 -55 -45 -57 -58 -40 -210 289 -292 446 -292 561 0 176 4 173
+-251 173 -197 0 -197 0 -207 28 -12 36 -77 36 -67 1 3 -11 7 -28 10 -38 3 -11
+1 -22 -5 -26 -39 -24 -9 -382 35 -425 73 -72 374 -75 446 -4 47 47 47 47 95
+-27 112 -176 228 -355 236 -363 8 -10 48 20 48 37 0 5 30 46 68 91 37 44 102
+125 146 179 43 53 82 100 87 103 12 7 95 -63 265 -221 53 -50 53 -50 -57 -195
+-61 -80 -135 -180 -166 -223 -55 -78 -55 -78 -84 -51 -43 41 -41 107 3 68 14
+-14 20 -14 33 -4 23 19 19 30 -29 80 -45 45 -45 45 79 200 132 165 137 173
+104 191 -25 13 -11 27 -159 -158 -62 -79 -115 -143 -117 -143 -3 0 -25 18 -50
+40 -25 22 -52 40 -58 40 -11 0 -65 -78 -65 -94 0 -10 56 -6 67 5 7 7 19 3 39
+-15 29 -25 29 -25 -106 -26 -134 0 -134 0 -97 38 55 56 13 91 -44 36 -30 -29
+-13 -51 -169 216 -40 69 -74 126 -74 126 -1 1 -15 -1 -32 -3 -36 -6 -52 28
+135 -287 70 -119 70 -119 33 -144 -20 -13 -39 -28 -42 -32 -5 -8 -85 -50 -95
+-50 -3 0 -49 89 -101 198 -150 311 -147 306 -188 310 -36 3 -36 3 70 -215 150
+-309 156 -322 149 -333 -10 -16 14 -40 39 -40 60 0 96 -55 96 -146 0 -46 -4
+-84 -9 -84 -22 0 -36 35 -33 84 4 58 -25 112 -48 90 -35 -35 -6 -188 41 -214
+26 -14 65 -42 88 -62 41 -38 41 -38 245 -38 264 0 266 2 266 197 0 125 0 125
+33 100 47 -35 64 -19 247 233 19 27 69 93 110 147 41 54 90 121 109 148 80
+118 109 145 155 145 171 0 246 464 98 611 -64 65 -313 101 -422 62z m380 -99
+c58 -53 63 -398 6 -453 -52 -50 -361 -49 -413 1 -54 52 -51 394 4 450 57 58
+339 59 403 2z m-500 -263 c0 -187 0 -187 33 -217 77 -70 72 -69 187 -74 109
+-5 109 -5 58 -72 -62 -84 -49 -85 -166 19 -227 202 -212 177 -212 353 0 156 0
+156 43 172 59 22 57 27 57 -181z m-866 153 c26 -6 26 -6 26 -169 0 -218 13
+-204 -193 -206 -219 -1 -217 -3 -217 202 0 88 -4 150 -10 154 -5 3 -10 10 -10
+14 0 10 366 15 404 5z m574 -964 c21 -20 22 -29 22 -200 0 -226 16 -210 -210
+-210 -226 0 -210 -16 -210 210 0 235 -14 220 210 220 153 0 168 -2 188 -20z
+m-464 -75 c-4 -8 -10 -12 -15 -9 -14 8 -10 24 6 24 9 0 12 -6 9 -15z M4873
+2893 c-46 -9 -21 -23 40 -23 54 0 67 -4 98 -29 27 -23 39 -27 48 -18 51 51
+-63 94 -186 70z M4791 2803 c-83 -69 -26 -223 83 -223 98 0 106 9 106 122 0
+114 -104 170 -189 101z m137 -105 c-3 -63 -3 -63 -53 -63 -50 0 -50 0 -53 63
+-3 62 -3 62 53 62 56 0 56 0 53 -62z M4854 2706 c-8 -21 3 -36 27 -36 15 0 20
+6 17 22 -4 27 -35 37 -44 14z M5050 2697 c0 -67 -14 -114 -42 -144 -31 -33
+-219 -35 -254 -2 -23 22 -44 19 -44 -6 0 -34 25 -40 171 -43 201 -5 198 -9
+189 236 -1 40 -20 3 -20 -41z M3400 2776 c-20 -19 0 -281 20 -284 20 -3 22 -1
+16 20 -7 20 -9 173 -3 238 2 22 -20 39 -33 26z M3659 2764 c-9 -11 -9 -18 -1
+-26 14 -14 42 -3 42 16 0 20 -27 27 -41 10z M3465 2717 c-72 -53 -16 -177 79
+-177 89 0 96 6 96 90 0 93 -99 142 -175 87z m123 -84 c5 -67 -90 -81 -96 -15
+-5 54 2 64 50 60 43 -3 43 -3 46 -45z M3656 2515 c-3 -9 1 -18 10 -22 19 -7
+39 11 30 26 -10 16 -33 13 -40 -4z M3953 1794 c-3 -8 -1 -20 5 -26 16 -16 42
+-2 42 22 0 24 -38 28 -47 4z M4223 1794 c-3 -8 -1 -20 6 -27 14 -14 47 15 37
+32 -10 16 -36 13 -43 -5z M4026 1734 c-27 -26 -22 -149 6 -168 106 -75 237 56
+162 162 -19 28 -142 33 -168 6z m132 -81 c-4 -65 -90 -77 -96 -15 -5 53 2 62
+53 62 46 0 46 0 43 -47z M3960 1536 c-15 -19 -5 -36 21 -36 22 0 25 22 5 39
+-10 9 -16 8 -26 -3z M4227 1534 c-16 -16 -6 -35 16 -32 12 2 22 10 22 18 0 16
+-26 25 -38 14z M1424 2996 c-15 -61 51 -128 138 -141 57 -9 100 8 50 20 -75
+16 -133 54 -153 100 -23 52 -26 54 -35 21z M1819 2938 c0 -2 -2 -14 -5 -28 -2
+-14 -8 -36 -13 -50 -28 -74 -29 -238 -5 -539 25 -318 6 -462 -87 -669 -17 -37
+-44 -107 -61 -156 -72 -217 -149 -231 -543 -96 -66 23 -168 50 -227 61 -406
+73 -729 358 -689 608 7 42 15 103 18 136 2 33 6 65 6 70 6 36 -29 2 -41 -40
+-38 -129 -88 -268 -128 -352 -90 -189 -33 -232 61 -47 28 55 28 55 60 -4 131
+-246 369 -401 695 -452 41 -7 152 -36 245 -66 390 -123 524 -104 589 82 10 27
+46 123 81 214 78 202 73 187 96 320 14 76 5 417 -12 495 -20 89 -17 386 4 418
+25 39 23 83 -5 91 -25 6 -38 7 -39 4z M110 2909 c14 -7 54 -26 90 -43 45 -21
+87 -53 138 -104 74 -75 92 -75 47 1 -53 92 -138 146 -237 153 -54 4 -59 3 -38
+-7z M2363 2773 c-83 -94 -193 -232 -193 -242 0 -15 39 -43 55 -39 15 3 215
+319 215 340 0 20 -22 3 -77 -59z M2780 2829 c0 -20 200 -349 212 -349 45 -1
+59 48 26 92 -123 161 -238 285 -238 257z M1456 2779 c-3 -17 -6 -66 -6 -108
+-1 -42 -7 -122 -14 -178 -15 -124 -6 -124 25 -1 25 104 34 308 13 315 -6 2
+-14 -10 -18 -28z M2596 2778 c-6 -28 -26 -348 -26 -401 0 -38 0 -38 38 -35 45
+4 49 24 33 163 -6 50 -13 136 -17 193 -6 96 -18 130 -28 80z M1651 2104 c-32
+-180 -60 -265 -119 -351 -40 -60 -121 -141 -160 -162 -34 -18 -29 -42 7 -31
+160 46 284 244 298 481 8 124 -9 163 -26 63z M395 2130 c-76 -123 364 -408
+490 -317 29 22 8 37 -53 37 -142 0 -289 85 -378 217 -51 77 -51 77 -59 63z" /></g></svg>
+    <div class="kicker k-right"><span>ETHGlobal Lisbon 2026</span></div>
+    <div class="rise">
+      <h2 class="display">Teach a robot.</h2>
+      <p class="cover-sub cover-sub-a text-muted">Live hub, open repo</p>
+      <p class="cover-sub cover-sub-b text-muted">Register a rig, verify once, drive from anywhere — and get paid per graded episode. Real arms and sims side by side, zero hardware to join.</p>
+    </div>
+    <div class="pin-bottom meta"><span>web-production-b5106.up.railway.app</span><span>·</span><span>github.com/grmkris/eth-global-lisbon-2026-proof-of-hands</span></div>
+  </section>
+
+</x-import>
+</x-dc>
+</body>
+</html>

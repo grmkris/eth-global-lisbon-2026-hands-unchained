@@ -1,6 +1,6 @@
 /**
  * Deck photography generator — fills the three <image-slot> placeholders in the
- * Claude Design deck ("Proof of Hands.dc.html") with generated photographs.
+ * Claude Design deck ("Hands Unchained.dc.html") with generated photographs.
  *
  * The deck wraps every photo in `.duotone`, which paints --color-accent over it
  * with mix-blend-mode: color — the image keeps its LUMINANCE and loses its hue.

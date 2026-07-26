@@ -1,10 +1,26 @@
-# Proof of Hands
+<p align="center">
+  <img src="logo.png" alt="Hands Unchained" width="360" />
+</p>
+
+<h1 align="center">Hands Unchained</h1>
 
 **ETHGlobal Lisbon 2026.** Crowdsourced robot teleoperation: real SO-101 arms
 and MuJoCo sims register as **rigs** on a cloud hub; operators browse a lobby
 and drive them over the public internet — browser keyboard or their **own
 leader arm** — with a single-writer lease, bystander e-stop, and a 0.5 s
 network deadman. Plain HTTP end to end: curl-debuggable, no WebRTC, no SDKs.
+
+## The rig, on the floor at Lisbon
+
+<p align="center">
+  <img src="presentation/workspace/rig-1.jpg" alt="The SO-101 over its peg-board task" width="30%" />
+  <img src="presentation/workspace/rig-2.jpg" alt="The arm mid-task, gripper above the board" width="30%" />
+  <img src="presentation/workspace/rig-3.jpg" alt="The whole bench in the hall, camera on its stand" width="30%" />
+</p>
+
+Not a render: this is the actual follower arm, the peg board it picks from, the
+overhead camera that feeds the MJPEG stream, and the venue it ran in. Anyone
+with the lobby URL could drive this arm from anywhere in the world.
 
 ```
                    ┌──────────────────────────┐

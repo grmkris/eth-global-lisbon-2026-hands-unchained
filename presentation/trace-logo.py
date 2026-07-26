@@ -27,7 +27,10 @@ HERE = Path(__file__).parent
 SRC_DIR = HERE / "logo-concepts"
 
 parser = argparse.ArgumentParser()
-parser.add_argument("concept", help="stem in logo-concepts/, e.g. split-4")
+parser.add_argument("concept", nargs="?", default=None,
+                    help="stem in logo-concepts/, e.g. split-4")
+parser.add_argument("--input", default=None,
+                    help="trace this image instead (e.g. the mask from extract-logo.py)")
 parser.add_argument("--out", default=None, help="output .svg (default logo.svg beside this script)")
 parser.add_argument("--threshold", type=int, default=140, help="ink cutoff, 0-255")
 parser.add_argument("--smooth", type=float, default=1.0, help="potrace --alphamax (corner smoothing)")
@@ -38,10 +41,17 @@ args = parser.parse_args()
 if shutil.which("potrace") is None:
     sys.exit("potrace not found — install it (apt install potrace)")
 
-matches = sorted(SRC_DIR.glob(f"{args.concept}.*"))
-if not matches:
-    sys.exit(f"no source image for {args.concept!r} in {SRC_DIR}")
-src = matches[0]
+if args.input is not None:
+    src = Path(args.input)
+    if not src.exists():
+        sys.exit(f"no such file: {src}")
+elif args.concept is not None:
+    matches = sorted(SRC_DIR.glob(f"{args.concept}.*"))
+    if not matches:
+        sys.exit(f"no source image for {args.concept!r} in {SRC_DIR}")
+    src = matches[0]
+else:
+    sys.exit("give a concept stem or --input")
 
 # ── prepare a clean 1-bit bitmap ──────────────────────────────────────────────
 # Trim the generator's own margin so the mark fills its viewBox predictably,
@@ -93,7 +103,7 @@ view_box = vb.group(1) if vb else f"0 0 {args.width} {args.width}"
 out_svg = (
     '<svg xmlns="http://www.w3.org/2000/svg" '
     f'viewBox="{view_box}" fill="currentColor" fill-rule="evenodd" '
-    'role="img" aria-label="Proof of Hands — a human hand, half of it machine">'
+    'role="img" aria-label="Hands Unchained">'
     f"{body}</svg>"
 )
 

@@ -1,4 +1,4 @@
-# Proof of Hands — testing checklists
+# Hands Unchained — testing checklists
 
 Everything runs through the hub UI — there is no local console. A "rig" is a
 headless agent (`src/agent.ts`) that dials out; you drive and manage it from

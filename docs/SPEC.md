@@ -1,4 +1,4 @@
-# Proof of Hands — spec
+# Hands Unchained — spec
 
 Crowdsourced teleop platform grown out of a LeLab-replacement lab tool. One
 deployed web app (the hub) + headless rig agents:

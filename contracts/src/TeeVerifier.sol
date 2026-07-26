@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 /**
- * Proof of Hands — the one piece of cryptography in this repo, in one place.
+ * Hands Unchained — the one piece of cryptography in this repo, in one place.
  *
  * The grading model runs in a TEE on 0G Compute. Its broker signs every
  * response with a key held inside that enclave, using plain EIP-191

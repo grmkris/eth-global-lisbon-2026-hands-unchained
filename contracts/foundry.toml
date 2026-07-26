@@ -1,4 +1,4 @@
-# Proof of Hands contracts — 0G Chain (Galileo testnet, chain 16602).
+# Hands Unchained contracts — 0G Chain (Galileo testnet, chain 16602).
 #
 # 0G's docs are explicit that `cancun` is REQUIRED: build for an older EVM
 # version and deployed calls fail with "invalid opcode". viaIR is not a taste

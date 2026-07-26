@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {TeeVerifier} from "./TeeVerifier.sol";
 
 /**
- * Proof of Hands — the slot market. Entirely on 0G Galileo (chain 16602).
+ * Hands Unchained — the slot market. Entirely on 0G Galileo (chain 16602).
  *
  * A rig is rented in exclusive slots. You stake OG to book; if the rig is busy
  * you join an on-chain FIFO queue behind whoever holds it. Your clock does not

@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Direct Proof of Hands leader client for visionOS.
+/// Direct Hands Unchained leader client for visionOS.
 ///
 /// The browser owns the rig lease and chooses the rig. This client is only a
 /// registered leader input device: it receives that binding through the leader
@@ -66,7 +66,7 @@ final class DirectHubLeaderClient {
     private(set) var isConnected = false
     private(set) var leaderName: String?
     private(set) var mode = "disconnected"
-    private(set) var message = "Connect directly to the Proof of Hands hub"
+    private(set) var message = "Connect directly to the Hands Unchained hub"
     private(set) var armed = false
     private(set) var selectedRig: String?
     private(set) var leaderBound = false
@@ -132,7 +132,7 @@ final class DirectHubLeaderClient {
         clientID = "avp-\(UUID().uuidString.lowercased())"
         isConnected = true
         mode = "connecting"
-        message = "Registering \(cleanName) with the Proof of Hands hub"
+        message = "Registering \(cleanName) with the Hands Unchained hub"
         publishSnapshot()
 
         controlPlaneTask = Task { [weak self] in
@@ -168,7 +168,7 @@ final class DirectHubLeaderClient {
         lastCameraRefresh = 0
         isConnected = false
         mode = "disconnected"
-        message = "Disconnected from the Proof of Hands hub"
+        message = "Disconnected from the Hands Unchained hub"
         baseURL = nil
         token = ""
         clientID = ""
@@ -365,7 +365,7 @@ final class DirectHubLeaderClient {
         } else {
             leaderBound = false
             mode = "waiting"
-            message = "Waiting for this leader to be selected in the Proof of Hands web hub"
+            message = "Waiting for this leader to be selected in the Hands Unchained web hub"
             publishSnapshot()
         }
     }

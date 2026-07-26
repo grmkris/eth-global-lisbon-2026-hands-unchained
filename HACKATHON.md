@@ -25,7 +25,7 @@ possible second World entry) since the human-operator gate exists either way.
 
 ## The pitch
 
-**Proof of Hands — a labor market where verified humans teach robots, and only graded
+**Hands Unchained — a labor market where verified humans teach robots, and only graded
 work gets paid.**
 
 Robotics has no internet to scrape: robot foundation models learn from human
@@ -56,7 +56,7 @@ say so; honesty about it is what makes the 0G integration credible.
 ## What already ships (DO NOT REBUILD — see docs/SPEC.md "Shipped (v1)")
 
 - Hub live at **https://web-production-b5106.up.railway.app** (Railway project
-  `proof-of-hands`, service `web`; push to `main` deploys; 1 replica + sleep off are
+  `hands-unchained`, service `web`; push to `main` deploys; 1 replica + sleep off are
   load-bearing — rig registry is in-memory).
 - Lobby + drive UI, MJPEG cam feeds (12.5 fps, `LAB_FRAME_MS`), jog pad, take/steal
   control, bystander e-stop, fault surfacing. WebSocket input plane for low-latency
@@ -228,7 +228,7 @@ bun run hub            # local hub :3001          bun run rig:sim     # headless
 bun run agent          # headless rig (env-configured)
 bun run check && bun run typecheck && bun run build && bun run driver:ast
 ```
-Hub: https://web-production-b5106.up.railway.app · Railway project `proof-of-hands`,
+Hub: https://web-production-b5106.up.railway.app · Railway project `hands-unchained`,
 service `web`, push `main` → deploy · new env vars go on that service:
 `MARKET_MODE, WORLD_APP_ID, WORLD_ACTION, HEDERA_OPERATOR_ID/KEY, HCS_TOPIC_ID,
 ZG_PRIVATE_KEY, ZG_RPC, GRADER`.

@@ -1,4 +1,4 @@
-# Proof of Hands — agent context
+# Hands Unchained — agent context
 
 Crowdsourced SO-101 teleoperation platform (ETHGlobal Lisbon 2026). One bun
 monorepo: `apps/web` (TS — the hub web app `src/server.ts` + the portless
@@ -20,7 +20,7 @@ the hub is a stateless pipe, owner key printed at rig boot.
 - Commit + push to `origin main` after meaningful changes; pushes deploy.
 
 ## Deploy topology
-- Railway project **proof-of-hands**, service **web** — GitHub-connected:
+- Railway project **hands-unchained**, service **web** — GitHub-connected:
   push to `main` → build `apps/web/Dockerfile` with the REPO ROOT as context
   (config-as-code: root `railway.toml`; service root directory must stay
   the repo root).

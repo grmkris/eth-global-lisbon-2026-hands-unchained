@@ -1,4 +1,4 @@
-# Hedera — AI & Agentic Payments (Proof of Hands market layer)
+# Hedera — AI & Agentic Payments (Hands Unchained market layer)
 
 **Track:** AI & Agentic Payments on Hedera. **What qualifies:** the grading
 agent autonomously executes real HBAR transfers on **testnet** — no human

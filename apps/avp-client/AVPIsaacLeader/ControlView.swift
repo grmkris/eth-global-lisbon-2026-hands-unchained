@@ -20,8 +20,8 @@ struct ControlView: View {
                     .foregroundStyle(.cyan)
                 Text("AVP Isaac Leader").font(.largeTitle)
                 Text(connection.isHubGateway
-                     ? "Select this leader from the Proof of Hands web hub; the AVP follows that binding automatically."
-                     : "Connect directly to the Proof of Hands hub, or to an optional local SO-101 gateway.")
+                     ? "Select this leader from the Hands Unchained web hub; the AVP follows that binding automatically."
+                     : "Connect directly to the Hands Unchained hub, or to an optional local SO-101 gateway.")
                     .foregroundStyle(.secondary)
 
                 directHubCard
@@ -138,7 +138,7 @@ struct ControlView: View {
 
     private var directHubCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Proof of Hands hub", systemImage: "network").font(.headline)
+            Label("Hands Unchained hub", systemImage: "network").font(.headline)
             Text("Run this Vision Pro as a hub leader directly — no MacBook or Bonjour gateway. Rig selection and the control lease remain in the web hub.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

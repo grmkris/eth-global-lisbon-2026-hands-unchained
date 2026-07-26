@@ -1,4 +1,4 @@
-# AVP virtual leader through Proof of Hands
+# AVP virtual leader through Hands Unchained
 
 > **Prefer the standalone headset client when no Mac is needed:**
 > [DIRECT_HUB_LEADER.md](DIRECT_HUB_LEADER.md) registers Vision Pro directly
@@ -6,7 +6,7 @@
 
 This gateway mode does not open a local SO-101 serial port. The Vision Pro sends its
 virtual joint state to the Mac over the paired Bonjour protocol; the Mac
-registers as a Proof of Hands leader input device and follows the rig binding
+registers as a Hands Unchained leader input device and follows the rig binding
 chosen in the web hub.
 
 The AVP cannot list, claim, take over, release, or switch hub rigs. The browser
@@ -37,7 +37,7 @@ to the web hub. Leave it running.
    **MacBook AVP Hub Gateway**.
 2. Enter the terminal's four-digit code and press **Pair**. The app now waits for
    a web-selected binding; it has no rig selector.
-3. In the Proof of Hands web interface, open a rig and take control with the
+3. In the Hands Unchained web interface, open a rig and take control with the
    browser.
 4. Click **Drive with _leader-name_'s leader** on that rig page.
 5. The gateway detects the web binding automatically. The AVP displays the rig

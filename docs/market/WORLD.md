@@ -1,4 +1,4 @@
-# World — Identity Check Beta Test (Proof of Hands market layer)
+# World — Identity Check Beta Test (Hands Unchained market layer)
 
 **Track:** Identity Check Beta Test. **Why the attribute is necessary:**
 operators remotely actuate a **physical robot arm**. That is machinery

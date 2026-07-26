@@ -1,7 +1,7 @@
-# Vision Pro direct leader for Proof of Hands
+# Vision Pro direct leader for Hands Unchained
 
 **No MacBook gateway is required.** AVP Isaac Leader can register the Vision
-Pro itself as a Proof of Hands leader input device over HTTPS and WebSocket.
+Pro itself as a Hands Unchained leader input device over HTTPS and WebSocket.
 It does not open a serial port, advertise Bonjour, or depend on a process
 running on another computer.
 
@@ -11,8 +11,8 @@ intentional: the headset is an input device, never an independent controller.
 ## Connect
 
 1. Install/run **AVP Isaac Leader** on Vision Pro.
-2. In **Proof of Hands hub**, leave the app's leader name for the next step.
-3. In the app, open **Proof of Hands hub** (above the optional Mac-gateway
+2. In **Hands Unchained hub**, leave the app's leader name for the next step.
+3. In the app, open **Hands Unchained hub** (above the optional Mac-gateway
    section), enter:
    - **Hub URL** — normally `https://web-production-b5106.up.railway.app`
    - **Leader name** — a unique, recognisable name, e.g. `alice-vision-pro`

@@ -292,6 +292,6 @@ ZG_PRIVATE_KEY=…           ZG_RPC=https://evmrpc-testnet.0g.ai    ZG_PROVIDER=
 WORLD_APP_ID=…             WORLD_ACTION=…             AGENTBOOK_CHAIN=…
 ```
 
-Hub `https://web-production-b5106.up.railway.app` · Railway project `proof-of-hands`,
+Hub `https://web-production-b5106.up.railway.app` · Railway project `hands-unchained`,
 service `web`, push `main` → deploy · `bun run hub` (:3001) · `bun run rig:sim` ·
 checks: `bun run check && bun run typecheck && bun run build && bun run driver:ast`.

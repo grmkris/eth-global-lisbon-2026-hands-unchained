@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Start the Bonjour AVP gateway that follows a web-selected Proof of Hands rig.
+# Start the Bonjour AVP gateway that follows a web-selected Hands Unchained rig.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Prefer the Proof of Hands driver venv when present: it carries `websockets`,
+# Prefer the Hands Unchained driver venv when present: it carries `websockets`,
 # which unlocks the hub's full-rate WS input plane (system python falls back
 # to keep-alive HTTP at ~10 packets/s).
 DRIVER_VENV_PYTHON="$SCRIPT_DIR/../../eth-global-lisbon-2026-proof-of-hands/apps/driver/.venv/bin/python"
