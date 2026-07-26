@@ -20,13 +20,24 @@ export type RequirementKey =
 	| "staked"
 	| "armConnected"
 	| "cameras"
-	| "source"
-	| "lease";
+	| "source";
 
 export interface Requirement {
 	key: RequirementKey;
+	/**
+	 * TWO DIFFERENT KINDS OF THING, and rendering them as one list was the
+	 * mistake: five of seven rows were ticked before the operator did anything,
+	 * which buried the one or two that were actually theirs to do.
+	 *
+	 * - `rig` — a precondition. Nobody "passes" it: either it is fine and says
+	 *   nothing, or it is broken and is the only thing worth showing.
+	 * - `operator` — a step, in order, done by the person reading it.
+	 */
+	kind: "rig" | "operator";
 	/** what is needed, in the operator's words — also the tooltip fallback */
 	label: string;
+	/** how it reads once cleared: a fact, not a leftover instruction */
+	metLabel: string;
 	met: boolean;
 	/** who can clear it: the operator, the rig's owner, or only time */
 	actor: "you" | "owner" | "wait";
@@ -93,38 +104,51 @@ export function useStartRequirements(input: {
 	 * "you don't hold this rig" when the fix is "pick a source" sends them
 	 * looking for a Take Control button that does not exist.
 	 */
+	/** somebody else is holding the arm — picking a source takes it from them */
+	const heldByOther = !iAmDriving && rig?.holder != null;
+
 	const requirements: Requirement[] = [
 		{
 			key: "online",
-			label: "the rig is online",
+			kind: "rig",
+			label: "this rig is offline",
+			metLabel: "the rig is online",
 			met: rig?.online === true,
 			actor: "wait",
 		},
 		{
 			key: "verified",
-			label: "verified with World ID",
+			kind: "operator",
+			label: "verify with World ID",
+			metLabel: "verified",
 			// only a gate when the market is on; a bare hub has no identity layer
 			met: !marketOn || verified,
 			actor: "you",
 		},
 		{
 			key: "staked",
-			label: `${minutes} min on this arm · ${stake} ${token}`,
+			kind: "operator",
+			label: `stake ${stake} ${token} · ${minutes} min`,
+			metLabel: `${stake} ${token} staked`,
 			met: !needsStake,
 			actor: "you",
 		},
 		{
 			key: "armConnected",
-			label: "the arm is connected",
+			kind: "rig",
+			label: "the arm is not connected",
+			metLabel: "the arm is connected",
 			met: rig?.armState !== undefined && rig.armState !== "disconnected",
 			// the Connect button only exists for whoever holds the rig
 			actor: iAmDriving ? "you" : "wait",
 		},
 		{
 			key: "cameras",
+			kind: "rig",
 			// a real rig records from cameras the owner has mapped; the operator
 			// cannot fix this one from here, so say whose job it is
-			label: "cameras confirmed by the rig owner",
+			label: "this rig's cameras are not confirmed",
+			metLabel: "cameras confirmed",
 			met:
 				rig?.backend !== "real" ||
 				(rig.camMapping?.workspace !== null && rig.camMapping?.wrist !== null),
@@ -133,25 +157,24 @@ export function useStartRequirements(input: {
 		{
 			/**
 			 * The fix for the trap that recorded an episode with NOTHING driving the
-			 * arm: attempts.ts takes whatever source is live (`priorSource =
-			 * robotState.source ?? "keys"`), so an attempt started before choosing
-			 * one burns an episode against the task's quota while the arm sits still.
+			 * arm: attempts.ts takes whatever source is live, so an attempt started
+			 * before choosing one burns an episode against the task's quota while
+			 * the arm sits still.
+			 *
+			 * HOLDING THE RIG IS PART OF THIS STEP, not a row of its own. Picking a
+			 * source claims the lease (`pickSource` in drive.$rig.tsx claims, then
+			 * starts, with a confirm when stealing) — so a separate "you hold this
+			 * rig" line only ever sent people looking for a Take Control button that
+			 * deliberately does not exist.
 			 */
 			key: "source",
-			// flips with its own state: once satisfied the row is a status line
-			// sitting above chips you can still use, not an unfinished instruction
-			label:
-				inTeleop && sink !== null
-					? `driving — ${sourceName}`
-					: "pick how you'll drive",
-			met: inTeleop && sink !== null,
+			kind: "operator",
+			label: heldByOther
+				? "take over — someone else is driving"
+				: "pick how you'll drive",
+			metLabel: `driving — ${sourceName}`,
+			met: inTeleop && sink !== null && iAmDriving,
 			actor: "you",
-		},
-		{
-			key: "lease",
-			label: "you hold this rig",
-			met: iAmDriving,
-			actor: "wait",
 		},
 	];
 

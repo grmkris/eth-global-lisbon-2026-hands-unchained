@@ -1,5 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
+	ChevronDown,
+	ChevronRight,
 	Coins,
 	ExternalLink,
 	KeyRound,
@@ -12,10 +14,10 @@ import { toast } from "sonner";
 import { SlotTimer } from "#/components/slot-timer";
 import { StatusBadge } from "#/components/status-badge";
 import { Button } from "#/components/ui/button";
-import { Label } from "#/components/ui/label";
 import { WorldStep } from "#/components/world-step";
 import { clientId } from "#/lib/hub-api";
 import type { Requirement } from "#/lib/use-start-requirements";
+import { cn } from "#/lib/utils";
 import { shortAddress } from "#/market/chain";
 import type {
 	MarketSessionInfo,
@@ -27,30 +29,24 @@ import { useWallet } from "#/market/use-wallet";
 import { bookSlot, cancelSlot } from "#/market/zg-wallet";
 
 /**
- * One line of "what stands between you and starting this task".
+ * One step of the three the operator actually performs.
  *
- * Three states, three weights: a requirement you have met is a ✓ receipt, the
- * first one you have not is the only one that gets its remedy rendered under
- * it, and anything after that is dimmed — solving them in order is the only
- * order that works, so offering the fourth fix while the second is unmet is
- * just noise.
+ * Three states, three weights: a step you cleared is a ✓ and a fact, the one
+ * you are on is the ONLY one carrying controls, and anything after it is a
+ * dimmed label. Solving them out of order is not possible, so offering the
+ * third fix while the second is open is just noise.
  *
- * This is the shape the old three-step numbered wizard was reaching for. It is
- * no longer a wizard: staking and verifying are two rows of a checklist that
- * also contains "the arm is connected" and "pick how you'll drive".
+ * Rig health does not come through here — see `RIG_FIX`. Being online is not
+ * something you passed.
  */
-function RequirementRow({
+function StepRow({
 	req,
 	active,
-	showRemedy,
 	children,
 }: {
 	req: Requirement;
-	/** the first unmet one — normally the only row that renders a remedy */
+	/** the first unmet one — the only step that renders a remedy */
 	active: boolean;
-	/** `source` overrides that: switching keyboard ↔ leader is something you do
-	 * repeatedly inside a slot, so its control survives being satisfied */
-	showRemedy: boolean;
 	children?: React.ReactNode;
 }) {
 	return (
@@ -59,7 +55,7 @@ function RequirementRow({
 				className={req.met ? "text-success" : "text-muted-foreground"}
 				aria-hidden="true"
 			>
-				{req.met ? "✓" : "○"}
+				{req.met ? "✓" : active ? "●" : "○"}
 			</span>
 			<div className="flex min-w-0 flex-1 flex-col gap-2">
 				<span
@@ -71,22 +67,21 @@ function RequirementRow({
 								: "text-muted-foreground/60"
 					}
 				>
-					{req.label}
+					{req.met ? req.metLabel : req.label}
 				</span>
-				{showRemedy && children}
+				{active && children}
 			</div>
 		</div>
 	);
 }
 
-/** Requirements nobody can act on from here still deserve a sentence saying
- * whose job it is, rather than a checkbox that just sits there unticked.
- * `source` is absent on purpose — it has a real control now, not a pointer. */
-const POINTER: Partial<Record<Requirement["key"], string>> = {
-	online: "the rig has to reconnect to the hub — nothing to do here",
-	armConnected: "connect it from the chips below",
+/** A broken rig gets a sentence saying whose job it is — the operator cannot
+ * clear these, and a row of unticked boxes implies they could. `armConnected`
+ * is the exception: the holder has a Connect button, rendered separately. */
+const RIG_FIX: Partial<Record<Requirement["key"], string>> = {
+	online: "it has to reconnect to the hub — nothing to do from here",
+	armConnected: "connect it below",
 	cameras: "the rig owner assigns workspace/wrist in the Rig owner panel",
-	lease: "someone else is driving; picking a source takes over",
 };
 
 /**
@@ -207,6 +202,8 @@ export function StartRequirements({
 	const [busy, setBusy] = useState(false);
 	const [phase, setPhase] = useState<BookPhase>("idle");
 	const inFlight = busy || phase !== "idle";
+	/** the source chips, revealed on demand once everything is already met */
+	const [switching, setSwitching] = useState(false);
 	/**
 	 * THE ADDRESS SURVIVES A REFRESH — three sources, most authoritative first.
 	 *
@@ -384,28 +381,38 @@ export function StartRequirements({
 	 * the line behind a live one. Same call, same stake, different sentence. */
 	const bookBlock = (label: string) => (
 		<div className="flex flex-col gap-3">
+			{/* Which chain holds the money — a CURRENCY choice, not a product one
+			    (same contract, same escrow, same three strikes), so it gets the
+			    weight of a currency choice: a token-only segmented toggle beside
+			    the amount instead of two full-width buttons and a paragraph. The
+			    amount already appears in the step label and again on the CTA; a
+			    third copy inside the toggle was just noise. The live-signer
+			    property is a real differentiator, so it survives — as the toggle's
+			    tooltip, because nobody weighs it in the second before staking. */}
 			{slots !== null && slots.chains.length > 1 && (
-				<div className="flex flex-col gap-1.5">
-					<Label className="text-muted-foreground">
-						Where your stake sits — same rules either way
-					</Label>
-					<div className="flex flex-wrap gap-2">
-						{slots.chains.map((c) => (
-							<Button
-								key={c.key}
-								size="sm"
-								variant={c.key === chainKey ? "default" : "outline"}
-								onClick={() => setChainKey(c.key)}
-							>
-								{c.label} · {c.params?.minStakeOg ?? "?"} {c.token}
-							</Button>
-						))}
-					</div>
-					<p className="text-muted-foreground text-xs">
-						{chosen?.liveSigner
+				<div
+					className="flex w-fit items-center rounded-md border p-0.5"
+					title={
+						chosen?.liveSigner
 							? "This contract reads the referee's identity live from 0G's own registry — no pinned constant to trust."
-							: "0G's registry isn't readable from here, so the referee's address is pinned at deploy — one constant, auditable in a single call."}
-					</p>
+							: "0G's registry isn't readable from here, so the referee's address is pinned at deploy — one constant, auditable in a single call."
+					}
+				>
+					{slots.chains.map((c) => (
+						<button
+							key={c.key}
+							type="button"
+							onClick={() => setChainKey(c.key)}
+							className={cn(
+								"rounded px-2 py-0.5 font-mono text-xs transition-colors",
+								c.key === chainKey
+									? "bg-secondary text-secondary-foreground"
+									: "text-muted-foreground hover:text-foreground",
+							)}
+						>
+							{c.token}
+						</button>
+					))}
 				</div>
 			)}
 			<Button size="sm" onClick={() => void doBook()} disabled={inFlight}>
@@ -546,17 +553,15 @@ export function StartRequirements({
 		</>
 	);
 
-	// the first unmet requirement is the only one that gets a remedy: they have
-	// to be solved in order, so offering the fourth fix while the second is open
-	// is noise
-	const firstUnmet = requirements.find((r) => !r.met) ?? null;
+	const steps = requirements.filter((r) => r.kind === "operator");
+	// only ever ONE is shown, and only when broken — a precondition you meet is
+	// not an achievement, it is silence
+	const rigProblem = requirements.find((r) => r.kind === "rig" && !r.met);
+	// the step you are on is the only one carrying controls
+	const activeStep = steps.find((r) => !r.met) ?? null;
 
-	return (
+	const shell = (children: React.ReactNode) => (
 		<div className="flex flex-col gap-3 border-t pt-3">
-			<div className="text-muted-foreground text-xs">
-				to start this you need:
-			</div>
-
 			{/* Lifted OUT of the wallet step, which no longer renders in the state
 			    that produces this: connected, but on a different account than the
 			    World proof was signed against. Silence here means a stake that
@@ -569,30 +574,79 @@ export function StartRequirements({
 					staked.
 				</p>
 			)}
-
-			{requirements.map((req) => (
-				<RequirementRow
-					key={req.key}
-					req={req}
-					active={firstUnmet?.key === req.key}
-					// the source chips outlive being satisfied — everything else is a
-					// fix you only need while it is still broken
-					showRemedy={firstUnmet?.key === req.key || req.key === "source"}
-				>
-					{req.key === "verified" ? (
-						verifiedRemedy
-					) : req.key === "staked" ? (
-						stakeRemedy
-					) : req.key === "source" ? (
-						sourcePicker
-					) : POINTER[req.key] ? (
-						<span className="text-muted-foreground text-xs">
-							{POINTER[req.key]}
-						</span>
-					) : null}
-				</RequirementRow>
-			))}
+			{children}
 		</div>
+	);
+
+	// (a) THE RIG IS BROKEN. Nothing else matters and nothing else is shown —
+	// listing three ticked steps under "the arm is not connected" would say the
+	// operator is nearly there when they cannot start at all.
+	if (rigProblem)
+		return shell(
+			<div className="flex flex-col gap-2">
+				<div className="flex items-start gap-2 text-sm">
+					<span className="text-warn" aria-hidden="true">
+						⚠
+					</span>
+					<span className="min-w-0 font-medium">{rigProblem.label}</span>
+				</div>
+				<div className="pl-6">
+					{/* SourcePicker renders exactly the Connect button in this state and
+					    nothing else — its chips are gated on the arm being connected —
+					    so the fix for a disconnected arm is already in hand. */}
+					{rigProblem.key === "armConnected" && rigProblem.actor === "you" ? (
+						sourcePicker
+					) : (
+						<span className="text-muted-foreground text-xs">
+							{RIG_FIX[rigProblem.key]}
+						</span>
+					)}
+				</div>
+			</div>,
+		);
+
+	// (c) READY. One line, no checkmarks — but the chips stay one click away,
+	// because switching keyboard <-> leader mid-slot is a real thing you do.
+	if (activeStep === null) {
+		const driving = steps.find((r) => r.key === "source");
+		return shell(
+			<div className="flex flex-col gap-2">
+				<div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+					<span className="text-muted-foreground">{driving?.metLabel}</span>
+					<button
+						type="button"
+						className="flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+						onClick={() => setSwitching(!switching)}
+					>
+						switch
+						{switching ? (
+							<ChevronDown className="size-3" />
+						) : (
+							<ChevronRight className="size-3" />
+						)}
+					</button>
+				</div>
+				{switching && sourcePicker}
+			</div>,
+		);
+	}
+
+	// (b) STEPS OUTSTANDING — three at most, one of them live.
+	return shell(
+		<>
+			<div className="text-muted-foreground text-xs">
+				to start this you need:
+			</div>
+			{steps.map((req) => (
+				<StepRow key={req.key} req={req} active={activeStep.key === req.key}>
+					{req.key === "verified"
+						? verifiedRemedy
+						: req.key === "staked"
+							? stakeRemedy
+							: sourcePicker}
+				</StepRow>
+			))}
+		</>,
 	);
 }
 
