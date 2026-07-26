@@ -4,6 +4,14 @@
 
 <h1 align="center">Hands Unchained</h1>
 
+<p align="center">
+  <a href="https://web-production-b5106.up.railway.app"><b>▶&nbsp; Drive a real robot arm →</b></a>
+</p>
+
+<p align="center">
+  <sub>live hub · nothing to install · watching needs no wallet</sub>
+</p>
+
 **ETHGlobal Lisbon 2026.** Crowdsourced robot teleoperation: real SO-101 arms
 and MuJoCo sims register as **rigs** on a cloud hub; operators browse a lobby
 and drive them over the public internet — browser keyboard or their **own
@@ -20,7 +28,8 @@ network deadman. Plain HTTP end to end: curl-debuggable, no WebRTC, no SDKs.
 
 Not a render: this is the actual follower arm, the peg board it picks from, the
 overhead camera that feeds the MJPEG stream, and the venue it ran in. Anyone
-with the lobby URL could drive this arm from anywhere in the world.
+with [the lobby URL](https://web-production-b5106.up.railway.app) could drive
+this arm from anywhere in the world.
 
 ```
                    ┌──────────────────────────┐
@@ -96,8 +105,10 @@ bun run rig:sim                            # headless sim rig (no port), autocon
 # open http://localhost:3001 → Drive with keyboard → WASD/QE
 ```
 
-Register a rig with the deployed hub (zero config — hub URL is the baked-in
-default, follower port auto-detected, rig named after your hostname):
+Register a rig with **the deployed hub —
+<https://web-production-b5106.up.railway.app>** (zero config: that URL is the
+baked-in default, follower port auto-detected, rig named after your hostname).
+Your arm appears in that lobby, for anyone, within about a second:
 
 ```sh
 cd apps/web
