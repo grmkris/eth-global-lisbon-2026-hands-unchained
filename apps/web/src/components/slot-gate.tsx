@@ -3,11 +3,12 @@ import {
 	Coins,
 	ExternalLink,
 	KeyRound,
+	Loader2,
 	ShieldCheck,
 	Undo2,
 	Wallet,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { SlotTimer } from "#/components/slot-timer";
 import { StatusBadge } from "#/components/status-badge";
@@ -23,13 +24,8 @@ import type {
 	SlotsConfig,
 } from "#/market/market-api";
 import { noteBooked, noteSettled, unlockSlot } from "#/market/market-api";
-import {
-	bookSlot,
-	cancelSlot,
-	connect,
-	currentAddress,
-	walletAvailable,
-} from "#/market/zg-wallet";
+import { useWallet } from "#/market/use-wallet";
+import { bookSlot, cancelSlot } from "#/market/zg-wallet";
 
 function Step({
 	n,
@@ -62,14 +58,22 @@ function Step({
 }
 
 /**
- * Type the key you chose when you booked. This is also the multi-device entry
- * point — a second laptop sees only this — and the redeploy-recovery path,
- * because the hub's memory of who holds what dies with the process but the
- * commitment on chain does not.
+ * THE FALLBACK, not the happy path.
  *
- * Unlocking is what STARTS the clock: the hub relays `startSlot` for you, so
- * there is no second wallet popup and a slot you booked but never walked up to
- * costs you nothing.
+ * Staking now starts the slot in the same breath (see `doBook`), so on a free
+ * rig nobody ever sees this button. It exists for the four cases where the
+ * clock genuinely cannot have started yet:
+ *
+ *  - you queued behind someone and have just been promoted to the head;
+ *  - a second laptop, which holds no slot token of its own;
+ *  - the hub restarted mid-slot — its memory of who holds what died with the
+ *    process, but the chain's did not;
+ *  - the relay failed after your booking landed, so the money is committed and
+ *    the arm is not open.
+ *
+ * All four are "the arm is yours, take it", which is why the button says so.
+ * It used to say "type the key you chose when you booked" — there has been no
+ * key since the wallet became the key.
  */
 export function SlotUnlock({
 	rig,
@@ -106,7 +110,7 @@ export function SlotUnlock({
 			</Button>
 			<p className="text-muted-foreground text-xs">
 				{mine
-					? `slot #${slotId} · the clock starts when you take control, not when you paid`
+					? `slot #${slotId} · your 30 minutes start when you press this`
 					: `slot #${slotId} is held by another wallet — if that wallet is yours, this opens it`}
 			</p>
 		</div>
@@ -114,8 +118,33 @@ export function SlotUnlock({
 }
 
 /**
- * The gate between watching and driving: prove you're human, then book the arm
- * for thirty minutes with your own OG.
+ * Staking is TWO chain writes behind one button, and collapsing them without
+ * saying so would be a downgrade: six to twenty seconds of an unchanging
+ * spinner is indistinguishable from a hang. So each wait gets named.
+ *
+ * `signing` is waiting for a HUMAN (the wallet modal is open and their
+ * attention is there, not here); `staking` and `opening` are waiting for two
+ * different CHAINS of causation. Naming them separately is what makes a stall
+ * diagnosable — "stuck staking" and "stuck opening" are different problems with
+ * different fixes.
+ *
+ * Same pattern as `stageOf` in slot-panel.tsx, deliberately: one named stage at
+ * a time, a spinner, muted text.
+ */
+type BookPhase = "idle" | "signing" | "staking" | "opening";
+
+/** Short enough for a button; the sentence underneath carries the detail.
+ * `idle` is absent on purpose — the caller's own label wins there, because it
+ * differs between taking a free rig and joining a queue. */
+const PHASE_LABEL: Partial<Record<BookPhase, string>> = {
+	signing: "confirm in your wallet…",
+	staking: "staking…",
+	opening: "opening the arm…",
+};
+
+/**
+ * The gate between watching and driving: prove you're human, then stake and
+ * start driving.
  */
 export function SlotGate({
 	rig,
@@ -133,6 +162,8 @@ export function SlotGate({
 }) {
 	const queryClient = useQueryClient();
 	const [busy, setBusy] = useState(false);
+	const [phase, setPhase] = useState<BookPhase>("idle");
+	const inFlight = busy || phase !== "idle";
 	/**
 	 * THE ADDRESS SURVIVES A REFRESH — three sources, most authoritative first.
 	 *
@@ -147,22 +178,16 @@ export function SlotGate({
 	 * `session.boundAddress` wins because it is the address World actually
 	 * signed against and the only one the hub will accept at unlock; the
 	 * injected wallet's current account is a fallback for the
-	 * connected-but-not-yet-verified case. Deliberately NOT localStorage: a
-	 * stale address there would outlive both the wallet's authorisation and the
-	 * World binding, and start lying rather than merely forgetting.
+	 * connected-but-not-yet-verified case.
+	 *
+	 * The injected half now lives in `useWallet` because the nav shows it too —
+	 * two copies of "which account is this" would drift the moment someone
+	 * switched accounts in MetaMask.
 	 */
-	const [walletAddress, setWalletAddress] = useState<`0x${string}` | null>(
-		null,
-	);
+	const wallet = useWallet();
+	const walletAddress = wallet.address;
 	const bound = (session.boundAddress ?? null) as `0x${string}` | null;
 	const address = bound ?? walletAddress;
-	/** eth_accounts, which reports an ALREADY-authorised account and never
-	 * prompts — so a refresh costs the operator no popup. */
-	useEffect(() => {
-		void currentAddress()
-			.then(setWalletAddress)
-			.catch(() => {});
-	}, []);
 	/** They reconnected on a different account than the one they verified with.
 	 * Silence here means a booking that succeeds and an unlock that 403s. */
 	const mismatch =
@@ -219,17 +244,6 @@ export function SlotGate({
 				60_000,
 		);
 
-	const doConnect = async () => {
-		setBusy(true);
-		try {
-			setWalletAddress(await connect(chainKey));
-		} catch (e) {
-			toast.error(e instanceof Error ? e.message : "could not connect");
-		} finally {
-			setBusy(false);
-		}
-	};
-
 	const doCancel = async () => {
 		if (pending === null || pending.contract === null) return;
 		setBusy(true);
@@ -258,28 +272,70 @@ export function SlotGate({
 			toast.error("no chain is configured on this hub");
 			return;
 		}
-		setBusy(true);
+		setPhase("signing");
 		try {
-			const { hash } = await bookSlot({
+			const { hash, account } = await bookSlot({
 				rig,
 				namespace: slots.namespace,
 				stakeOg,
 				contract: chosen.contract,
 				chainKey: chosen.key,
+				// approved in the wallet; now we are waiting on the chain instead
+				onSigned: () => setPhase("staking"),
 			});
-			toast.info("booking sent — waiting for the network…");
-			await noteBooked(rig, hash);
-			toast.success(`booked ${minutes} min on ${rig} (${chosen.label})`, {
-				description:
-					live !== null
-						? "you're in the queue — the clock starts when you take control"
-						: "take control when you're ready — that starts the clock, not this",
-			});
-			void queryClient.invalidateQueries({ queryKey: ["market"] });
+			// bookSlot waits for the receipt, so the queue below is already real
+			const dto = await noteBooked(rig, hash);
+
+			/**
+			 * STAKING IS TAKING, when there is nothing to wait for.
+			 *
+			 * You paid to drive. If the rig was free you are the head the instant
+			 * the transaction mines, so asking you to then press "Take control"
+			 * is asking you to re-confirm a decision you already made with money.
+			 * The hub relays `startSlot` here with its own key — that is why no
+			 * second wallet popup appears.
+			 *
+			 * Only when the rig was FREE. Behind a live slot you are queued, and
+			 * a clock started now would bill you for someone else's thirty
+			 * minutes; you press it yourself once you are promoted.
+			 */
+			const iAmTheHead =
+				dto.pending !== null &&
+				dto.pending.operator.toLowerCase() === account.toLowerCase();
+
+			if (!iAmTheHead) {
+				toast.success(`booked ${minutes} min on ${rig} (${chosen.label})`, {
+					description:
+						"you're in the queue — take control when the arm reaches you",
+				});
+				return;
+			}
+
+			setPhase("opening");
+			try {
+				await unlockSlot(rig, clientId);
+				toast.success(`the arm is yours for ${minutes} minutes`, {
+					description: `${stakeOg} ${token} staked on ${chosen.label} — drive whenever you're ready`,
+				});
+			} catch (relayError) {
+				// The money IS committed. This must never read as "booking
+				// failed" — say what happened and leave the fallback button,
+				// which renders on its own because `pending` is now set.
+				console.error("[slots] relay after booking failed:", relayError);
+				toast.warning("you're booked — but the arm didn't open", {
+					description: "press Take control to start your 30 minutes",
+				});
+			}
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : "booking failed");
+			const message = e instanceof Error ? e.message : "booking failed";
+			// Dismissing your own wallet prompt is a decision, not a fault; a red
+			// error for a deliberate act is noise.
+			if (/user rejected|denied transaction/i.test(message))
+				toast.info("booking cancelled");
+			else toast.error(message);
 		} finally {
-			setBusy(false);
+			setPhase("idle");
+			void queryClient.invalidateQueries({ queryKey: ["market"] });
 		}
 	};
 
@@ -311,25 +367,43 @@ export function SlotGate({
 					</p>
 				</div>
 			)}
-			<Button size="sm" onClick={() => void doBook()} disabled={busy}>
-				<Wallet />
-				{busy ? "confirming…" : label}
+			<Button size="sm" onClick={() => void doBook()} disabled={inFlight}>
+				{phase === "idle" ? <Wallet /> : <Loader2 className="animate-spin" />}
+				{PHASE_LABEL[phase] ?? label}
 			</Button>
-			<a
-				className="flex items-center gap-1 text-muted-foreground text-xs underline"
-				href={chosen?.faucet ?? "https://faucet.0g.ai"}
-				target="_blank"
-				rel="noreferrer"
-			>
-				<Coins className="size-3" />
-				need testnet {token}? (free faucet)
-				<ExternalLink className="size-3" />
-			</a>
+			{/* The detail line REPLACES the faucet link while a transaction is in
+			    flight: the faucet is advice for a booking that hasn't started,
+			    and it comes back the moment the phase returns to idle — which is
+			    also exactly when a failure would make it relevant again. */}
+			{phase === "idle" ? (
+				<a
+					className="flex items-center gap-1 text-muted-foreground text-xs underline"
+					href={chosen?.faucet ?? "https://faucet.0g.ai"}
+					target="_blank"
+					rel="noreferrer"
+				>
+					<Coins className="size-3" />
+					need testnet {token}? (free faucet)
+					<ExternalLink className="size-3" />
+				</a>
+			) : (
+				<p className="text-muted-foreground text-xs">
+					{phase === "signing"
+						? `Your wallet is asking you to approve ${stakeOg} ${token}.`
+						: phase === "staking"
+							? `${stakeOg} ${token} → SlotMarket on ${chosen?.label ?? "chain"}. One signature, ever.`
+							: // Answers the question people ask at precisely this
+								// moment: why isn't MetaMask popping up again?
+								"Starting your 30 minutes — the hub pays this transaction, not you."}
+				</p>
+			)}
 		</div>
 	);
 
+	// No width cap of its own any more: this is the rail's content on the drive
+	// page, and it should fill whatever column it is handed.
 	return (
-		<Card className="mx-auto w-full max-w-lg">
+		<Card className="w-full">
 			<CardContent className="flex flex-col gap-5">
 				<div className="flex items-center gap-2 font-medium">
 					<ShieldCheck className="size-4 text-muted-foreground" />
@@ -337,10 +411,11 @@ export function SlotGate({
 				</div>
 				<p className="text-muted-foreground text-sm">
 					This is a real robot arm. Prove you're a unique adult human (18+),
-					then book it for {minutes} minutes with {stakeOg} {token} of your own.
-					Every episode you record is graded on its own by a referee running in
-					a TEE on 0G; each pass pays you {rewardOg} {token}. Claim success you
-					didn't earn three times and the whole stake is slashed.
+					then stake {stakeOg} {token} of your own and drive — your {minutes}{" "}
+					minutes begin the moment the stake lands. Every episode you record is
+					graded on its own by a referee running in a TEE on 0G; each pass pays
+					you {rewardOg} {token}. Claim success you didn't earn three times and
+					the whole stake is slashed.
 				</p>
 
 				{/* Wallet FIRST: the address is the identity everything else hangs
@@ -366,14 +441,18 @@ export function SlotGate({
 								</span>
 							)}
 						</div>
-					) : !walletAvailable() ? (
+					) : !wallet.available ? (
 						<span className="text-muted-foreground text-sm">
 							No wallet detected — install MetaMask on this device.
 						</span>
 					) : (
-						<Button size="sm" onClick={() => void doConnect()} disabled={busy}>
+						<Button
+							size="sm"
+							onClick={() => wallet.connect(chainKey)}
+							disabled={wallet.connecting}
+						>
 							<Wallet />
-							{busy ? "connecting…" : "Connect wallet"}
+							{wallet.connecting ? "connecting…" : "Connect wallet"}
 						</Button>
 					)}
 				</Step>
@@ -389,11 +468,7 @@ export function SlotGate({
 					<WorldStep session={session} address={address} />
 				</Step>
 
-				<Step
-					n={3}
-					title={`Book ${minutes} minutes · ${stakeOg} ${token}`}
-					done={needsUnlock}
-				>
+				<Step n={3} title={`Stake & drive · ${minutes} min`} done={needsUnlock}>
 					{slots === null ? (
 						<span className="text-muted-foreground text-sm">
 							Booking isn't configured on this hub yet — ask whoever deployed it
@@ -431,7 +506,7 @@ export function SlotGate({
 							) : (
 								/* Booking while someone else drives — a FIFO queue the
 								   contract always supported and nothing ever offered. */
-								bookBlock("Join the queue")
+								bookBlock(`Join the queue · ${stakeOg} ${token}`)
 							)}
 							<SlotUnlock rig={rig} slotId={live.slotId} mine={false} />
 						</div>
@@ -446,14 +521,14 @@ export function SlotGate({
 								variant="ghost"
 								className="self-start text-muted-foreground"
 								onClick={() => void doCancel()}
-								disabled={busy || pending.contract === null}
+								disabled={inFlight || pending.contract === null}
 							>
 								<Undo2 />
 								Cancel booking · full refund
 							</Button>
 						</div>
 					) : (
-						bookBlock(`Book ${minutes} min · ${stakeOg} ${token}`)
+						bookBlock(`Stake ${stakeOg} ${token} & drive`)
 					)}
 				</Step>
 			</CardContent>
