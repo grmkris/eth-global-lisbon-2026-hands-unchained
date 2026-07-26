@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Prefer the Hands Unchained driver venv when present: it carries `websockets`,
 # which unlocks the hub's full-rate WS input plane (system python falls back
 # to keep-alive HTTP at ~10 packets/s).
-DRIVER_VENV_PYTHON="$SCRIPT_DIR/../../eth-global-lisbon-2026-proof-of-hands/apps/driver/.venv/bin/python"
+DRIVER_VENV_PYTHON="$SCRIPT_DIR/../../eth-global-lisbon-2026-hands-unchained/apps/driver/.venv/bin/python"
 if [ -z "${PYTHON:-}" ] && [ -x "$DRIVER_VENV_PYTHON" ]; then
   PYTHON="$DRIVER_VENV_PYTHON"
 fi

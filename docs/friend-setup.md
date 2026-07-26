@@ -23,8 +23,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## 1. Clone + install
 
 ```sh
-git clone https://github.com/grmkris/eth-global-lisbon-2026-proof-of-hands.git
-cd eth-global-lisbon-2026-proof-of-hands/apps/web && bun install
+git clone https://github.com/grmkris/eth-global-lisbon-2026-hands-unchained.git
+cd eth-global-lisbon-2026-hands-unchained/apps/web && bun install
 cd ../driver && uv sync        # installs lerobot 0.6.0 + opencv (+ mujoco)
 ```
 
