@@ -40,6 +40,9 @@ apps/
   driver/   Python, uv env pinned lerobot==0.6.0 — robot loops only.
             backends/{real,sim}.py · sources/{keys,phone,scripted,remote}.py
             controller.py (operator-side leader-over-wire bridge)
+  avp-client/ Native visionOS direct-hub leader. It registers as a hub leader
+            input (never a lease holder), requires no Mac gateway, and polls
+            snapshots for the first two cameras advertised by its bound rig.
 ```
 No `LAB_MODE`, no roles:
 - **hub** (`src/server.ts`, the only web server) — lobby/drive UI + relay +
@@ -113,7 +116,10 @@ middleware); allowlisted `/api/*` → Effect HttpApi handler; rest → SSR.
   at 30 Hz; values clamped + non-finite dropped on the rig BEFORE lerobot.
   Cross-device works by construction (each end normalizes through its own
   calibration); known wart: wrist_roll zero is calibration-pose-relative
-  across devices.
+  across devices. `apps/avp-client` is a native Vision Pro implementation of
+  the same leader role: it heartbeats directly to `/api/hub/leaders/link`,
+  sends input over the hub WebSocket with HTTP fallback, and never connects to
+  an arm serial port.
 
 ### Tasks + attempts (the crowdsourcing loop)
 Tasks live RIG-SIDE (`.data/tasks.json`, `tasks-registry.ts`) and are

@@ -1,0 +1,15 @@
+# Xcode
+DerivedData/
+.build/
+*.xcuserstate
+xcuserdata/
+
+# Python test tools
+__pycache__/
+*.py[cod]
+
+# Local detached build/test worktrees
+/worktree/
+
+# macOS
+.DS_Store

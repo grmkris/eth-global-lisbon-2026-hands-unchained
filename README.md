@@ -31,7 +31,10 @@ network deadman. Plain HTTP end to end: curl-debuggable, no WebRTC, no SDKs.
   MuJoCo sim backends, teleop sources (keys/leader/phone/remote/scripted),
   `controller.py` (drive a remote rig with your leader arm). Sim model and
   IK URDF are vendored — the repo is self-contained.
-- `docs/` — [SPEC](docs/SPEC.md) (architecture) · [TESTING](docs/TESTING.md)
+- `apps/avp-client` — native visionOS direct-hub leader for Vision Pro. It
+  uses the browser-held hub lease, needs no Mac gateway or serial connection,
+  and renders the selected rig's first two camera feeds.
+- `docs/ — [SPEC](docs/SPEC.md) (architecture) · [TESTING](docs/TESTING.md)
   (checklists) · [UX](docs/UX.md) · [friend-setup](docs/friend-setup.md)
   (put your arm on the hub in 5 steps).
 
