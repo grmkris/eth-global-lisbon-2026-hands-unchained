@@ -182,6 +182,38 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 					);
 				});
 
+			/**
+			 * Read back what the arm ACTUALLY did from the episode we just wrote.
+			 * This is the only motion evidence that exists for every drive source
+			 * and cannot be inflated by the operator.
+			 *
+			 * Measured in the BACKGROUND: the recorder flushes parquet after it
+			 * reports done, and the operator should not wait on evidence
+			 * collection. The hub polls telemetry continuously, so `lastEpisode`
+			 * is picked up whenever it lands.
+			 *
+			 * Lives out here rather than inside `finish` because `finish` is not
+			 * the only way an episode gets saved — the recorder's own
+			 * `episodeSeconds` timer ends the session on its own, and the watcher
+			 * below closes that attempt. That path never measured anything, so a
+			 * saved episode reached the referee as no evidence at all.
+			 */
+			const measure = (repoName: string): void => {
+				const repoId = `${RIG.hfUser}/${repoName}`;
+				void awaitEpisodeMotion(repoId, { afterIndex: episodeBaseline })
+					.then((m) => {
+						if (m) {
+							lastEpisode = new EpisodeMotionInfo(m);
+							console.error(
+								`[attempts] episode ${m.episodeIndex} measured: ${m.frames} frames, ${m.jointPathDeg}° travel, ${Math.round((1 - m.stillFraction) * 100)}% moving`,
+							);
+						}
+					})
+					.catch(() => {
+						// evidence, not a gate — never fail an attempt over it
+					});
+			};
+
 			const closeAttempt = (outcome: string) =>
 				Effect.gen(function* () {
 					const cur = current;
@@ -223,6 +255,11 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 					}
 					// inactive during spin-up is not session-end
 					if (Date.now() - cur.startedAtMs < SPINUP_GRACE_MS) return;
+					// `done` = the recorder's own episode timer ran out and lerobot
+					// already save_episode()d. That is real, saved work and the only
+					// close path that never measured it — so the referee got a success
+					// claim with no episode behind it and read the absence as fraud.
+					if (status.phase === "done") measure(cur.task.repoName);
 					// still idle after grace = the session never started at all
 					yield* closeAttempt(status.phase === "idle" ? "failed" : "timeout");
 					return;
@@ -331,40 +368,17 @@ export class Attempts extends Context.Service<Attempts, AttemptsShape>()(
 							return yield* Effect.fail(
 								new DriverError({ message: "no attempt running" }),
 							);
-						// Read back what the arm ACTUALLY did from the episode we just
-						// wrote. This is the only motion evidence that exists for every
-						// drive source and cannot be inflated by the operator.
-						// Measure in the BACKGROUND: the recorder flushes parquet after
-						// it reports done, and the operator should not wait on evidence
-						// collection. The hub polls telemetry continuously, so
-						// `lastEpisode` is picked up whenever it lands.
-						const measure = () => {
-							const repoId = `${RIG.hfUser}/${cur.task.repoName}`;
-							void awaitEpisodeMotion(repoId, { afterIndex: episodeBaseline })
-								.then((m) => {
-									if (m) {
-										lastEpisode = new EpisodeMotionInfo(m);
-										console.error(
-											`[attempts] episode ${m.episodeIndex} measured: ${m.frames} frames, ${m.jointPathDeg}° travel, ${Math.round((1 - m.stillFraction) * 100)}% moving`,
-										);
-									}
-								})
-								.catch(() => {
-									// evidence, not a gate — never fail an attempt over it
-								});
-						};
-
 						const status = yield* recorder.status();
 						if (status.active) {
 							// keep saves + session (1 episode) ends; discard clears the
 							// unsaved buffer and stops — nothing saved is ever touched.
 							yield* recorder.control(success ? "keep" : "discard");
-							if (success) measure();
+							if (success) measure(cur.task.repoName);
 							yield* closeAttempt(success ? "success" : "discarded");
 						} else {
 							// timeout race: session already ended (auto-saved) — just
 							// annotate the outcome.
-							if (success) measure();
+							if (success) measure(cur.task.repoName);
 							yield* closeAttempt(success ? "success" : "timeout");
 						}
 						return toState();

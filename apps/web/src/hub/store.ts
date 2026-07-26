@@ -128,6 +128,10 @@ const LEASE_MS = 20_000; // renewed on every input; released on expiry
  * teleop_start on link resume is exactly the hazard class this codebase
  * documents elsewhere. Also bounds how long an ownerKey sits in hub memory. */
 const COMMAND_TTL_MS = 15_000;
+/** How long a frame outlives its camera leaving the rig's advertised list.
+ * Long enough to ride out a blinked `cams` (see upsertRig), short enough that a
+ * camera switched off stops being served and stops being picked as evidence. */
+const FRAME_ORPHAN_MS = 3_000;
 export const MAX_PENDING = 32;
 
 /** Injected impairment so loopback dev matches production behaviour. */
@@ -178,6 +182,20 @@ export const upsertRig = (
 		// tasks/tasksRev persist like frames/lease — the telemetry patch must
 		// not wipe them every 50ms tick (they only change on rev mismatch).
 		Object.assign(existing, patch, { lastSeen: Date.now() });
+		// …but a frame for a camera the rig no longer advertises is garbage that
+		// used to live for the life of the process: still answering /snap, still
+		// ageing camAgeMs, still selectable as market evidence.
+		//
+		// Absent from `cams` is NOT enough on its own to delete: the rig zeroes
+		// `previewing` whenever one local /api/cameras/status read fails and
+		// before the first one resolves (rig/link.ts:439), so `cams` blinks
+		// empty on any hiccup and on every agent start. Dropping the cache on a
+		// blink would empty the market evidence frame if the blink landed at
+		// attempt close. Require the camera to have actually stopped arriving.
+		const orphanCutoff = Date.now() - FRAME_ORPHAN_MS;
+		for (const [cam, frame] of existing.frames)
+			if (!patch.cams.includes(cam) && frame.at < orphanCutoff)
+				existing.frames.delete(cam);
 		return existing;
 	}
 	const rig: Rig = {

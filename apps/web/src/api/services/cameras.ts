@@ -84,15 +84,43 @@ export class Cameras extends Context.Service<Cameras, CamerasShape>()(
 						"list_cameras",
 					)
 					.pipe(Effect.map((cams) => cams.map((c) => new ProbedCamera(c))));
+			/** The allowlist is enforced HERE and nowhere else: this is the only
+			 * function that opens a device, and three paths reach it — the owner's
+			 * probe button, setDisabled's restart, and the raw
+			 * POST /cameras/preview/start endpoint with caller-supplied indexes.
+			 * Filtering the callers would leave that third door open. */
+			const allowed = (indexes: ReadonlyArray<number>) =>
+				indexes.filter((i) => RIG.cams.includes(i));
 			const previewStart = (indexes: ReadonlyArray<number>) =>
-				driver.rpc<{ started: ReadonlyArray<string> }>("preview_start", {
-					cameras: indexes.map((index) => ({
-						name: `cam${index}`,
-						index,
-						width: 640,
-						height: 480,
-						fps: 30,
-					})),
+				Effect.gen(function* () {
+					const wanted = allowed(indexes);
+					// The one line the owner needs when asking "where did cam2 go".
+					// previewStart runs on probe and on a hide toggle, never in a loop.
+					if (wanted.length !== indexes.length)
+						console.error(
+							`[cameras] LAB_CAMS=${RIG.cams.join(",")} dropped ${indexes
+								.filter((i) => !RIG.cams.includes(i))
+								.map((i) => `cam${i}`)
+								.join(", ")}`,
+						);
+					// Filtering can empty a non-empty request; preview_start with no
+					// cameras is not the same thing as stopping, so say what we mean.
+					if (wanted.length === 0) {
+						yield* driver.rpc<{ stopped: boolean }>("preview_stop");
+						return { started: [] as ReadonlyArray<string> };
+					}
+					return yield* driver.rpc<{ started: ReadonlyArray<string> }>(
+						"preview_start",
+						{
+							cameras: wanted.map((index) => ({
+								name: `cam${index}`,
+								index,
+								width: 640,
+								height: 480,
+								fps: 30,
+							})),
+						},
+					);
 				});
 
 			return {
@@ -136,7 +164,12 @@ export class Cameras extends Context.Service<Cameras, CamerasShape>()(
 							brightness,
 							mapping,
 							brightnessBand: RIG.brightnessBand,
-							disabled,
+							// Only advertise cameras the owner could actually bring back.
+							// An out-of-allowlist index is not "hidden", it is ineligible —
+							// listing it would render a `show` button that does nothing.
+							// The PERSISTED disabled set is untouched, so widening LAB_CAMS
+							// later still finds a camera the owner hid on purpose hidden.
+							disabled: allowed(disabled),
 						});
 					}),
 				confirm: (mapping) =>
@@ -158,6 +191,14 @@ export class Cameras extends Context.Service<Cameras, CamerasShape>()(
 						if (robot.backend === "sim")
 							return yield* Effect.fail(
 								new Error("sim cameras are rendered — nothing to disable"),
+							);
+						// Un-hiding a camera outside the allowlist would clear the flag in
+						// rig.json and still open nothing — say so instead of no-oping.
+						if (!disabled && !RIG.cams.includes(index))
+							return yield* Effect.fail(
+								new Error(
+									`cam${index} is outside LAB_CAMS=${RIG.cams.join(",")} — restart the agent with that index included to use it`,
+								),
 							);
 						const mapping = yield* loadMapping;
 						// A hidden camera the recorder still opens writes a dataset from a

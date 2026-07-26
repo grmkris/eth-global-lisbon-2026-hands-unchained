@@ -155,7 +155,7 @@ const sample = (row: LedgerRow, state: SamplerState): void => {
 
 	// evidence: keep the freshest workspace frame — a close-time-only snapshot
 	// can miss (real-backend attempts freeze the cam feed while recording)
-	const cam = pickCam(rig.frames);
+	const cam = pickCam(rig.frames, rig.camMapping);
 	if (cam) {
 		const frame = rig.frames.get(cam);
 		if (frame) {
@@ -182,11 +182,31 @@ const trackJointGripper = (state: SamplerState, pos: number): void => {
 	}
 };
 
+/** Which camera becomes the human-audit evidence image on /market.
+ *
+ * The name test only ever matches a SIM rig (`workspace_cam`); a real rig's
+ * cameras are `cam0..camN`, so this used to fall through to the map's insertion
+ * order — whichever camera pushed first after the rig registered, including a
+ * Mac's built-in camera that has since stopped streaming. The rig already tells
+ * us which index it calls the workspace, so ask that first, and make the last
+ * resort the FRESHEST frame rather than the oldest-inserted one. */
 const pickCam = (
 	frames: Map<string, { data: Uint8Array; at: number }>,
+	mapping: { workspace: number | null; wrist: number | null } | null,
 ): string | null => {
 	if (frames.size === 0) return null;
+	if (mapping?.workspace !== null && mapping?.workspace !== undefined) {
+		const mapped = `cam${mapping.workspace}`;
+		if (frames.has(mapped)) return mapped;
+	}
 	for (const name of frames.keys())
 		if (name.toLowerCase().includes("workspace")) return name;
-	return frames.keys().next().value ?? null;
+	let freshest: string | null = null;
+	let at = -1;
+	for (const [name, frame] of frames)
+		if (frame.at > at) {
+			at = frame.at;
+			freshest = name;
+		}
+	return freshest;
 };

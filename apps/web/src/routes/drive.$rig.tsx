@@ -1,23 +1,19 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	Keyboard,
-	OctagonX,
-	Play,
-	Plug,
-	Square,
-	TriangleAlert,
-} from "lucide-react";
-import { useEffect, useState } from "react";
+import { TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CamFeed, CamOffAir } from "#/components/cam-feed";
+import { AttemptBar } from "#/components/attempt-bar";
+import { ControlRail } from "#/components/control-rail";
+import { DiagnosticsFold } from "#/components/diagnostics-fold";
 import { ErrorNote } from "#/components/error-note";
 import { KeyJogPad } from "#/components/key-jog-pad";
-import { LeaderInputDebugPanel } from "#/components/leader-input-debug";
 import { OwnerPanel } from "#/components/owner-panel";
 import { PageHeader } from "#/components/page-header";
-import { SlotGate } from "#/components/slot-gate";
+import { RigViewport } from "#/components/rig-viewport";
+import { SlotTerms, StartRequirements } from "#/components/slot-gate";
 import { SlotPanel } from "#/components/slot-panel";
+import { type DriveChoice, SourcePicker } from "#/components/source-picker";
 import {
 	ArmStateBadge,
 	SimBadge,
@@ -26,7 +22,6 @@ import {
 import { TaskPanel } from "#/components/task-panel";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
-import { Card, CardContent } from "#/components/ui/card";
 import { apiErrorMessage } from "#/lib/errors";
 import {
 	claimRig,
@@ -39,28 +34,17 @@ import {
 	sendRigCommand,
 	sendRigInput,
 } from "#/lib/hub-api";
+import { useAttemptChain } from "#/lib/use-attempt-chain";
+import { useStartRequirements } from "#/lib/use-start-requirements";
 import { marketSessionQuery, taskProgressQuery } from "#/market/market-api";
 import { useSlot } from "#/market/use-slot";
 
-export const Route = createFileRoute("/drive/$rig")({ component: DrivePage });
-
-/** How the operator wants to move the arm — the entry point to everything. */
-type DriveChoice =
-	| { kind: "keys" }
-	| { kind: "rigLeader" }
-	| { kind: "leader"; name: string };
-
-/**
- * Age of the newest frame the HUB holds, measured hub-side — so it covers the
- * rig->hub half of the path (capture, push cadence, uplink) and not the
- * hub->browser half. That is the half we control, and the half that degrades
- * on a bad uplink: a number that climbs instead of holding steady means the
- * rig cannot carry the push cadence and is falling behind.
- */
-function FrameAge({ ms }: { ms: number | undefined }) {
-	if (ms === undefined) return null;
-	return <span>{ms} ms</span>;
-}
+// The one page that breaks the reading-width column (see __root.tsx): you drive
+// by watching the camera, and at 1024px two feeds are 480px stamps.
+export const Route = createFileRoute("/drive/$rig")({
+	component: DrivePage,
+	staticData: { wide: true },
+});
 
 function DrivePage() {
 	const { rig: rigName } = Route.useParams();
@@ -163,9 +147,9 @@ function DrivePage() {
 				apiErrorMessage(e) === "Conflict"
 					? "someone else took the rig first"
 					: apiErrorMessage(e) === "verification required"
-						? "verify your World ID above to take control"
+						? "verify your World ID beside the feed to take control"
 						: apiErrorMessage(e) === "bond required"
-							? "stake above to take control"
+							? "stake beside the feed to take control"
 							: apiErrorMessage(e),
 			),
 	});
@@ -174,8 +158,8 @@ function DrivePage() {
 		if (gated) {
 			toast.error(
 				needsVerify
-					? "verify your World ID above to take control"
-					: (slot.blockedReason ?? "stake above to take control"),
+					? "verify your World ID beside the feed to take control"
+					: (slot.blockedReason ?? "stake beside the feed to take control"),
 			);
 			return;
 		}
@@ -186,6 +170,25 @@ function DrivePage() {
 		)
 			return;
 		drive.mutate(choice);
+	};
+
+	/**
+	 * The page's one stop, replacing "Stop teleop" AND "Stop <name>'s leader".
+	 *
+	 * They were never a real choice: with a leader bound, plain teleop_stop is
+	 * the INCOMPLETE action — the agent stays bound and keeps streaming ~25
+	 * packets/s into a source that no longer exists ("no remote-joints teleop
+	 * source active"), while the page still reads "you are driving". The leader
+	 * branch is complete on its own: the hub unbinds the agent and queues
+	 * teleop_stop for the rig in the same handler.
+	 *
+	 * Not gated on holding the lease. Both underlying verbs are `safety: true`
+	 * so that anyone watching a rig misbehave can end it — see hub/verbs.ts.
+	 */
+	const stopDriving = () => {
+		if (drivingLeader)
+			leaderCommand.mutate({ name: drivingLeader.name, action: "stop" });
+		else command.mutate("teleop_stop");
 	};
 
 	// What is consuming input right now — the record source while a session runs,
@@ -206,40 +209,47 @@ function DrivePage() {
 			: armState === "disconnected"
 				? "the arm is not connected"
 				: sink === "remote"
-					? `${drivingLeader?.name ?? "a remote"}'s leader arm is driving — stop it to use the keyboard`
+					? `${drivingLeader?.name ?? "a remote"}'s leader arm is driving — Stop driving first`
 					: sink === "leader"
-						? "the rig's own leader arm is driving — stop teleop to use the keyboard"
+						? "the rig's own leader arm is driving — Stop driving first"
 						: `${sink ?? "another source"} is driving`;
 
 	/**
-	 * Why "Start attempt" cannot work yet — the fix for the trap that recorded an
-	 * episode with NOTHING driving the arm. attempts.ts takes whatever source is
-	 * live (`priorSource = robotState.source ?? "keys"`), so an attempt started
-	 * before choosing a source burns an episode against the task's quota while
-	 * the arm sits still.
+	 * Everything between this operator and one recorded episode. Used to be a
+	 * seven-branch ternary collapsed into a tooltip; now the task rows render the
+	 * whole list with each unmet item's remedy inline, which is what let the slot
+	 * gate stop being its own card — it is two rows of this.
 	 */
-	const attemptBlockedReason =
-		rig.data === undefined || !rig.data.online
-			? "the rig is offline"
-			: needsVerify
-				? "verify your World ID to drive"
-				: needsStake
-					? "stake to drive"
-					: armState === "disconnected"
-						? "the arm is not connected"
-						: rig.data.backend === "real" &&
-								(rig.data.camMapping?.workspace === null ||
-									rig.data.camMapping?.wrist === null)
-							? "cameras not confirmed — the rig owner must assign workspace/wrist"
-							: !inTeleop || sink === null
-								? "pick how you'll drive first"
-								: !iAmDriving
-									? "someone else is driving this rig"
-									: null;
+	const { requirements, blockedLabel: attemptBlockedReason } =
+		useStartRequirements({
+			rig: rig.data,
+			slot,
+			marketOn,
+			verified: market.data?.verified === true,
+			needsStake,
+			iAmDriving,
+			inTeleop,
+			sink,
+			drivingLeaderName: drivingLeader?.name ?? null,
+		});
 
 	const myAttempt =
 		rig.data?.attempt?.active === true &&
 		rig.data.attempt.operator === clientId;
+
+	// The attempt controls live under the camera while an attempt runs and in
+	// the task list between them, so the chain that links them belongs here.
+	const startAttempt = useCallback(
+		(taskId: string) =>
+			commandWith.mutate({ verb: "attempt_start", args: { taskId } }),
+		[commandWith.mutate],
+	);
+	const chain = useAttemptChain({
+		rig: rig.data,
+		iAmDriving,
+		progress: taskProgress.data ?? null,
+		onStart: startAttempt,
+	});
 
 	/**
 	 * Is there anything left to record on this arm?
@@ -352,209 +362,76 @@ function DrivePage() {
 				}
 			/>
 
-			<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-				{/* cam names come from the rig's own advertisement — no hardcoded list */}
-				{(cams.length > 0 ? cams : ["camera"]).map((cam) =>
-					data?.online && cams.includes(cam) ? (
-						<CamFeed
-							key={cam}
-							name={cam}
-							src={`/api/hub/cams/${encodeURIComponent(rigName)}/${encodeURIComponent(cam)}`}
-							statusLine={<FrameAge ms={data.camAgeMs?.[cam]} />}
-						/>
-					) : (
-						<CamOffAir
-							key={cam}
-							name={cam}
-							note="no frames from this rig yet"
-						/>
-					),
-				)}
-			</div>
-
-			{/* Renders whenever the operator is blocked — NOT only when slots
-			    happen to be configured. Tying it to slot.config is what let the
-			    page tell someone to stake while showing them no way to. */}
-			{gated && market.data && (
-				<div className="mt-4">
-					<SlotGate
+			{/*
+			 * The cockpit.
+			 *
+			 * Left column is the instrument — the camera, and welded under it the
+			 * only things you touch while looking at the arm. It is STICKY: the
+			 * feed never leaves the screen no matter how far the right column
+			 * scrolls, which is also what keeps the Success/Discard buttons
+			 * reachable through a twenty-second recording.
+			 *
+			 * Right column answers exactly one question — "what do I do next" —
+			 * and therefore holds exactly one thing at a time: the gate while you
+			 * are blocked, the ledger and worklist once you are not.
+			 *
+			 * The grid's max width is derived from the camera's height budget
+			 * (CAM_MAX_W), so the feed fills its column instead of floating in a
+			 * gutter with the rail stranded far to the right. The cockpit is as
+			 * wide as the camera needs; leftover page width becomes symmetric
+			 * margin.
+			 */}
+			{/* camera(56vh·4/3) + filmstrip(6rem) + card padding + gap + rail(25rem) */}
+			<div className="mx-auto grid max-w-[calc(56vh*4/3+33rem)] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_25rem]">
+				<div className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-16 xl:self-start">
+					<RigViewport
 						rig={rigName}
-						session={market.data}
-						slots={slot.config ?? null}
-						info={slot.info}
-					/>
-				</div>
-			)}
-
-			{/* Cameras, then how you drive, THEN the tasks. Starting an attempt is
-			    the one thing you do while watching the feed and the teleop panel at
-			    the same time — tasks in between pushed them a screen apart. */}
-			<Card className="mt-4">
-				<CardContent className="flex flex-col gap-3">
-					<div className="flex flex-wrap items-center gap-4 text-sm">
-						<StatusBadge tone={iAmDriving ? "success" : "neutral"}>
-							{iAmDriving
-								? drivingLeader
-									? `you are driving — via ${drivingLeader.name}'s leader`
-									: "you are driving"
-								: holder
-									? drivingLeader
-										? `someone else is driving — via ${drivingLeader.name}'s leader`
-										: "someone else is driving"
-									: "nobody driving"}
-						</StatusBadge>
-						{drivingLeader && (
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={leaderCommand.isPending}
-								onClick={() =>
-									leaderCommand.mutate({
-										name: drivingLeader.name,
-										action: "stop",
+						cams={cams}
+						camAgeMs={data?.camAgeMs}
+						online={data?.online === true}
+						recording={recordingNow}
+					>
+						{data?.attempt?.active === true ? (
+							<AttemptBar
+								attempt={data.attempt}
+								record={data.record}
+								mine={myAttempt}
+								busy={commandWith.isPending}
+								onFinish={(success) =>
+									commandWith.mutate({
+										verb: "attempt_finish",
+										args: { success },
 									})
 								}
-							>
-								<Square />
-								Stop {drivingLeader.name}'s leader
-							</Button>
+								autoContinue={chain.autoContinue}
+								onAutoContinue={chain.setAutoContinue}
+							/>
+						) : (
+							<ControlRail
+								iAmDriving={iAmDriving}
+								holder={holder}
+								drivingLeaderName={drivingLeader?.name ?? null}
+								inTeleop={inTeleop}
+								linkMs={data?.linkMs}
+								rttMs={rtt}
+								inputTransport={data?.inputTransport}
+								busy={drive.isPending}
+								onStopDriving={stopDriving}
+							/>
 						)}
-						<span className="font-mono text-muted-foreground">
-							link {data?.linkMs ?? "…"}ms
-							{rtt !== null ? ` · your rtt ${rtt}ms` : ""}
-							{data ? ` · input ${data.inputTransport}` : ""}
-						</span>
-						{data?.inputTransport === "http" && (
-							<StatusBadge
-								tone="warn"
-								title="the rig's input socket is down — input rides the polled HTTP link (slower)"
-							>
-								input: http fallback
-							</StatusBadge>
-						)}
-					</div>
-
-					<LeaderInputDebugPanel
-						leader={drivingLeader?.name ?? null}
-						input={data?.leaderInputDebug ?? null}
-					/>
-
-					{/* Only what can actually succeed right now. Connect SIM/REAL became
-					    one recovery button (the rig reports its own backend, and it
-					    autoconnects at boot); "Teleop (keys)" is gone because the jog pad
-					    starts keys teleop itself; the rig-local leader button appears only
-					    when a leader arm is really attached — it used to offer itself on
-					    every rig and then fail with "connect with the leader arm first". */}
-					{(iAmDriving || inTeleop || data?.online) && (
-						<div className="flex flex-wrap items-center gap-2">
-							{iAmDriving && data?.armState === "disconnected" && (
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() =>
-										command.mutate(
-											data.backend === "sim" ? "connect_sim" : "connect_real",
-										)
-									}
-								>
-									<Plug />
-									Connect ({data.backend === "sim" ? "sim" : "real arm"})
-								</Button>
-							)}
-							{/* Drive choices: each CLAIMS the rig and starts that source. Not
-							    gated on holding it — choosing is how you take it. All go quiet
-							    during a recording: the recorder owns the arm, so teleop_start*
-							    is refused ("recording is active") and the click would
-							    half-succeed, binding a leader whose joints then hit a source
-							    that cannot accept them, silently, at ~25 packets/s. */}
-							{data?.online && armState !== "disconnected" && !recordingNow && (
-								<Button
-									size="sm"
-									variant={sink === "keys" ? "default" : "outline"}
-									disabled={drive.isPending}
-									onClick={() => pickSource({ kind: "keys" })}
-								>
-									<Keyboard />
-									{sink === "keys" && iAmDriving
-										? "driving — keyboard"
-										: "Drive with keyboard"}
-								</Button>
-							)}
-							{data?.leader && armState === "connected" && !recordingNow && (
-								<Button
-									size="sm"
-									variant="outline"
-									disabled={drive.isPending}
-									onClick={() => pickSource({ kind: "rigLeader" })}
-								>
-									<Play />
-									Drive with the rig's own leader arm
-								</Button>
-							)}
-							{/* remote leader agents — the hub relays "drive this rig" */}
-							{data?.online &&
-								armState !== "disconnected" &&
-								!recordingNow &&
-								onlineLeaders
-									.filter((l) => l.driving === null)
-									.map((l) => (
-										<Button
-											key={l.name}
-											size="sm"
-											variant="outline"
-											disabled={drive.isPending}
-											onClick={() =>
-												pickSource({ kind: "leader", name: l.name })
-											}
-										>
-											<Play />
-											Drive with {l.name}'s leader
-										</Button>
-									))}
-							{/* Safety verbs bypass the lease on purpose: anyone watching a rig
-							    misbehave can stop it. One instance each, for everyone. */}
-							{inTeleop && (
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => command.mutate("teleop_stop")}
-								>
-									<Square />
-									Stop teleop
-								</Button>
-							)}
-							{data?.online && (
-								<Button
-									size="sm"
-									variant="destructive"
-									onClick={() => command.mutate("estop")}
-								>
-									<OctagonX />
-									E-STOP
-								</Button>
-							)}
-						</div>
-					)}
-
-					{data?.lastError && (
-						<Alert className="border-warn/50 text-warn [&>svg]:text-warn">
-							<TriangleAlert />
-							<AlertTitle>Rig reported a fault</AlertTitle>
-							<AlertDescription className="font-mono text-xs">
-								{data.lastError}
-							</AlertDescription>
-						</Alert>
-					)}
+					</RigViewport>
 
 					{/* The pad ARMS itself: focusing it starts keys teleop when the arm is
-					    merely connected, so "Teleop (keys)" is not a button you can forget
-					    to press. It goes inert when something else owns the input instead
-					    of fighting it — a leader's joints and browser axes share one
-					    single-slot mailbox, and axes would displace the leader's packet
-					    AND then fail rig-side ("no input-driven teleop source active"),
-					    which looked like nothing happening. */}
-					{iAmDriving ? (
+					    merely connected. It is mounted only once keys ARE the source, so
+					    it arrives already focused — picking the keyboard chip is the whole
+					    gesture. It still goes inert rather than fighting for the mailbox if
+					    something takes the source away underneath it: a leader's joints and
+					    browser axes share one single-slot mailbox, and axes would displace
+					    the leader's packet AND then fail rig-side ("no input-driven teleop
+					    source active"), which looked like nothing happening. */}
+					{iAmDriving && axesSink && (
 						<KeyJogPad
+							autoFocus
 							onAxes={onAxes}
 							armed={padArmed}
 							disabledReason={padReason}
@@ -569,64 +446,107 @@ function DrivePage() {
 									command.mutate("teleop_start");
 							}}
 						/>
-					) : (
-						<p className="text-sm text-muted-foreground">
-							Pick how you'll drive above. Video stays live either way.
-						</p>
 					)}
 
-					{data && Object.keys(data.joints).length > 0 && (
-						<div className="grid grid-cols-3 gap-2 font-mono text-xs md:grid-cols-6">
-							{Object.entries(data.joints).map(([joint, pos]) => (
-								<div key={joint} className="rounded bg-muted p-2">
-									<div className="text-muted-foreground">{joint}</div>
-									<div className="tabular-nums">{pos.toFixed(1)}</div>
-								</div>
-							))}
-						</div>
+					{data?.lastError && (
+						<Alert className="border-warn/50 text-warn [&>svg]:text-warn">
+							<TriangleAlert />
+							<AlertTitle>Rig reported a fault</AlertTitle>
+							<AlertDescription className="font-mono text-xs">
+								{data.lastError}
+							</AlertDescription>
+						</Alert>
 					)}
-				</CardContent>
-			</Card>
-
-			{/* The holder's own ledger — a spectator sees the badge, not this.
-			    Keyed on `mine` rather than `hasToken` so it does NOT vanish the
-			    instant the clock runs out: that is the moment the operator wants
-			    to read the last verdict and click their payout. */}
-			{slot.enabled &&
-				slot.info &&
-				(slot.mine || slot.info.state === "voided") && (
-					<div className="mt-4">
-						<SlotPanel
-							info={slot.info}
-							maxStrikes={slot.maxStrikes}
-							gradeGraceSeconds={slot.gradeGraceSeconds}
-							workLeft={workLeft}
-						/>
-					</div>
-				)}
-
-			{data && (
-				<div className="mt-4 flex flex-col gap-4">
-					<TaskPanel
-						slotEndsAt={slot.live?.endAt ?? null}
-						progress={taskProgress.data ?? null}
-						rig={data}
-						iAmDriving={iAmDriving}
-						myAttempt={myAttempt}
-						blockedReason={attemptBlockedReason}
-						busy={commandWith.isPending}
-						onStart={(taskId) =>
-							commandWith.mutate({ verb: "attempt_start", args: { taskId } })
-						}
-						onFinish={(success) =>
-							commandWith.mutate({ verb: "attempt_finish", args: { success } })
-						}
-					/>
 				</div>
-			)}
+
+				<div className="flex min-w-0 flex-col gap-4">
+					{/* The holder's own ledger — a spectator sees the badge, not this.
+					    Keyed on `mine` rather than `hasToken` so it does NOT vanish the
+					    instant the clock runs out: that is the moment the operator wants
+					    to read the last verdict and click their payout. */}
+					{slot.enabled &&
+						slot.info &&
+						(slot.mine || slot.info.state === "voided") && (
+							<SlotPanel
+								info={slot.info}
+								maxStrikes={slot.maxStrikes}
+								gradeGraceSeconds={slot.gradeGraceSeconds}
+								workLeft={workLeft}
+							/>
+						)}
+
+					{/*
+					 * ONE card, because the gate and the worklist were never siblings:
+					 * the tasks are the reason to put 0.05 OG down and the gate is the
+					 * mechanism, so stacking them as peers put the toll before the
+					 * reason. Now a blocked `Start attempt` opens that task's
+					 * requirements in place, and the stake is two rows of the list.
+					 */}
+					{data && (
+						<TaskPanel
+							slotEndsAt={slot.live?.endAt ?? null}
+							progress={taskProgress.data ?? null}
+							rig={data}
+							iAmDriving={iAmDriving}
+							blockedReason={attemptBlockedReason}
+							busy={commandWith.isPending}
+							onStart={chain.start}
+							autoContinue={chain.autoContinue}
+							onAutoContinue={chain.setAutoContinue}
+							chainTaskId={chain.chainTaskId}
+							// the price of everything in the list, while it still applies
+							subtitle={
+								gated ? <SlotTerms slots={slot.config ?? null} /> : null
+							}
+							// Unconditional: on a hub with the market off there is no gate,
+							// but the source picker still lives in here and every hub needs
+							// it. `session` is nullable for exactly that case.
+							renderRequirements={() => (
+								<StartRequirements
+									rig={rigName}
+									session={market.data ?? null}
+									slots={slot.config ?? null}
+									info={slot.info}
+									requirements={requirements}
+									sourcePicker={
+										<SourcePicker
+											online={data.online}
+											armState={armState}
+											iAmDriving={iAmDriving}
+											drivingLeaderName={drivingLeader?.name ?? null}
+											idleLeaderNames={onlineLeaders
+												.filter((l) => l.driving === null)
+												.map((l) => l.name)}
+											hasRigLeader={data.leader === true}
+											sink={sink}
+											recording={recordingNow}
+											backend={data.backend}
+											keyboardBlockedReason={padReason}
+											busy={drive.isPending}
+											onPick={pickSource}
+											onConnect={() =>
+												command.mutate(
+													data.backend === "sim"
+														? "connect_sim"
+														: "connect_real",
+												)
+											}
+										/>
+									}
+								/>
+							)}
+						/>
+					)}
+				</div>
+			</div>
 
 			{data && (
 				<div className="mt-4 flex flex-col gap-4">
+					<DiagnosticsFold
+						leader={drivingLeader?.name ?? null}
+						input={data.leaderInputDebug}
+						joints={data.joints}
+					/>
 					<OwnerPanel
 						rig={data}
 						busy={commandWith.isPending}

@@ -13,6 +13,7 @@
  *
  * Rig-side only: this reads the local lerobot cache.
  */
+import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import { asyncBufferFromFile, parquetReadObjects } from "hyparquet";
 
@@ -41,6 +42,44 @@ const stateOf = (row: Record<string, unknown>): Array<number> | null => {
 const num = (v: unknown): number => Number(v ?? 0);
 
 /**
+ * Every `data/chunk-NNN/file-NNN.parquet` in a dataset, in write order.
+ *
+ * This used to be a hardcoded `data/chunk-000/file-000.parquet`, which is a
+ * path that only tells the truth about the FIRST episode a dataset ever had:
+ * lerobot 0.6.0 opens a NEW data file per record session, and every attempt is
+ * one session. Measured on a real rig dataset, `file-000` was a 17.6°/98%-still
+ * parked arm while the episode the operator had just driven — five files
+ * later — was 635° across 450 frames. Honest work was being graded as fraud.
+ *
+ * Names are zero-padded, so lexicographic order is write order. A dataset that
+ * does not exist yet is an empty list, not an error: the first attempt on a
+ * task legitimately has nothing to read.
+ */
+const dataFiles = async (root: string): Promise<Array<string>> => {
+	const chunks = await fs
+		.readdir(`${root}/data`)
+		.then((names) => names.filter((n) => n.startsWith("chunk-")).sort())
+		.catch(() => [] as Array<string>);
+	const files: Array<string> = [];
+	for (const chunk of chunks) {
+		const names = await fs
+			.readdir(`${root}/data/${chunk}`)
+			.catch(() => [] as Array<string>);
+		for (const name of names.sort())
+			if (name.endsWith(".parquet"))
+				files.push(`${root}/data/${chunk}/${name}`);
+	}
+	return files;
+};
+
+const readRows = async (
+	path: string,
+): Promise<Array<Record<string, unknown>>> =>
+	(await parquetReadObjects({
+		file: await asyncBufferFromFile(path),
+	})) as Array<Record<string, unknown>>;
+
+/**
  * Read the trajectory and reduce it to motion evidence. `episodeIndex: null`
  * means "whichever episode was written last", which is what an attempt just
  * produced — more robust than doing index arithmetic against the recorder's
@@ -52,15 +91,25 @@ export const readEpisodeMotion = async (
 	episodeIndex: number | null,
 ): Promise<EpisodeMotion | null> => {
 	try {
-		const root = `${LEROBOT_CACHE}/${repoId}`;
-		const rows = (await parquetReadObjects({
-			file: await asyncBufferFromFile(
-				`${root}/data/chunk-000/file-000.parquet`,
-			),
-		})) as Array<Record<string, unknown>>;
+		const files = await dataFiles(`${LEROBOT_CACHE}/${repoId}`);
+		// Newest first: the episode an attempt just wrote is in the last file.
+		let rows: Array<Record<string, unknown>> | null = null;
+		let index = episodeIndex;
+		for (let i = files.length - 1; i >= 0; i--) {
+			const candidate = await readRows(files[i]);
+			if (candidate.length === 0) continue;
+			if (episodeIndex === null) {
+				index = Math.max(...candidate.map((r) => num(r.episode_index)));
+				rows = candidate;
+				break;
+			}
+			if (candidate.some((r) => num(r.episode_index) === episodeIndex)) {
+				rows = candidate;
+				break;
+			}
+		}
+		if (rows === null || index === null) return null;
 
-		const index =
-			episodeIndex ?? Math.max(...rows.map((r) => num(r.episode_index)));
 		const mine = rows.filter((r) => num(r.episode_index) === index);
 		if (mine.length === 0) return null;
 		mine.sort((a, b) => num(a.frame_index) - num(b.frame_index));
@@ -114,8 +163,12 @@ export const readEpisodeMotion = async (
 					? Math.round((still / (mine.length - 1)) * 100) / 100
 					: 1,
 		};
-	} catch {
-		return null; // not on disk / unreadable — unknown, not zero
+	} catch (e) {
+		// Unknown, not zero — but say so out loud. A silent catch is exactly how
+		// a wrong parquet path spent five attempts impersonating "the operator
+		// did nothing", and nothing anywhere said why.
+		console.error(`[episode-motion] could not measure ${repoId}:`, e);
+		return null;
 	}
 };
 
@@ -124,13 +177,13 @@ export const readEpisodeMotion = async (
  * on disk. */
 export const latestEpisodeIndex = async (repoId: string): Promise<number> => {
 	try {
-		const rows = (await parquetReadObjects({
-			file: await asyncBufferFromFile(
-				`${LEROBOT_CACHE}/${repoId}/data/chunk-000/file-000.parquet`,
-			),
-		})) as Array<Record<string, unknown>>;
-		if (rows.length === 0) return -1;
-		return Math.max(...rows.map((r) => num(r.episode_index)));
+		const files = await dataFiles(`${LEROBOT_CACHE}/${repoId}`);
+		for (let i = files.length - 1; i >= 0; i--) {
+			const rows = await readRows(files[i]);
+			if (rows.length === 0) continue;
+			return Math.max(...rows.map((r) => num(r.episode_index)));
+		}
+		return -1;
 	} catch {
 		return -1; // no dataset yet — the first episode will be index 0
 	}

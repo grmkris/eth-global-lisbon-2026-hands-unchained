@@ -27,19 +27,39 @@ this: rig stated once, intents are 1–3 fields.
   that opts out of the reading-width column (`staticData: { wide: true }`).
   One camera is dominant with a 62vh height budget, the rest are click-to-promote
   tiles (each feed rendered exactly once — a duplicate `<img>` is a duplicate
-  MJPEG connection). Welded under the frame is the **control rail**: source
-  chips (**choosing a source IS taking the rig** — keyboard / \<name\>'s leader /
-  the rig's own arm, each claims the lease then starts that source, with a
-  confirm when stealing a live holder), one **Stop driving** for everyone, and
-  the link/rtt readout. Release control stays in the header. The keyboard jog
-  pad mounts only when keys are the chosen source and arrives already focused.
+  MJPEG connection). **Setup lives in the rail, live control stays welded to the
+  feed.** Under the frame: the driving badge, the link/rtt readout, and one
+  **Stop driving** for everyone — a safety verb a spectator must be able to hit
+  while watching the arm, and a spectator has no rail. Release control stays in
+  the header. The keyboard jog pad mounts only when keys are the chosen source
+  and arrives already focused.
   **While an attempt records, the rail becomes the recorder** — ● REC, a
   draining clock bar, Success / Discard — so the buttons that end a 20s episode
   are never a scroll away from the feed you are watching. Slot ledger + task
   list sit in a right rail; leader-input debug and the joint grid are behind a
   **Diagnostics** fold whose collapsed summary carries the live packet rate.
-  Start attempt disabled until something is actually driving; rig faults surface
-  under the viewport.
+  Rig faults surface under the viewport.
+- **The task IS the gate.** The rail holds ONE card, not a toll above a
+  worklist: the tasks are the reason to stake and the gate is the mechanism, so
+  as peers they put the price before the point. Everything between an operator
+  and one recorded episode is a single ordered list
+  (`lib/use-start-requirements.ts` — online · verified · staked · arm connected ·
+  cameras · drive source · lease), and a blocked **Start attempt** opens that
+  task's list in place rather than firing. Met rows are ✓ receipts; the first
+  unmet one is the only one that renders its remedy (World ID for `verified`,
+  the chain toggle + stake button for `staked`, the source chips for `source`, a
+  pointer at whoever can fix it for the rest — never a duplicate control). So the
+  slot gate is not a concept of its own any more, it is two rows of this.
+  **Choosing a source IS taking the rig** (keyboard / \<name\>'s leader / the
+  rig's own arm, each claims the lease then starts that source, with a confirm
+  when stealing a live holder), and `source` is the one row whose remedy survives
+  being satisfied — it becomes `✓ driving — keyboard` with the chips still under
+  it, because switching source is something you do repeatedly inside a slot.
+  The card header is the disclosure; **Start attempt is always last and purely
+  terminal**, disabled with the first unmet requirement as its tooltip. It must
+  never double as the opener: as one it re-armed the already-open task and did
+  nothing, which is a button that looks live and isn't. While gated the first
+  startable task is open by default, so nothing is hidden behind a click.
 - **Staking IS starting** — the corollary of rule 4. On a free rig, one button
   takes you from nothing to driving: the stake mines and the hub relays
   `startSlot` in the same breath, so the clock begins when you pay and no second

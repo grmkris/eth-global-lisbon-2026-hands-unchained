@@ -68,6 +68,22 @@ export class Recorder extends Context.Service<Recorder, RecordShape>()(
 								gates: ["cameras"],
 							});
 						}
+						// The recorder opens the mapped INDEXES directly — it never goes
+						// through previewStart, so the allowlist cannot stop it here. A
+						// stale rig.json mapping an index we no longer preview would write
+						// a dataset from a camera no operator can see. Same reasoning as
+						// the "reassign it first" guard in cameras.ts setDisabled.
+						if (robot.backend === "real") {
+							const offLimits = [mapping.workspace, mapping.wrist].filter(
+								(i): i is number => i !== null && !RIG.cams.includes(i),
+							);
+							if (offLimits.length > 0) {
+								return yield* new PreflightError({
+									message: `${offLimits.map((i) => `cam${i}`).join(" and ")} mapped but outside LAB_CAMS=${RIG.cams.join(",")} — reassign on the Robot page, or restart the agent with those indexes included`,
+									gates: ["cameras"],
+								});
+							}
+						}
 
 						yield* driver
 							.rpc("record_start", {

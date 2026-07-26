@@ -154,11 +154,18 @@ beat, which is exactly the gate), once per finished attempt so a lost race
 never becomes a self-retrying loop.
 
 ### Safety model (remote driving)
-E-STOP works with no backend connected (it is the one control shown
-unconditionally, so it must never answer "not connected") ·
-15°/tick clamp on synthetic sources (only a rig-local leader runs uncapped) ·
-0.5 s hub deadman (hold pose) · servo EEPROM limits from the OWNER's
-calibration are the hard stop · e-stop for anyone, lease or not ·
+`estop` still works with no backend connected (`driver.py`, it must never
+answer "not connected") and is still a `safety: true` verb any caller may
+send, lease or not — but **the drive page no longer renders a button for
+it.** Removed deliberately on UX grounds: four stop-shaped controls
+(Release control · Stop \<name\>'s leader · Stop teleop · E-STOP) read as one
+confusing pile, and the page now offers exactly one, **Stop driving**, which
+ends the input source. Consequence to know: `Stop driving` leaves torque ON
+(the arm holds its pose), so **the web UI cannot make a real arm go limp** —
+that is `POST /api/robot/estop` on the rig, or the physical power switch.
+Everything else is unchanged: 15°/tick clamp on synthetic sources (only a
+rig-local leader runs uncapped) · 0.5 s hub deadman (hold pose) · servo
+EEPROM limits from the OWNER's calibration are the hard stop ·
 `disable_torque_on_disconnect` ⇒ network drop = arm goes limp.
 
 ### Driver protocol

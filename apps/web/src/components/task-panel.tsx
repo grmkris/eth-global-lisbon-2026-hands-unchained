@@ -1,37 +1,87 @@
-import { CheckCircle2, ListTodo, Play, XCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { ChevronDown, ChevronRight, ListTodo, Play } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { TaskInfo } from "#/api/contract";
-import { StatusBadge } from "#/components/status-badge";
-import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Label } from "#/components/ui/label";
 import { Progress } from "#/components/ui/progress";
 import type { RigSummary } from "#/lib/hub-api";
+import { collected, completeNow, keptOf } from "#/lib/use-attempt-chain";
 import type { TaskProgress } from "#/market/market-api";
+
+/** No task has an empty id, so this cannot collide with one — it means the
+ * operator closed the panel on purpose, as opposed to never having touched it. */
+const CLOSED = "";
+
+/**
+ * Tasks that have hit their quota, out of the way but not gone.
+ *
+ * Not deleted, because "what has this arm already collected" is a real question
+ * for both the operator and the owner — but a finished task has no action left,
+ * so it has no business occupying a full card with a dead button in it. Inside a
+ * fold literally labelled "complete" the per-task `complete ✓` badge is noise
+ * too, so a row is just the title and the count.
+ *
+ * Hand-rolled disclosure, matching owner-panel.tsx and diagnostics-fold.tsx —
+ * there is no shadcn Collapsible in this project and one fold pattern is enough.
+ */
+function CompleteFold({
+	tasks,
+	progress,
+}: {
+	tasks: ReadonlyArray<TaskInfo>;
+	progress: TaskProgress | null;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<div className="flex flex-col gap-2">
+			<button
+				type="button"
+				className="flex items-center gap-2 text-left text-muted-foreground text-sm"
+				onClick={() => setOpen(!open)}
+			>
+				{open ? (
+					<ChevronDown className="size-4" />
+				) : (
+					<ChevronRight className="size-4" />
+				)}
+				{tasks.length} complete
+			</button>
+			{open &&
+				tasks.map((task) => (
+					<div
+						key={task.id}
+						className="flex items-center justify-between gap-2 pl-6 text-sm"
+					>
+						<span className="min-w-0 truncate text-muted-foreground">
+							<span className="text-success">✓</span> {task.title}
+						</span>
+						<span className="shrink-0 font-mono text-muted-foreground text-xs tabular-nums">
+							{keptOf(task, progress)}
+							{task.maxEpisodes !== null ? `/${task.maxEpisodes}` : ""}
+						</span>
+					</div>
+				))}
+		</div>
+	);
+}
 
 /**
  * The crowdsourcing surface: tasks the rig owner wants done. Each attempt is
  * one recorded episode; Success keeps it (labeled training data), Discard
  * throws the buffer away. `episodesDone` (derived rig-side from the dataset's
  * lerobot meta) turns "max 20 eps" into a real 13/20 progress loop.
+ *
+ * This panel owns the LIST. The live attempt is components/attempt-bar.tsx,
+ * mounted under the camera, and the chain that links attempts together is
+ * lib/use-attempt-chain.ts, owned by the route because both need it.
  */
-
-/** How long the chain waits for a finished attempt's episode to show up in
- * the count (recorder encode + the rig's 2s task advertisement) before it
- * concludes nothing was saved and disarms. */
-const CHAIN_WAIT_MS = 20_000;
-
-const collected = (task: TaskInfo): number => task.episodesDone ?? 0;
-
 export function TaskPanel(props: {
 	rig: RigSummary;
 	iAmDriving: boolean;
-	myAttempt: boolean;
+	/** start an attempt through the chain, so auto-continue can follow it */
 	onStart: (taskId: string) => void;
-	onFinish: (success: boolean) => void;
 	/** why an attempt cannot start right now, null when it can. The route owns
 	 * this because it is the thing that knows what is driving. */
 	blockedReason: string | null;
@@ -43,37 +93,47 @@ export function TaskPanel(props: {
 	/** per task, what the referee kept and threw out. null = no market layer,
 	 * and the recorder's own count is the only truth there is. */
 	progress?: TaskProgress | null;
+	/** the chain's state, so it can be switched off between attempts — when the
+	 * attempt bar is unmounted this is the only place left to reach it */
+	autoContinue: boolean;
+	onAutoContinue: (on: boolean) => void;
+	chainTaskId: string | null;
+	/** What stands between this operator and starting the given task, rendered
+	 * inside the task's own row. A render prop rather than the market types
+	 * themselves: this panel owns the WORKLIST and has never known what a slot
+	 * or a World proof is, and the requirements panel is identical for every
+	 * task, so there is nothing here worth teaching it. */
+	renderRequirements?: (task: TaskInfo) => ReactNode;
+	/** the terms, while they still apply — the route owns the numbers */
+	subtitle?: ReactNode;
 }) {
 	const {
 		rig,
 		iAmDriving,
-		myAttempt,
 		onStart,
-		onFinish,
 		blockedReason,
 		busy,
 		slotEndsAt = null,
 		progress = null,
+		autoContinue,
+		onAutoContinue,
+		chainTaskId,
+		renderRequirements,
+		subtitle,
 	} = props;
 	const active = rig.tasks.filter((t) => t.active);
-	/**
-	 * Episodes that will actually SHIP: what the recorder wrote, minus what the
-	 * referee threw out (they are dropped at publish). Recorded-minus-rejected
-	 * rather than a raw pass count, so episodes recorded before the market
-	 * existed still count — only a verdict we hold, and that failed, subtracts.
-	 *
-	 * The rig's own quota gate does the same arithmetic with the same number,
-	 * stamped onto attempt_start by the hub — so "keep going" here and "task
-	 * complete" there can never disagree.
-	 */
-	const keptOf = (task: TaskInfo): number => {
-		const verdicts = progress?.tasks[task.id];
-		return verdicts
-			? Math.max(0, collected(task) - verdicts.failed)
-			: collected(task);
-	};
-	const completeNow = (task: TaskInfo): boolean =>
-		task.maxEpisodes !== null && keptOf(task) >= task.maxEpisodes;
+	const attempt = rig.attempt;
+	const recording = rig.record?.active === true;
+
+	const [picked, setPicked] = useState<string | null>(null);
+	// Ticks so `fitsInSlot` below re-evaluates as the slot clock runs down.
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		if (slotEndsAt === null) return;
+		const t = setInterval(() => setNow(Date.now()), 500);
+		return () => clearInterval(t);
+	}, [slotEndsAt]);
+
 	/** An episode needs its own seconds plus the reset. Offering one that the
 	 * clock will cut off wastes the operator's stake-backed minutes and lands
 	 * them a `slot_expired` row they did not ask for. */
@@ -83,163 +143,39 @@ export function TaskPanel(props: {
 			((task.episodeSeconds ?? 20) + (task.resetSeconds ?? 5) + 5) * 1000;
 		return slotEndsAt * 1000 - now > needMs;
 	};
-	const attempt = rig.attempt;
-	const recording = rig.record?.active === true;
 
-	// Ticks for the attempt countdown, and while the chain is armed so the
-	// progress gate below re-evaluates without a second timer.
-	const [now, setNow] = useState(() => Date.now());
-	const [autoContinue, setAutoContinue] = useState(false);
-	useEffect(() => {
-		if (!attempt?.active && !autoContinue && slotEndsAt === null) return;
-		const t = setInterval(() => setNow(Date.now()), 500);
-		return () => clearInterval(t);
-	}, [attempt?.active, autoContinue, slotEndsAt]);
+	if (active.length === 0) return null;
+	// the attempt bar under the camera has taken over — a second copy of the
+	// same controls a screen apart is how this page got confusing
+	if (attempt?.active === true) return null;
 
-	// --- the episode chain -------------------------------------------------
-	// Collecting 20 episodes is 20 attempts; without this the operator clicks
-	// Start 20 times. This panel stays mounted across an attempt, so plain
-	// component state is enough state.
-	//
-	// The chain advances on PROGRESS (a saved episode), never on "an attempt
-	// ended". A discarded attempt saves nothing, and a failed one (camera
-	// unplugged mid-session, driver crash) publishes an attemptId and then
-	// closes itself — keying the guard on attempt identity re-fired every ~9s
-	// forever, rewriting attempts.json each round. Waiting for the episode
-	// count to actually rise also removes the race at the finish line: the
-	// chain can no longer start one past the quota while the count is stale.
-	const [chainTaskId, setChainTaskId] = useState<string | null>(null);
-	const chainTask = active.find((t) => t.id === chainTaskId);
-	/** episodes collected when the chain's current attempt began */
-	const chainBase = useRef<number | null>(null);
-	/** when we started waiting for that attempt's episode to land */
-	const waitingSince = useRef<number | null>(null);
+	/**
+	 * A worklist leads with WORK. Tasks arrive in creation order, so on a rig
+	 * that has been used for a while the finished ones sit on top — three full
+	 * cards each carrying a permanently disabled `Start attempt (5/5)`, pushing
+	 * the only startable task off the bottom of the rail.
+	 */
+	const todo = active.filter((t) => !completeNow(t, progress));
+	const finished = active.filter((t) => completeNow(t, progress));
 
-	const start = (taskId: string) => {
-		const task = active.find((t) => t.id === taskId);
-		setChainTaskId(taskId);
-		chainBase.current = task ? collected(task) : 0;
-		waitingSince.current = null;
-		onStart(taskId);
-	};
-
-	// `now` (the 500ms ticker above) is deliberately a TRIGGER, not a read: the
-	// body calls Date.now() directly, so biome sees the dep as unused. Dropping it
-	// would leave the effect re-running only when an attempt/recording flag flips,
-	// and the CHAIN_WAIT_MS bail-out below would never fire — auto-continue would
-	// hang silently after an attempt that saved no episode, which is the exact
-	// failure that timeout exists to report.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `now` is a ticker that must re-run this effect so the CHAIN_WAIT_MS timeout can fire
-	useEffect(() => {
-		if (!autoContinue || !iAmDriving || chainTask === undefined) return;
-		// the recorder refuses a start while its session closes (video encoding
-		// keeps `recording` true for a beat — exactly the gate we want)
-		if (attempt?.active || recording) {
-			waitingSince.current = null;
-			return;
-		}
-		if (completeNow(chainTask)) {
-			setAutoContinue(false);
-			toast.success(`${chainTask.title} — ${keptOf(chainTask)} episodes, done`);
-			return;
-		}
-		const base = chainBase.current;
-		if (base === null) return; // nothing started through this panel yet
-		if (collected(chainTask) > base) {
-			chainBase.current = collected(chainTask);
-			waitingSince.current = null;
-			onStart(chainTask.id);
-			return;
-		}
-		// No episode yet — it may still be encoding, or the advertisement (2s
-		// rig refresh) may not have landed. Wait, but never forever: a discard
-		// or a failure never produces one.
-		waitingSince.current ??= Date.now();
-		if (Date.now() - waitingSince.current > CHAIN_WAIT_MS) {
-			waitingSince.current = null;
-			setAutoContinue(false);
-			toast.info("auto-continue stopped — the last attempt saved no episode");
-		}
-	}, [
-		autoContinue,
-		iAmDriving,
-		chainTask,
-		attempt?.active,
-		recording,
-		now,
-		onStart,
-	]);
-
-	const autoContinueToggle = (
-		<div className="flex items-center gap-2">
-			<Checkbox
-				id="auto-continue"
-				checked={autoContinue}
-				onCheckedChange={(v) => setAutoContinue(v === true)}
-			/>
-			<Label
-				htmlFor="auto-continue"
-				className="text-muted-foreground font-normal"
-			>
-				auto-start the next attempt (until the task is complete)
-			</Label>
-		</div>
-	);
-
-	if (active.length === 0 && !attempt?.active) return null;
-
-	if (attempt?.active) {
-		const elapsed = attempt.startedAt
-			? Math.max(0, (now - Date.parse(attempt.startedAt)) / 1000)
-			: 0;
-		const remaining = attempt.episodeSeconds
-			? Math.max(0, attempt.episodeSeconds - elapsed)
-			: null;
-		return (
-			<Card className="border-primary/40">
-				<CardContent className="flex flex-col gap-3">
-					<div className="flex flex-wrap items-center gap-3">
-						<Badge variant={recording ? "destructive" : "secondary"}>
-							{recording ? "● REC" : (rig.record?.phase ?? "starting…")}
-						</Badge>
-						<span className="font-medium">{attempt.taskTitle}</span>
-						<span className="font-mono text-xs text-muted-foreground">
-							{attempt.operator} ·{" "}
-							{remaining !== null ? `${remaining.toFixed(0)}s left` : ""}
-						</span>
-					</div>
-					{myAttempt ? (
-						<>
-							<div className="flex gap-2">
-								<Button
-									size="sm"
-									onClick={() => onFinish(true)}
-									disabled={busy}
-								>
-									<CheckCircle2 />
-									Success — keep episode
-								</Button>
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => onFinish(false)}
-									disabled={busy}
-								>
-									<XCircle />
-									Discard
-								</Button>
-							</div>
-							{autoContinueToggle}
-						</>
-					) : (
-						<p className="text-sm text-muted-foreground">
-							{attempt.operator} is attempting this task.
-						</p>
-					)}
-				</CardContent>
-			</Card>
-		);
-	}
+	/**
+	 * Which task's requirements are open.
+	 *
+	 * DERIVED, not synced with an effect: while something blocks starting, the
+	 * first startable task is open by default, so a gated visitor lands on "here
+	 * is the work, and here is what it takes" rather than having to discover that
+	 * clicking reveals a toll. An explicit click wins from then on.
+	 *
+	 * `CLOSED` is a sentinel rather than plain null because null means "nobody
+	 * has chosen" and falls back to that default — so closing the auto-opened
+	 * panel would spring it straight back. Closing matters: once every row is ✓
+	 * the panel is seven receipts plus the source chips.
+	 */
+	const blocked = blockedReason !== null;
+	const armed =
+		picked === CLOSED
+			? null
+			: (picked ?? (blocked ? (todo[0]?.id ?? null) : null));
 
 	return (
 		<Card>
@@ -248,22 +184,29 @@ export function TaskPanel(props: {
 					<ListTodo className="size-4 text-muted-foreground" />
 					Tasks on this rig
 				</div>
-				{active.map((task) => {
+				{subtitle}
+				{todo.map((task) => {
 					const done = collected(task);
-					const complete = completeNow(task);
 					// What the referee kept. Recorded-minus-failed rather than the
 					// raw pass count, so episodes recorded before the market existed
 					// (or while it was off) still count as data — only a verdict we
 					// actually hold, and that actually failed, subtracts.
-					const verdicts = progress?.tasks[task.id] ?? null;
-					const kept =
-						verdicts === null ? null : Math.max(0, done - verdicts.failed);
+					const kept = progress === null ? null : keptOf(task, progress);
 					return (
 						<div
 							key={task.id}
-							className="flex flex-wrap items-center justify-between gap-2 rounded border p-3"
+							className="flex flex-col gap-2 rounded border p-3"
 						>
-							<div className="min-w-0">
+							{/* The header IS the disclosure. It has to be a real button:
+							    people click buttons, not cards, and Start can no longer do
+							    double duty as the opener now that it is properly disabled
+							    while anything is unmet. */}
+							<button
+								type="button"
+								className="min-w-0 text-left"
+								aria-expanded={armed === task.id}
+								onClick={() => setPicked(armed === task.id ? CLOSED : task.id)}
+							>
 								<div className="font-medium">{task.title}</div>
 								<div className="text-sm text-muted-foreground">
 									{task.instructions}
@@ -272,7 +215,7 @@ export function TaskPanel(props: {
 									{task.repoName} · {task.episodeSeconds}s episode
 								</div>
 								{task.maxEpisodes !== null ? (
-									<div className="mt-2 flex items-center gap-2">
+									<div className="mt-2 flex flex-wrap items-center gap-2">
 										{/* The bar tracks what the dataset will actually SHIP —
 										    failed episodes are dropped at publish, so counting
 										    them here would promise data that never arrives. */}
@@ -303,21 +246,23 @@ export function TaskPanel(props: {
 											: ""}
 									</div>
 								)}
-							</div>
-							<div className="flex items-center gap-2">
-								{/* the rig hard-blocks a start past the quota too — this is
-								    just honest UI */}
-								{complete && (
-									<StatusBadge tone="success">complete ✓</StatusBadge>
-								)}
+							</button>
+
+							{armed === task.id && renderRequirements?.(task)}
+
+							{/* ALWAYS LAST, and purely terminal. It used to sit above the
+							    requirements and double as their opener, which meant that on
+							    the already-open task it re-set the same id and did nothing —
+							    a button that looked live and wasn't. Now it only ever starts
+							    an attempt, and says why it can't when it can't. */}
+							<div className="flex justify-end border-t pt-2">
 								<Button
 									size="sm"
-									onClick={() => start(task.id)}
+									onClick={() => onStart(task.id)}
 									disabled={
 										blockedReason !== null ||
 										recording ||
 										busy ||
-										complete ||
 										!fitsInSlot(task)
 									}
 									title={
@@ -336,10 +281,27 @@ export function TaskPanel(props: {
 						</div>
 					);
 				})}
-				{/* also here, not just on the active-attempt card: between attempts
-				    that card is unmounted, and a chain you cannot switch off is
-				    worse than one you have to re-arm. */}
-				{chainTaskId !== null && iAmDriving && autoContinueToggle}
+
+				{finished.length > 0 && (
+					<CompleteFold tasks={finished} progress={progress} />
+				)}
+				{/* between attempts the bar is unmounted, and a chain you cannot
+				    switch off is worse than one you have to re-arm */}
+				{chainTaskId !== null && iAmDriving && (
+					<div className="flex items-center gap-2">
+						<Checkbox
+							id="auto-continue-list"
+							checked={autoContinue}
+							onCheckedChange={(v) => onAutoContinue(v === true)}
+						/>
+						<Label
+							htmlFor="auto-continue-list"
+							className="font-normal text-muted-foreground"
+						>
+							auto-start the next attempt (until the task is complete)
+						</Label>
+					</div>
+				)}
 			</CardContent>
 		</Card>
 	);

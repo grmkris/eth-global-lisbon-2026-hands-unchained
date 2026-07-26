@@ -55,8 +55,13 @@ import type { SlotView } from "#/market/zg-slots";
 const ABANDON_MS = 35_000;
 /** Worst-case wait after attempt_finish before grading a success claim —
  * the episode save lands late (video encoding). The fast path grades the
- * moment the sampler sees the save. */
-const GRADE_GRACE_MS = 15_000;
+ * moment the sampler sees the save.
+ *
+ * Must OUTLAST the rig's own measurement: `awaitEpisodeMotion` polls for 20s
+ * before giving up, so a 15s grace could hand the referee "no episode" while
+ * the rig was still reading the parquet — the grader deciding an attempt was
+ * fraudulent before the evidence had finished arriving. */
+const GRADE_GRACE_MS = 25_000;
 /** Stake comes back after this long with nothing in flight. */
 const STAKE_IDLE_MS = 5 * 60_000;
 

@@ -5,20 +5,34 @@ import {
 	HeadContent,
 	Link,
 	Scripts,
+	useMatches,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { ExternalLink } from "lucide-react";
 
 import { HandMark } from "#/components/logo";
 import { ShellStatus } from "#/components/shell-status";
 import { ThemeToggle } from "#/components/theme-toggle";
 import { Toaster } from "#/components/ui/sonner";
+import { WalletBadge } from "#/components/wallet-badge";
+import { cn } from "#/lib/utils";
 // Imported through Vite so it lands in /assets/* — the only path server.ts
 // serves statically in production. A public/ dir would 404 there.
 import faviconUrl from "../logo-mark.svg?url";
 import appCss from "../styles.css?url";
 
 const queryClient = new QueryClient();
+
+/**
+ * `wide` opts a route out of the reading-width column. Exactly one page wants
+ * it: the drive cockpit, where the camera IS the interface and 1024px makes it
+ * a stamp. Everything else stays narrow on purpose — a table of datasets read
+ * across 1600px is worse, not better.
+ */
+declare module "@tanstack/react-router" {
+	interface StaticDataRouteOption {
+		wide?: boolean;
+	}
+}
 
 export const Route = createRootRoute({
 	head: () => ({
@@ -75,6 +89,7 @@ function Nav() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+	const wide = useMatches().some((m) => m.staticData.wide === true);
 	return (
 		<html lang="en" className="dark" suppressHydrationWarning>
 			<head>
@@ -96,21 +111,23 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 							Proof of Hands
 						</Link>
 						<Nav />
+						{/* Identity, then health, then preference — what this browser IS
+						    connected to, on every page. `/api/docs` still serves; it was a
+						    developer bookmark taking nav weight from the wallet. */}
 						<div className="ml-auto flex items-center gap-3">
+							<WalletBadge />
 							<ShellStatus />
-							<a
-								href="/api/docs"
-								className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
-								target="_blank"
-								rel="noreferrer"
-							>
-								API docs
-								<ExternalLink className="size-3" />
-							</a>
 							<ThemeToggle />
 						</div>
 					</nav>
-					<main className="mx-auto w-full max-w-5xl px-6 py-8">{children}</main>
+					<main
+						className={cn(
+							"mx-auto w-full px-6 py-8",
+							wide ? "max-w-[1600px]" : "max-w-5xl",
+						)}
+					>
+						{children}
+					</main>
 					<Toaster position="bottom-center" />
 				</QueryClientProvider>
 				{import.meta.env.DEV && (

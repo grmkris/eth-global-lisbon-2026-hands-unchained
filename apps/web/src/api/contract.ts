@@ -202,7 +202,10 @@ export class CameraStatus extends Schema.Class<CameraStatus>("CameraStatus")(
 		mapping: CameraMapping,
 		brightnessBand: Schema.Struct({ min: Schema.Number, max: Schema.Number }),
 		/** indexes the owner turned off — never opened, never advertised. The
-		 * only record they exist: a disabled camera is not in `previewing`. */
+		 * only record they exist: a disabled camera is not in `previewing`.
+		 * Filtered to RIG.cams (LAB_CAMS): an index outside the allowlist is not
+		 * "hidden" but ineligible, and listing it would offer the owner a `show`
+		 * button that cannot work. The persisted set keeps it either way. */
 		disabled: Schema.Array(Schema.Number),
 	}),
 ) {}

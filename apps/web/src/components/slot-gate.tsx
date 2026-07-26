@@ -4,7 +4,6 @@ import {
 	ExternalLink,
 	KeyRound,
 	Loader2,
-	ShieldCheck,
 	Undo2,
 	Wallet,
 } from "lucide-react";
@@ -13,10 +12,10 @@ import { toast } from "sonner";
 import { SlotTimer } from "#/components/slot-timer";
 import { StatusBadge } from "#/components/status-badge";
 import { Button } from "#/components/ui/button";
-import { Card, CardContent } from "#/components/ui/card";
 import { Label } from "#/components/ui/label";
 import { WorldStep } from "#/components/world-step";
 import { clientId } from "#/lib/hub-api";
+import type { Requirement } from "#/lib/use-start-requirements";
 import { shortAddress } from "#/market/chain";
 import type {
 	MarketSessionInfo,
@@ -27,35 +26,68 @@ import { noteBooked, noteSettled, unlockSlot } from "#/market/market-api";
 import { useWallet } from "#/market/use-wallet";
 import { bookSlot, cancelSlot } from "#/market/zg-wallet";
 
-function Step({
-	n,
-	title,
-	done,
+/**
+ * One line of "what stands between you and starting this task".
+ *
+ * Three states, three weights: a requirement you have met is a ✓ receipt, the
+ * first one you have not is the only one that gets its remedy rendered under
+ * it, and anything after that is dimmed — solving them in order is the only
+ * order that works, so offering the fourth fix while the second is unmet is
+ * just noise.
+ *
+ * This is the shape the old three-step numbered wizard was reaching for. It is
+ * no longer a wizard: staking and verifying are two rows of a checklist that
+ * also contains "the arm is connected" and "pick how you'll drive".
+ */
+function RequirementRow({
+	req,
+	active,
+	showRemedy,
 	children,
 }: {
-	n: number;
-	title: string;
-	done: boolean;
-	children: React.ReactNode;
+	req: Requirement;
+	/** the first unmet one — normally the only row that renders a remedy */
+	active: boolean;
+	/** `source` overrides that: switching keyboard ↔ leader is something you do
+	 * repeatedly inside a slot, so its control survives being satisfied */
+	showRemedy: boolean;
+	children?: React.ReactNode;
 }) {
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="flex items-center gap-2 font-medium text-sm">
+		<div className="flex items-start gap-2 text-sm">
+			<span
+				className={req.met ? "text-success" : "text-muted-foreground"}
+				aria-hidden="true"
+			>
+				{req.met ? "✓" : "○"}
+			</span>
+			<div className="flex min-w-0 flex-1 flex-col gap-2">
 				<span
-					className={`flex size-5 items-center justify-center rounded-full text-xs ${
-						done
-							? "bg-success/15 text-success"
-							: "bg-muted text-muted-foreground"
-					}`}
+					className={
+						req.met
+							? "text-muted-foreground"
+							: active
+								? "font-medium"
+								: "text-muted-foreground/60"
+					}
 				>
-					{done ? "✓" : n}
+					{req.label}
 				</span>
-				{title}
+				{showRemedy && children}
 			</div>
-			<div className="pl-7">{children}</div>
 		</div>
 	);
 }
+
+/** Requirements nobody can act on from here still deserve a sentence saying
+ * whose job it is, rather than a checkbox that just sits there unticked.
+ * `source` is absent on purpose — it has a real control now, not a pointer. */
+const POINTER: Partial<Record<Requirement["key"], string>> = {
+	online: "the rig has to reconnect to the hub — nothing to do here",
+	armConnected: "connect it from the chips below",
+	cameras: "the rig owner assigns workspace/wrist in the Rig owner panel",
+	lease: "someone else is driving; picking a source takes over",
+};
 
 /**
  * THE FALLBACK, not the happy path.
@@ -146,19 +178,30 @@ const PHASE_LABEL: Partial<Record<BookPhase, string>> = {
  * The gate between watching and driving: prove you're human, then stake and
  * start driving.
  */
-export function SlotGate({
+export function StartRequirements({
 	rig,
 	session,
 	slots,
 	info,
+	requirements,
+	sourcePicker,
 }: {
 	rig: string;
-	session: MarketSessionInfo;
-	/** null when this hub has no slot market wired. The gate still renders —
-	 * it must, or a blocked operator sees an error with nothing to click,
-	 * which is exactly what used to happen. */
+	/** null on a hub with MARKET_MODE off. The `verified` and `staked` rows are
+	 * auto-met there so neither remedy renders, but this panel must still mount:
+	 * it hosts the source picker, which every hub needs. */
+	session: MarketSessionInfo | null;
+	/** null when this hub has no slot market wired. It still renders — it must,
+	 * or a blocked operator sees an error with nothing to click, which is
+	 * exactly what used to happen. */
 	slots: SlotsConfig | null;
 	info: RigSlotInfo | null;
+	/** everything between this operator and one recorded episode, in order */
+	requirements: ReadonlyArray<Requirement>;
+	/** the remedy for `pick how you'll drive`. Injected rather than imported, so
+	 * this file still knows nothing about teleop — same layering as TaskPanel's
+	 * `renderRequirements`. */
+	sourcePicker?: React.ReactNode;
 }) {
 	const queryClient = useQueryClient();
 	const [busy, setBusy] = useState(false);
@@ -186,7 +229,7 @@ export function SlotGate({
 	 */
 	const wallet = useWallet();
 	const walletAddress = wallet.address;
-	const bound = (session.boundAddress ?? null) as `0x${string}` | null;
+	const bound = (session?.boundAddress ?? null) as `0x${string}` | null;
 	const address = bound ?? walletAddress;
 	/** They reconnected on a different account than the one they verified with.
 	 * Silence here means a booking that succeeds and an unlock that 403s. */
@@ -200,15 +243,13 @@ export function SlotGate({
 	const [chainKey, setChainKey] = useState(() => slots?.chains[0]?.key ?? "0g");
 	const chosen =
 		slots?.chains.find((c) => c.key === chainKey) ?? slots?.chains[0] ?? null;
-	const verified = session.verified;
+	const verified = session?.verified === true;
 	const stakeOg = chosen?.params?.minStakeOg ?? 0;
-	const rewardOg = chosen?.params?.rewardPerEpisodeOg ?? 0;
 	const token = chosen?.token ?? "OG";
 	const minutes = Math.round((chosen?.params?.slotSeconds ?? 1800) / 60);
 
 	const pending = info?.pending ?? null;
 	const live = info?.live ?? null;
-	const needsUnlock = (pending ?? live) !== null;
 
 	/**
 	 * Your own place in the line, when the arm is someone else's.
@@ -400,138 +441,179 @@ export function SlotGate({
 		</div>
 	);
 
-	// No width cap of its own any more: this is the rail's content on the drive
-	// page, and it should fill whatever column it is handed.
-	return (
-		<Card className="w-full">
-			<CardContent className="flex flex-col gap-5">
-				<div className="flex items-center gap-2 font-medium">
-					<ShieldCheck className="size-4 text-muted-foreground" />
-					Verified humans only — with skin in the game
-				</div>
-				<p className="text-muted-foreground text-sm">
-					This is a real robot arm. Prove you're a unique adult human (18+),
-					then stake {stakeOg} {token} of your own and drive — your {minutes}{" "}
-					minutes begin the moment the stake lands. Every episode you record is
-					graded on its own by a referee running in a TEE on 0G; each pass pays
-					you {rewardOg} {token}. Claim success you didn't earn three times and
-					the whole stake is slashed.
-				</p>
-
-				{/* Wallet FIRST: the address is the identity everything else hangs
-				    off — the World proof is signed against it, the stake comes from
-				    it, and the payout goes back to it. */}
-				<Step n={1} title="Connect your wallet" done={address !== null}>
-					{address !== null ? (
-						<div className="flex flex-col gap-1.5">
+	/**
+	 * The remedy for the `staked` requirement. Body unchanged from when this was
+	 * step 3 of a wizard — the live/queue/pending/book branches and the
+	 * two-writes-one-button narration are load-bearing and stay exactly as they
+	 * were; only where they render has moved.
+	 */
+	const stakeRemedy = (
+		<>
+			{slots === null ? (
+				<span className="text-muted-foreground text-sm">
+					Booking isn't configured on this hub yet — ask whoever deployed it to
+					set ZG_SLOT_MARKET_ADDRESS.
+				</span>
+			) : !verified ? (
+				<span className="text-muted-foreground text-sm">verify first</span>
+			) : live !== null ? (
+				<div className="flex flex-col gap-3">
+					<span className="flex items-center gap-2 text-sm">
+						<StatusBadge tone="warn">in use</StatusBadge>
+						<span className="font-mono text-muted-foreground">
+							{shortAddress(live.operator)}
+						</span>
+						<SlotTimer endAt={live.endAt} label="left" />
+					</span>
+					{myQueued !== null ? (
+						<div className="flex flex-col gap-1">
 							<span className="flex items-center gap-2 text-sm">
-								<StatusBadge tone="success">
-									{bound !== null ? "verified wallet" : "connected"}
+								<StatusBadge tone="info">
+									{myQueued.position <= 1
+										? "you're next"
+										: `${myQueued.position - 1} ahead of you`}
 								</StatusBadge>
-								<span className="font-mono text-muted-foreground">
-									{shortAddress(address)}
+								<span className="text-muted-foreground">
+									yours in about {waitMinutes(myQueued.position)} min
 								</span>
 							</span>
-							{mismatch && (
-								<span className="text-warn text-xs">
-									Your wallet is on {shortAddress(walletAddress ?? "")} but you
-									proved World ID on {shortAddress(bound ?? "")}. Switch back to
-									that account, or verify again on this one — the arm only opens
-									for the wallet that booked it.
-								</span>
-							)}
+							<p className="text-muted-foreground text-xs">
+								Your stake is already down. Nothing to watch for — the clock
+								only starts when you take control, and a head that never shows
+								up is skipped automatically.
+							</p>
 						</div>
-					) : !wallet.available ? (
-						<span className="text-muted-foreground text-sm">
-							No wallet detected — install MetaMask on this device.
-						</span>
 					) : (
-						<Button
-							size="sm"
-							onClick={() => wallet.connect(chainKey)}
-							disabled={wallet.connecting}
-						>
-							<Wallet />
-							{wallet.connecting ? "connecting…" : "Connect wallet"}
-						</Button>
-					)}
-				</Step>
-
-				{/* done = verified AND bound. A session with no address passes every
-				    gate up to the unlock and then fails there, so ticking this on
-				    `verified` alone sends people to a 409 with a green check. */}
-				<Step
-					n={2}
-					title="Prove you're human"
-					done={verified && bound !== null}
-				>
-					<WorldStep session={session} address={address} />
-				</Step>
-
-				<Step n={3} title={`Stake & drive · ${minutes} min`} done={needsUnlock}>
-					{slots === null ? (
-						<span className="text-muted-foreground text-sm">
-							Booking isn't configured on this hub yet — ask whoever deployed it
-							to set ZG_SLOT_MARKET_ADDRESS.
-						</span>
-					) : !verified ? (
-						<span className="text-muted-foreground text-sm">verify first</span>
-					) : live !== null ? (
-						<div className="flex flex-col gap-3">
-							<span className="flex items-center gap-2 text-sm">
-								<StatusBadge tone="warn">in use</StatusBadge>
-								<span className="font-mono text-muted-foreground">
-									{shortAddress(live.operator)}
-								</span>
-								<SlotTimer endAt={live.endAt} label="left" />
-							</span>
-							{myQueued !== null ? (
-								<div className="flex flex-col gap-1">
-									<span className="flex items-center gap-2 text-sm">
-										<StatusBadge tone="info">
-											{myQueued.position <= 1
-												? "you're next"
-												: `${myQueued.position - 1} ahead of you`}
-										</StatusBadge>
-										<span className="text-muted-foreground">
-											yours in about {waitMinutes(myQueued.position)} min
-										</span>
-									</span>
-									<p className="text-muted-foreground text-xs">
-										Your stake is already down. Nothing to watch for — the clock
-										only starts when you take control, and a head that never
-										shows up is skipped automatically.
-									</p>
-								</div>
-							) : (
-								/* Booking while someone else drives — a FIFO queue the
+						/* Booking while someone else drives — a FIFO queue the
 								   contract always supported and nothing ever offered. */
-								bookBlock(`Join the queue · ${stakeOg} ${token}`)
-							)}
-							<SlotUnlock rig={rig} slotId={live.slotId} mine={false} />
-						</div>
-					) : pending !== null ? (
-						<div className="flex flex-col gap-2">
-							<SlotUnlock rig={rig} slotId={pending.slotId} mine={true} />
-							{/* The 409 on a cross-chain double-booking already tells the
+						bookBlock(`Join the queue · ${stakeOg} ${token}`)
+					)}
+					<SlotUnlock rig={rig} slotId={live.slotId} mine={false} />
+				</div>
+			) : pending !== null ? (
+				<div className="flex flex-col gap-2">
+					<SlotUnlock rig={rig} slotId={pending.slotId} mine={true} />
+					{/* The 409 on a cross-chain double-booking already tells the
 							    operator to "cancel for a refund" — this is the thing it
 							    was telling them to press. */}
-							<Button
-								size="sm"
-								variant="ghost"
-								className="self-start text-muted-foreground"
-								onClick={() => void doCancel()}
-								disabled={inFlight || pending.contract === null}
-							>
-								<Undo2 />
-								Cancel booking · full refund
-							</Button>
-						</div>
-					) : (
-						bookBlock(`Stake ${stakeOg} ${token} & drive`)
-					)}
-				</Step>
-			</CardContent>
-		</Card>
+					<Button
+						size="sm"
+						variant="ghost"
+						className="self-start text-muted-foreground"
+						onClick={() => void doCancel()}
+						disabled={inFlight || pending.contract === null}
+					>
+						<Undo2 />
+						Cancel booking · full refund
+					</Button>
+				</div>
+			) : (
+				bookBlock(`Stake ${stakeOg} ${token} & start`)
+			)}
+		</>
+	);
+
+	/**
+	 * The remedy for `verified`. WorldStep already renders its own one-line
+	 * "verified · World ID … · bound to your wallet" when it is satisfied, so the
+	 * met row carries that instead of a bare label.
+	 *
+	 * Connecting lives HERE rather than above the list, because it is not a
+	 * requirement of its own — it is a precondition of this one. The World proof
+	 * is signed against the address, so without a wallet WorldStep can only say
+	 * "connect first", and the button that does it belongs in the same place as
+	 * that sentence. Once connected it vanishes: the nav badge shows the address.
+	 */
+	const verifiedRemedy = (
+		<>
+			{address === null &&
+				(!wallet.available ? (
+					<span className="text-muted-foreground text-sm">
+						No wallet detected — install MetaMask on this device.
+					</span>
+				) : (
+					<Button
+						size="sm"
+						className="self-start"
+						onClick={() => wallet.connect(chainKey)}
+						disabled={wallet.connecting}
+					>
+						<Wallet />
+						{wallet.connecting ? "connecting…" : "Connect wallet"}
+					</Button>
+				))}
+			{session !== null && <WorldStep session={session} address={address} />}
+		</>
+	);
+
+	// the first unmet requirement is the only one that gets a remedy: they have
+	// to be solved in order, so offering the fourth fix while the second is open
+	// is noise
+	const firstUnmet = requirements.find((r) => !r.met) ?? null;
+
+	return (
+		<div className="flex flex-col gap-3 border-t pt-3">
+			<div className="text-muted-foreground text-xs">
+				to start this you need:
+			</div>
+
+			{/* Lifted OUT of the wallet step, which no longer renders in the state
+			    that produces this: connected, but on a different account than the
+			    World proof was signed against. Silence here means a stake that
+			    succeeds and an arm that never opens. */}
+			{mismatch && (
+				<p className="text-warn text-xs">
+					Your wallet is on {shortAddress(walletAddress ?? "")} but you proved
+					World ID on {shortAddress(bound ?? "")}. Switch back to that account,
+					or verify again on this one — the arm only opens for the wallet that
+					staked.
+				</p>
+			)}
+
+			{requirements.map((req) => (
+				<RequirementRow
+					key={req.key}
+					req={req}
+					active={firstUnmet?.key === req.key}
+					// the source chips outlive being satisfied — everything else is a
+					// fix you only need while it is still broken
+					showRemedy={firstUnmet?.key === req.key || req.key === "source"}
+				>
+					{req.key === "verified" ? (
+						verifiedRemedy
+					) : req.key === "staked" ? (
+						stakeRemedy
+					) : req.key === "source" ? (
+						sourcePicker
+					) : POINTER[req.key] ? (
+						<span className="text-muted-foreground text-xs">
+							{POINTER[req.key]}
+						</span>
+					) : null}
+				</RequirementRow>
+			))}
+		</div>
+	);
+}
+
+/**
+ * The terms, as facts rather than a paragraph — the price of everything in the
+ * worklist, so it sits in that card's header rather than inside one task's
+ * requirements. What you are deciding with is four numbers; the mechanism (a
+ * TEE referee on 0G) is not a thing anyone weighs at the turnstile.
+ *
+ * The slashing clause stays on screen. It is the risk being accepted, and it
+ * does not go behind a fold or a click.
+ */
+export function SlotTerms({ slots }: { slots: SlotsConfig | null }) {
+	const c = slots?.chains[0];
+	if (!c) return null;
+	return (
+		<p className="font-mono text-muted-foreground text-xs">
+			{c.params?.minStakeOg ?? 0} {c.token} ·{" "}
+			{Math.round((c.params?.slotSeconds ?? 1800) / 60)} min · +
+			{c.params?.rewardPerEpisodeOg ?? 0} {c.token} per pass ·{" "}
+			{c.params?.maxStrikes ?? 3} false claims → stake slashed
+		</p>
 	);
 }
