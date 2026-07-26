@@ -1,5 +1,9 @@
 # AVP Isaac Leader
 
+![Through the Vision Pro: the orange virtual leader arm hovering beside the
+real booth table, the control panel with camera feeds, and the operator's hand
+mid-pinch](../../docs/images/avp-virtual-leader.jpg)
+
 Native visionOS client for Hands Unchained. It registers directly with the hub
 as a leader input device: the web operator retains the rig lease and selects
 this leader from the rig page. The app has no serial-port dependency and does

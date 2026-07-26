@@ -18,6 +18,7 @@ OUT = HERE / "images"
 
 # id -> the slot's box on the 1920x1080 stage; output is 2x the box.
 SLOTS = {
+    "photo-chess": (936, 1080),
     "photo-arm-loop": (936, 1080),
     "photo-rig": (816, 696),
     "photo-arm-bleed": (1920, 1080),

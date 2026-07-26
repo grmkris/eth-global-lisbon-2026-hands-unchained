@@ -21,9 +21,9 @@ network deadman. Plain HTTP end to end: curl-debuggable, no WebRTC, no SDKs.
 ## The rig, on the floor at Lisbon
 
 <p align="center">
-  <img src="presentation/workspace/rig-1.jpg" alt="The SO-101 over its peg-board task" width="30%" />
-  <img src="presentation/workspace/rig-2.jpg" alt="The arm mid-task, gripper above the board" width="30%" />
-  <img src="presentation/workspace/rig-3.jpg" alt="The whole bench in the hall, camera on its stand" width="30%" />
+  <img src="docs/images/rig-board-top.jpg" alt="The SO-101 over its peg-board task" width="30%" />
+  <img src="docs/images/rig-gripper-mid-task.jpg" alt="The arm mid-task, gripper above the board" width="30%" />
+  <img src="docs/images/rig-bench-hall.jpg" alt="The whole bench in the hall, camera on its stand" width="30%" />
 </p>
 
 Not a render: this is the actual follower arm, the peg board it picks from, the
@@ -53,7 +53,7 @@ apart and neither can the driving code.
 
 ![The lobby listing two rigs side by side, kris-arm and kris-sim, each with a
 live camera preview, link latency, its task list and a Book 30 min
-button](docs/images/lobby.png)
+button](docs/images/lobby.jpg)
 
 **Getting access.** The drive page asks for exactly what is missing and nothing
 else, one step at a time — prove you're a unique human, then put money on it.
@@ -62,18 +62,28 @@ same three strikes either way.
 
 ![The drive page with the live camera feed on the left and, on the right, a
 single active step reading verify with World ID above two dimmed
-steps](docs/images/drive-verify.png)
+steps](docs/images/drive-verify.jpg)
 
 ![The same page one step later: World ID now ticked, the stake step active with
 an OG / HBAR toggle and a Stake 0.05 OG and start
-button](docs/images/drive-stake.png)
+button](docs/images/drive-stake.jpg)
 
 **Driving.** The clock runs, the stake is down, and every episode is graded on
 its own by a referee in a TEE — the verdict lands about a minute later.
 
 ![The drive page mid-slot: 28:34 left, 0.5 HBAR staked, an episode being graded
 with the caption 0G referee deliberating, and the operator driving via a remote
-leader arm](docs/images/drive-slot-live.png)
+leader arm](docs/images/drive-slot-live.jpg)
+
+**The operator's side, on a Vision Pro.** The native visionOS leader
+(`apps/avp-client`) through the operator's own eyes: the virtual leader arm
+floats next to the real bench, pinch-and-drag poses it, and the rig's camera
+feeds ride along in the panel. No Mac gateway, no serial cable — the headset
+talks straight to the hub.
+
+![Through the Vision Pro: the orange virtual leader arm hovering beside the
+real booth table, the Virtual Isaac Leader control panel with camera feeds,
+and the operator's hand mid-pinch](docs/images/avp-virtual-leader.jpg)
 
 ## Layout
 

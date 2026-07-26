@@ -69,6 +69,28 @@ type Shot = {
 const SHOTS: readonly Shot[] = [
   {
     aspectRatio: "4:5",
+    box: "936×1080 (half-bleed mirror, right half, full stage height)",
+    id: "photo-chess",
+    slide: "02 · Teach this arm to play chess",
+    prompt: `
+A tight vertical shot of the SO-101 arm at a home desk, poised over a wooden
+chessboard mid-game. The gripper hangs open directly above a single knight,
+a few centimetres from closing on it — the pieces beside the knight stand
+untouched and dangerously close, which is the whole drama of the frame. The
+board is a plain wooden tournament-style chessboard with simple Staunton
+pieces, no lettering or coordinates visible on the frame edge. Shot from a low
+angle across the board so the knight, the open gripper and the arm's
+bracket-and-servo stack rise in a diagonal, sharp from the board surface up
+through the gripper; the room behind — a dim home study, a dark bookshelf —
+falls away into soft bokeh. Bright pieces and arm against a dark ground.
+
+${ARM}
+
+${STYLE}
+`.trim(),
+  },
+  {
+    aspectRatio: "4:5",
     box: "936×1080 (half-bleed, left half, full stage height)",
     id: "photo-arm-loop",
     slide: "04 · The loop we ship",

@@ -11,16 +11,24 @@ The deck itself lives in Claude Design:
 photos were wired in — same relative `./images/…` paths as the design project,
 so the two stay interchangeable. Edit the deck in Claude Design, not here.
 
-## The three slots
+## The four slots
 
-The deck had three empty `<image-slot>` placeholders. Each now carries a
-`src` pointing into `images/`:
+The deck's `<image-slot>` placeholders each carry a `src` pointing into
+`images/`:
 
 | slot id | slide | box on the 1920×1080 stage |
 |---|---|---|
-| `photo-arm-loop` | 04 · The loop we ship | 936×1080 — half-bleed, left half |
-| `photo-rig` | 05 · Plain HTTP, end to end | 816×696 — split, right column |
+| `photo-chess` | 02 · Teach this arm to play chess | 936×1080 — half-bleed mirror, right half |
+| `photo-arm-loop` | 05 · The loop we ship | 936×1080 — half-bleed, left half |
 | `photo-arm-bleed` | 06 · One arm, many hands | 1920×1080 — full bleed |
+| `photo-rig` | 09 · The gate is a person | 816×696 — split, right column |
+
+All slots except `photo-chess` now hold real booth photographs (see below).
+`images/photo-chess.jpg` is still a generated stand-in (the old generated
+arm-loop frame) so the slide never presents an empty slot. Generate the real
+frame (`gen-images.ts --only=photo-chess`, then `optimize.py`) or drop a real
+photo of the arm at a chessboard onto the slot in Claude Design — that photo
+is the opening beat of the whole pitch, so a real one beats a generated one.
 
 A slot's `src` is a *fallback*: dragging a real photo onto the slot in Claude
 Design still overrides it. So when we have actual bench photos of the rig,
@@ -89,17 +97,21 @@ out of it for free, and three broke:
 All three are fixed in a "dark-ground corrections" block at the end of the
 stylesheet rather than in place, so the original rules still read as written.
 
-## The workspace photos
+## The booth photos are real now
 
-`workspace/` holds real photographs of the rig on the floor at Lisbon,
-converted from the iPhone HEICs (`heif-convert`, then resized to 1600px / q82 —
-GitHub will not render HEIC). These are the genuine article: the follower arm,
-the peg board it picks from, the overhead camera, and the hall.
+The three photo slots (`photo-arm-loop`, `photo-rig`, `photo-arm-bleed`) carry
+**real photographs of the rig on the floor at Lisbon**, converted upright from
+the iPhone HEICs into `originals/` and run through `optimize.py` like any other
+frame. The bleed original is pre-cropped to a 16:9 band (arm, board, overhead
+camera, the hall behind) so the copy's scrim lands on the dark mat.
 
-Worth doing and not yet done: the deck's three `<image-slot>`s still carry
-*generated* stand-ins. A real photo dropped onto a slot in Claude Design
-overrides its `src` with no code change, so swapping them is free and would be
-a real upgrade for a hardware demo.
+The README-strip versions of the same photos (1600px / q82 — GitHub will not
+render HEIC) live in `docs/images/` next to the app screenshots:
+`rig-board-top.jpg`, `rig-gripper-mid-task.jpg`, `rig-bench-hall.jpg`.
+
+⚠️ `gen-images.ts --force` would overwrite the real originals with generated
+frames. Only `photo-chess` remains generated — regenerate that one with
+`--only=photo-chess`, never with `--force`.
 
 ## Regenerating
 
